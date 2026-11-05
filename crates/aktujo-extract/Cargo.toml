@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "aktujo-extract"
+description = "Text with its position from PDFs and images – text layer and OCR behind one trait, for aktujo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["ocr", "pdf", "text-extraction", "tesseract", "aktujo"]
+categories = ["text-processing", "multimedia::images"]
+publish.workspace = true
+
+[dependencies]
+aktujo-base.workspace = true
+thiserror.workspace = true
+
+[features]
+# The programs notenwart uses today: pdftotext and pdftoppm (poppler-utils) and Tesseract, found at run time.
+external = []
+
+[lints]
+workspace = true

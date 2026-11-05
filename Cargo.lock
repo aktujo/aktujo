@@ -114,6 +114,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "aktujo-doc"
+version = "0.1.0"
+dependencies = [
+ "aktujo-base",
+ "aktujo-log",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "aktujo-extract"
+version = "0.1.0"
+dependencies = [
+ "aktujo-base",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "aktujo-log"
 version = "0.1.0"
 dependencies = [

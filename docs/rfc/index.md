@@ -12,3 +12,4 @@ accepted when the code follows it. Later decisions may replace earlier ones; not
 | Number | Title | State |
 |---|---|---|
 | [0001](0001-architecture.md) | Architecture: the core and the program | draft |
+| [0002](0002-documents.md) | Documents: what a document is and how text is read from it | draft |

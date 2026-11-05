@@ -10,8 +10,8 @@ layer, OCR, e-invoices), label, version, keep, find, share, workflows (A approve
 any storage, an event log with sync, end-to-end encryption, relay). It runs from one computer to Kubernetes
 (PostgreSQL, S3, an operator). The plan is in the whitepaper (`aktujo/whitepaper`).
 
-- **Licences:** the core (`aktujo-base`, `-blob`, `-log`, `-crypt`, `-store`, `-relay`, `-sync`) MIT; the program (domain,
-  app, API, TUI, command line, web) AGPL-3.0-or-later.
+- **Licences:** the core (`aktujo-base`, `-blob`, `-log`, `-crypt`, `-store`, `-relay`, `-sync`) and the document crates
+  (`aktujo-doc`, `-extract`) MIT; the program (domain, app, API, TUI, command line, web) AGPL-3.0-or-later.
 - The core implements the mechanisms of the open protocol librotenado (events, encryption) in general form; it does
   not depend on the librotenado crate, and librotenado's specification never depends on aktujo.
 - The architecture is `docs/rfc/0001-architecture.md`; a decision that changes it gets a new document in `docs/rfc/`.
@@ -27,6 +27,8 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 | `crates/aktujo-store` | core, MIT: SQLite – events, member records, settings (OPEN: PostgreSQL) |
 | `crates/aktujo-relay` | core, MIT: the relay over HTTP (axum) |
 | `crates/aktujo-sync` | core, MIT: a device's replica; sync through a relay (ureq), invitations, removal, recovery |
+| `crates/aktujo-doc` | documents, MIT: versions, kinds, fields suggested and confirmed, labels – as events; no I/O |
+| `crates/aktujo-extract` | documents, MIT: text with positions from PDFs and images; backend `external` (pdftotext, Tesseract) |
 | `crates/aktujo-core` | the domain – types and rules, no I/O |
 | `crates/aktujo-app` | the workspace: every command and query; the **only** layer the interfaces use |
 | `crates/aktujo-api` | HTTP/JSON with axum, described in OpenAPI by utoipa; serves the embedded web app |
@@ -40,13 +42,14 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 
 - **Everything included:** one edition, every feature free; no paid tiers, licence keys or unlocks.
 - **No telemetry.** Only connections that are technically needed or that users start themselves.
-- **The core knows no documents:** crates of the core never depend on crates of the program.
+- **The core knows no documents:** crates of the core never depend on the document crates or the program; the
+  document crates (`docs/rfc/0002-documents.md`) depend on the core, never on the program.
 - **One workspace, many interfaces:** TUI, API and CLI go through `aktujo-app`; the web app and apps only through the
   API, which is also the licence boundary for apps under other licences.
 
 ## Licences
 
-- The core MIT, everything else **AGPL-3.0-or-later** – an SPDX header in every own source file and `Cargo.toml`;
+- The core and the document crates MIT, everything else **AGPL-3.0-or-later** – an SPDX header in every own source file and `Cargo.toml`;
   REUSE checked in CI.
 - `docs/assets/` and `web/public/favicon.svg` are copies from `aktujo/brand` under CC BY-ND 4.0 – update them by copying, never edit them here.
 - Code taken over from elsewhere keeps its licence and names its origin (librotenado: MIT).

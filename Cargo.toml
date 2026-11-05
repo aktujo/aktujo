@@ -21,6 +21,8 @@ aktujo-app = { path = "crates/aktujo-app" }
 aktujo-base = { path = "crates/aktujo-base", version = "0.1.0" }
 aktujo-blob = { path = "crates/aktujo-blob", version = "0.1.0" }
 aktujo-crypt = { path = "crates/aktujo-crypt", version = "0.1.0" }
+aktujo-doc = { path = "crates/aktujo-doc", version = "0.1.0" }
+aktujo-extract = { path = "crates/aktujo-extract", version = "0.1.0" }
 aktujo-log = { path = "crates/aktujo-log", version = "0.1.0" }
 aktujo-relay = { path = "crates/aktujo-relay", version = "0.1.0" }
 aktujo-core = { path = "crates/aktujo-core" }

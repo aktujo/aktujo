@@ -91,6 +91,25 @@ impl fmt::Display for Sha256Hash {
 
 as_text!(Sha256Hash);
 
+/// A new UUID of version 7 (RFC 9562) in lower case, from the time in milliseconds since 1970 and random bits.
+pub fn uuid7(unix_ms: u64) -> String {
+    let mut bytes: [u8; 16] = random();
+    bytes[..6].copy_from_slice(&unix_ms.to_be_bytes()[2..]);
+    bytes[6] = 0x70 | (bytes[6] & 0x0f);
+    bytes[8] = 0x80 | (bytes[8] & 0x3f);
+    let h = hex::encode(bytes);
+    format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..])
+}
+
+/// Whether `text` is a UUID in lower case, `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`.
+pub fn is_uuid(text: &str) -> bool {
+    text.len() == 36
+        && text.bytes().enumerate().all(|(i, b)| match i {
+            8 | 13 | 18 | 23 => b == b'-',
+            _ => b.is_ascii_digit() || (b'a'..=b'f').contains(&b),
+        })
+}
+
 /// The identity of a space – what is shared and encrypted as a whole: a UUID in lower case, given when the space is
 /// founded and never changed.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -99,12 +118,7 @@ pub struct SpaceId(String);
 impl SpaceId {
     /// A new identity: a UUID of version 7 (RFC 9562) from the time in milliseconds since 1970 and random bits.
     pub fn generate(unix_ms: u64) -> Self {
-        let mut bytes: [u8; 16] = random();
-        bytes[..6].copy_from_slice(&unix_ms.to_be_bytes()[2..]);
-        bytes[6] = 0x70 | (bytes[6] & 0x0f);
-        bytes[8] = 0x80 | (bytes[8] & 0x3f);
-        let h = hex::encode(bytes);
-        SpaceId(format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..]))
+        SpaceId(uuid7(unix_ms))
     }
 
     /// The identity as text.
@@ -117,12 +131,7 @@ impl FromStr for SpaceId {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let valid = s.len() == 36
-            && s.bytes().enumerate().all(|(i, b)| match i {
-                8 | 13 | 18 | 23 => b == b'-',
-                _ => b.is_ascii_digit() || (b'a'..=b'f').contains(&b),
-            });
-        if valid { Ok(SpaceId(s.to_owned())) } else { Err(ParseError::new("space identity", s)) }
+        if is_uuid(s) { Ok(SpaceId(s.to_owned())) } else { Err(ParseError::new("space identity", s)) }
     }
 }
 
