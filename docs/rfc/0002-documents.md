@@ -60,6 +60,18 @@ and confirmed the same way ([0003](0003-recognition.md)).
 - In the [spike](../spikes/ocr.md) PP-OCR read more exactly than Tesseract (umlauts, ß and € included; sheet music too) but took 2–5 s per
   A4 page against Tesseract's 0.5–0.9 s. The maintainer decided for pure Rust everywhere anyway, servers included
   (2026-11-05).
+- With the feature `layer` alone, `Pure` reads text layers only – without tract, rendering for OCR or models; with
+  the feature `serde`, what was read can be kept as JSON (amendment, 2026-11-05, for `aktujo-minimal` in
+  [0004](0004-archive-0.1.md)).
+- **What was read is kept** (amendment, 2026-11-05, [0004](0004-archive-0.1.md) decision 3): the positioned lines
+  of a version as JSON – `{"format": 1, "pages": [{"width", "height", "method", "lines": [{"text", "x0", "y0", "x1",
+  "y1"}]}]}`, `method` one of `text_layer`, `ocr`, `none` – stored as an original of their own by hash, so that it
+  syncs like any original and other devices need not read again. The event **`document_read`** links it to the
+  version: the document, `version` (the hash of the version's original), `text` (the hash of what was read, or
+  none), `ocr` (whether the reader could use OCR), `pages`, `unread` (pages without text that could be read) and
+  `error` (why reading failed, or none). The latest reading of a version holds; a reading of a version the document
+  does not have is reported, not applied. Reading is not a change by a person: it leaves the time the document last
+  changed alone.
 - Rules that turn lines into a kind and field suggestions are `aktujo-rules` ([0003](0003-recognition.md)). Not yet:
   e-invoices (XRechnung, ZUGFeRD), optional AI, full-text search. Each comes with its own RFC or as an amendment to
   this one.
@@ -71,8 +83,8 @@ The positioned lines, the parsers of pdftotext and Tesseract and their use are t
 
 ## Open points
 
-- OPEN: how the program ships or fetches the OCR models (PP-OCRv3 detection, PP-OCRv5 Latin recognition, both
-  Apache-2.0) and names their licence.
+- How the program ships the OCR models: built in ([0004](0004-archive-0.1.md), decision 6). OPEN: naming their
+  licence in the program.
 - OPEN: speed of OCR (threads, a smaller detection input), rotated lines without deskewing, perspective correction.
 - OPEN: measuring with real samples (phone photos, faded receipts, stamps, scanned sheet music).
 - OPEN: kinds defined by users and stored as events.

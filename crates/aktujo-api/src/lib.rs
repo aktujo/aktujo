@@ -78,6 +78,7 @@ impl From<AppError> for ApiError {
             | AppError::Originals(_)
             | AppError::Keys(_)
             | AppError::Folder(_)
+            | AppError::Reading(_)
             | AppError::KeyMissing(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         ApiError(status, error.to_string())

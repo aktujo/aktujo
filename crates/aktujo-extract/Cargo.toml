@@ -16,16 +16,32 @@ publish.workspace = true
 [dependencies]
 aktujo-base.workspace = true
 thiserror.workspace = true
+serde = { workspace = true, optional = true }
 hayro = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
 tract-onnx = { workspace = true, optional = true }
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [features]
 default = ["pure"]
 # Pure Rust: hayro for the text layer and rendering, PaddleOCR's PP-OCR models on tract for OCR.
-pure = ["dep:hayro", "dep:image", "dep:tract-onnx"]
+pure = ["layer", "dep:image", "dep:tract-onnx"]
+# The text layer of PDFs with hayro, without OCR: no tract, no models.
+layer = ["dep:hayro"]
+# What was read as JSON.
+serde = ["dep:serde"]
 # The programs notenwart uses today: pdftotext and pdftoppm (poppler-utils) and Tesseract, found at run time.
 external = []
 
 [lints]
 workspace = true
+
+[[example]]
+name = "read"
+required-features = ["pure"]
+
+[[example]]
+name = "measure"
+required-features = ["pure"]

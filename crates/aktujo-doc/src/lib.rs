@@ -292,10 +292,28 @@ pub enum DocumentEvent {
         /// The document.
         document: DocumentId,
     },
+    /// The text of a version was read: the lines with their position, stored as an original of their own by hash,
+    /// so that other devices need not read again. A later reading of the same version replaces it.
+    DocumentRead {
+        /// The document.
+        document: DocumentId,
+        /// The hash of the version's original that was read.
+        version: Sha256Hash,
+        /// The hash of what was read, if anything could be read.
+        text: Option<Sha256Hash>,
+        /// Whether the reader could use OCR; a version read without it may be read again by one that can.
+        ocr: bool,
+        /// How many pages were read.
+        pages: u32,
+        /// How many of them had no text that could be read.
+        unread: u32,
+        /// Why reading failed, if it did.
+        error: Option<String>,
+    },
 }
 
 /// The kinds of event this crate writes and reads; events of other kinds are left alone.
-pub const KINDS: [&str; 10] = [
+pub const KINDS: [&str; 11] = [
     "document_added",
     "document_version",
     "document_title",
@@ -306,6 +324,7 @@ pub const KINDS: [&str; 10] = [
     "document_unlabel",
     "document_trashed",
     "document_restored",
+    "document_read",
 ];
 
 impl DocumentEvent {
@@ -321,7 +340,8 @@ impl DocumentEvent {
             | DocumentEvent::DocumentLabel { document, .. }
             | DocumentEvent::DocumentUnlabel { document, .. }
             | DocumentEvent::DocumentTrashed { document }
-            | DocumentEvent::DocumentRestored { document } => document,
+            | DocumentEvent::DocumentRestored { document }
+            | DocumentEvent::DocumentRead { document, .. } => document,
         }
     }
 
@@ -334,13 +354,32 @@ impl DocumentEvent {
     }
 }
 
-/// A version of a document: its original and when it was added.
+/// A version of a document: its original, when it was added and what was read from it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Version {
     /// The original.
     pub original: Original,
     /// When it was added, and on which device.
     pub added: Hlc,
+    /// The latest reading of its text, if it was read.
+    pub read: Option<Reading>,
+}
+
+/// What reading the text of a version gave ([`DocumentEvent::DocumentRead`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reading {
+    /// The hash of what was read, if anything could be read.
+    pub text: Option<Sha256Hash>,
+    /// Whether the reader could use OCR.
+    pub ocr: bool,
+    /// How many pages were read.
+    pub pages: u32,
+    /// How many of them had no text that could be read.
+    pub unread: u32,
+    /// Why reading failed, if it did.
+    pub error: Option<String>,
+    /// When it was read, and on which device.
+    pub at: Hlc,
 }
 
 /// A value and when it was set.
@@ -446,6 +485,15 @@ pub enum Skipped {
         /// The document.
         document: DocumentId,
     },
+    /// A reading of a version the document does not have.
+    UnknownVersion {
+        /// The event.
+        event: EventHash,
+        /// The document.
+        document: DocumentId,
+        /// The version.
+        version: Sha256Hash,
+    },
     /// A value that is not well formed.
     BadValue {
         /// The event.
@@ -489,7 +537,7 @@ impl Documents {
             if self.documents.contains_key(&document) {
                 return Err(Skipped::AddedTwice { event, document });
             }
-            let version = Version { original, added: at.clone() };
+            let version = Version { original, added: at.clone(), read: None };
             self.documents.insert(
                 document.clone(),
                 Document {
@@ -510,11 +558,19 @@ impl Documents {
         let Some(doc) = self.documents.get_mut(payload.document()) else {
             return Err(Skipped::UnknownDocument { event, document: payload.document().clone() });
         };
+        if let DocumentEvent::DocumentRead { document, version, text, ocr, pages, unread, error } = payload {
+            // Reading is not a change by a person: `changed` stays. The newest version of that original takes it.
+            let Some(read) = doc.versions.iter_mut().rev().find(|v| v.original.hash == version) else {
+                return Err(Skipped::UnknownVersion { event, document, version });
+            };
+            read.read = Some(Reading { text, ocr, pages, unread, error, at: at.clone() });
+            return Ok(());
+        }
         doc.changed = at.clone();
         match payload {
-            DocumentEvent::DocumentAdded { .. } => unreachable!("handled above"),
+            DocumentEvent::DocumentAdded { .. } | DocumentEvent::DocumentRead { .. } => unreachable!("handled above"),
             DocumentEvent::DocumentVersion { original, .. } => {
-                doc.versions.push(Version { original, added: at.clone() })
+                doc.versions.push(Version { original, added: at.clone(), read: None })
             }
             DocumentEvent::DocumentTitle { title, .. } => doc.title = title,
             DocumentEvent::DocumentKind { kind, origin, .. } => {
@@ -605,6 +661,18 @@ mod tests {
         }
     }
 
+    fn read(document: &DocumentId, version: &[u8], text: Option<&[u8]>) -> DocumentEvent {
+        DocumentEvent::DocumentRead {
+            document: document.clone(),
+            version: Sha256Hash::of(version),
+            text: text.map(Sha256Hash::of),
+            ocr: true,
+            pages: 1,
+            unread: 0,
+            error: None,
+        }
+    }
+
     fn money(amount: &str) -> Value {
         Value::Money { amount: amount.into(), currency: "EUR".into() }
     }
@@ -641,7 +709,8 @@ mod tests {
             DocumentEvent::DocumentLabel { document: id.clone(), label: "l".into() },
             DocumentEvent::DocumentUnlabel { document: id.clone(), label: "l".into() },
             DocumentEvent::DocumentTrashed { document: id.clone() },
-            DocumentEvent::DocumentRestored { document: id },
+            DocumentEvent::DocumentRestored { document: id.clone() },
+            read(&id, b"b", Some(b"text")),
         ];
         let kinds: Vec<String> =
             events.iter().map(|e| serde_json::to_value(e).unwrap()["kind"].as_str().unwrap().to_owned()).collect();
@@ -776,6 +845,29 @@ mod tests {
                 Skipped::AddedTwice { event: twice, document: id },
                 Skipped::BadValue { event: bad, reason: ValueError::Date("2026-02-30".into()) },
             ]
+        );
+    }
+
+    #[test]
+    fn a_reading_belongs_to_its_version_and_changes_nothing_else() {
+        let id = DocumentId::generate(1);
+        let mut log = Log::new();
+        let mut laptop = clock("laptop");
+        let added = DocumentEvent::DocumentAdded { document: id.clone(), title: "A".into(), original: original(b"x") };
+        log.append(&mut laptop, 1, &added).unwrap();
+        log.append(&mut laptop, 2, &DocumentEvent::DocumentVersion { document: id.clone(), original: original(b"y") })
+            .unwrap();
+        log.append(&mut laptop, 3, &read(&id, b"x", None)).unwrap();
+        log.append(&mut laptop, 4, &read(&id, b"x", Some(b"lines"))).unwrap();
+        let stray = log.append(&mut laptop, 5, &read(&id, b"z", Some(b"lines"))).unwrap();
+        let (documents, skipped) = Documents::from_log(&log);
+        let doc = documents.get(&id).unwrap();
+        assert_eq!(doc.versions[0].read.as_ref().unwrap().text, Some(Sha256Hash::of(b"lines")));
+        assert_eq!(doc.versions[1].read, None);
+        assert_eq!(doc.changed.wall_ms, 2);
+        assert_eq!(
+            skipped,
+            vec![Skipped::UnknownVersion { event: stray, document: id, version: Sha256Hash::of(b"z") }]
         );
     }
 

@@ -10,12 +10,17 @@ Rust from `rust-toolchain.toml`, Node 26 and pnpm (the version in `web/package.j
 
 ```sh
 (cd web && pnpm install && pnpm build)
+scripts/get-ocr-models.sh                                             # the OCR models, into target/ocr-models
 cargo fmt --check && cargo clippy --all-targets --all-features && cargo test --all-features
 cargo run -q -- openapi > api/openapi.json && (cd web && pnpm api)   # after changing the API
 (cd web && pnpm check)
 cargo deny check
 scripts/check-age.py                                                  # after changing Cargo.lock
+cargo test -p aktujo-app && cargo build -p aktujo --no-default-features   # aktujo-minimal, without OCR
 ```
+
+The feature `ocr` of `aktujo-app` (on by default in `aktujo`) builds the OCR models into the program; `build.rs` takes
+them from `AKTUJO_OCR_MODELS` or `target/ocr-models` and stops if they are missing or not the expected ones.
 
 ## Rules
 

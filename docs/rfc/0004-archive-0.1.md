@@ -62,12 +62,17 @@ Decided by the maintainer on 2026-11-05.
    100 000 on an ordinary laptop) and measuring it.
 3. **The text that was read is kept as an original by hash**, beside the version it was read from, so that it syncs
    later and other devices – a phone above all – need not read again. Reading again with better OCR writes a new
-   one. Full-text search runs in SQLite FTS5 over that text, the title, labels and field values. OPEN: the format of
-   the stored text (the positioned lines of `aktujo-extract` as JSON is proposed) and the event that links it to its
-   version (an amendment to 0002).
+   one. Full-text search runs in SQLite FTS5 over that text, the title, labels and field values. Built so
+   (2026-11-05): the positioned lines of `aktujo-extract` as JSON, linked to the version by the event
+   `document_read` – an amendment to [0002](0002-documents.md).
 4. **Reading in the background.** Adding returns at once; reading, recognising and indexing run in a queue, one
    document after the other, with their state visible (waiting, reading, done, failed). Suggestions are written as
-   events when the reading is done.
+   events when the reading is done. Built so (2026-11-05): the queue is the state – a version waits while it has no
+   reading, or, for a reader with OCR, while its reading was made without OCR and left pages unread or failed – so
+   nothing is lost when the program stops, and what `aktujo-minimal` read is read again by the full build where that
+   helps. Only the newest version of documents outside the bin is read, in spaces this device may write in. The
+   reading itself runs outside the workspace's lock, on a thread of its own (`Worker` in `aktujo-app`). A better
+   title from the kind, the sender and the date is offered while the title is still the file's, not written.
 5. **Improving writes a new version.** The tools for images are a crate of their own, `aktujo-scan` – MIT like the
    document crates, pure Rust, no I/O – so that apps and other programs can use them: rotate, crop, deskew, black and
    white, greyscale. Edges and perspective come after 0.1, when the camera of the mobile app needs them.
@@ -88,9 +93,12 @@ Decided by the maintainer on 2026-11-05.
      change and the other way round; a version improved or read by OCR in the full build stays readable in the
      minimal one.
    - Neither build makes a connection for the models. They stay data for the crates (0002: never part of
-     `aktujo-extract`). OPEN: the names of the features; where the build takes the models from
-     (`scripts/get-ocr-models.sh`, checked by hash); naming their licence and origin in the program and in
-     `REUSE.toml`; the sizes of both builds (to be measured).
+     `aktujo-extract`). Built so (2026-11-05): the feature `ocr` of `aktujo` and `aktujo-app` (on by default) builds
+     them in; `build.rs` takes them from `AKTUJO_OCR_MODELS` or `target/ocr-models`, where
+     `scripts/get-ocr-models.sh` puts them, checks their hashes and stops if they are missing – the build itself
+     makes no connection. Without `ocr`, `aktujo-extract` is built with the feature `layer`: text layers only,
+     without tract. OPEN: hayro's rendering is still in `aktujo-minimal` (the text layer comes through the same
+     crate); naming the models' licence and origin in the program; the sizes of both builds (to be measured).
 7. **Encrypted at rest.** The database is encrypted as a whole with **SQLCipher** (maintainer, 2026-11-05) – events,
    member records, settings, the seeds of the spaces and the search index alike; the bytes of originals and of the
    text read from them are encrypted in their folder with a key of the device. The key of the device lives in the

@@ -8,7 +8,8 @@
 //! through a relay and shared with other people's devices, with rights.
 //!
 //! The state of each space is folded from its log when the workspace opens and again after every change; how far
-//! that carries is to be measured (OPEN).
+//! that carries is to be measured (OPEN). Text is read in the background ([`Worker`]): with OCR and its models built
+//! in, with the feature `ocr`; without it, from text layers only (`aktujo-minimal`).
 //!
 //! The items of the starter are still here, in memory, until the interfaces show the archive.
 
@@ -25,14 +26,19 @@ use serde::{Deserialize, Serialize};
 
 mod items;
 mod keys;
+#[cfg(feature = "ocr")]
+mod models;
+mod reading;
 mod sealed;
 
 pub use aktujo_base::{Sha256Hash, SpaceId};
 pub use aktujo_crypt::{Member, Rights};
-pub use aktujo_doc::{Document, DocumentId, Kind, Value};
+pub use aktujo_doc::{Document, DocumentId, Kind, Reading, Value};
+pub use aktujo_extract::{Extraction, Line, Method, Page};
 pub use aktujo_sync::SyncReport;
 pub use items::StoreError;
 pub use keys::{KeyError, KeyStore, MemoryKeys, SystemKeys};
+pub use reading::{Job, ReadState, Reader, Worker, read_all};
 pub use sealed::SealedBlobs;
 
 /// The database of a data folder.
@@ -69,6 +75,9 @@ pub enum AppError {
     /// The data folder.
     #[error("the data folder: {0}")]
     Folder(String),
+    /// Reading text: the models, or text kept in a form not known.
+    #[error("reading: {0}")]
+    Reading(String),
     /// The data folder is there, but its key is not in the key store.
     #[error("the key of this data folder ({0}) is not in the key store")]
     KeyMissing(String),
@@ -149,6 +158,8 @@ struct View {
 pub struct Workspace {
     replica: Replica,
     views: BTreeMap<SpaceId, View>,
+    /// The document being read now, if any.
+    reading: Option<(SpaceId, DocumentId)>,
     items: items::Store,
 }
 
@@ -218,7 +229,8 @@ impl Workspace {
     }
 
     fn on(replica: Replica) -> Result<Self, AppError> {
-        let mut workspace = Workspace { replica, views: BTreeMap::new(), items: items::Store::default() };
+        let mut workspace =
+            Workspace { replica, views: BTreeMap::new(), reading: None, items: items::Store::default() };
         for space in workspace.replica.spaces()? {
             workspace.refresh(&space)?;
         }

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Format, lints and tests on Linux and macOS (required; add more targets where the core must run); the web app with
-# its types from api/openapi.json; api/openapi.json up to date; dependencies (cargo deny). The licence check (REUSE)
-# and a sign-off (DCO) on every commit of a pull request come from falkoss/starterpack, pinned by commit. A version
-# tag runs the checks again and, once they pass, publishes the core crates on crates.io (job `crates`). Actions are
-# pinned by commit, with the version as a comment.
+# Format, lints and tests on Linux and macOS (required; add more targets where the core must run), also of
+# aktujo-minimal; the web app with its types from api/openapi.json; api/openapi.json up to date; dependencies (cargo
+# deny). The licence check (REUSE) and a sign-off (DCO) on every commit of a pull request come from
+# falkoss/starterpack, pinned by commit. A version tag runs the checks again and, once they pass, publishes the core
+# crates on crates.io (job `crates`). Actions are pinned by commit, with the version as a comment.
 name: CI
 
 on:
@@ -49,9 +49,15 @@ jobs:
       - name: Rust toolchain from rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      # The OCR models the full build embeds, checked by their hashes (docs/rfc/0004-archive-0.1.md, decision 6).
+      - run: scripts/get-ocr-models.sh
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets --all-features
       - run: cargo test --locked --all-features
+      - name: aktujo-minimal – without scanning and OCR
+        run: |
+          cargo test --locked -p aktujo-app
+          cargo clippy --locked -p aktujo --no-default-features
       - name: api/openapi.json matches the code
         run: |
           cargo run --locked -q -p aktujo -- openapi > api/openapi.json

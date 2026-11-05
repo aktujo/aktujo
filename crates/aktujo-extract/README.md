@@ -6,6 +6,8 @@ came from – the PDF's own text layer or OCR – behind the trait `Extractor`.
 | Feature | What |
 |---|---|
 | `pure` (default) | `Pure`, pure Rust, also in WebAssembly: hayro for the text layer and rendering, PaddleOCR's PP-OCR models on tract for OCR, after straightening the page |
+| `layer` | `Pure` without OCR: the text layer of PDFs only, without tract and the models |
+| `serde` | what was read as JSON, to keep it |
 | `external` | `External`: pdftotext and pdftoppm (poppler-utils) and Tesseract, found at run time |
 
 The OCR models are data the program hands over (`Models`), never part of this crate; tested with PP-OCRv3 detection

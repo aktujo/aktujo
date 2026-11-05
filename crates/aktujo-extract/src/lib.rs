@@ -9,9 +9,12 @@
 //!
 //! - `pure` (default): [`Pure`], in pure Rust – also in WebAssembly and mobile apps. hayro reads the text layer and
 //!   renders pages; PaddleOCR's PP-OCR models on tract read pages without text and images, once the program hands
-//!   them over ([`Models`]).
+//!   them over ([`Models`]). The feature `layer` is [`Pure`] without OCR: text layers only, without tract.
 //! - `external`: [`External`] runs the programs pdftotext and pdftoppm (poppler-utils) and Tesseract; the parsers of
 //!   their output ([`parse`]) are there without it.
+//!
+//! With the feature `serde`, what was read can be written and read again as JSON – to keep it, so that it need not
+//! be read twice.
 //!
 //! What is read is a suggestion for a person to check, never more.
 
@@ -25,14 +28,17 @@ mod external;
 #[cfg(feature = "external")]
 pub use external::External;
 
-#[cfg(feature = "pure")]
+#[cfg(feature = "layer")]
 mod pure;
 
 #[cfg(feature = "pure")]
-pub use pure::{Models, Pure};
+pub use pure::Models;
+#[cfg(feature = "layer")]
+pub use pure::Pure;
 
 /// A line of text on a page; its box is in fractions of the page (0–1, y from the top).
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Line {
     /// The words of the line, separated by single spaces.
     pub text: String,
@@ -60,6 +66,7 @@ impl Line {
 
 /// Where the text of a page came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
 pub enum Method {
     /// The PDF's own text layer.
     TextLayer,
@@ -81,6 +88,7 @@ impl fmt::Display for Method {
 
 /// A page and its lines, from the top.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Page {
     /// The width, in points for a PDF, in pixels for an image.
     pub width: f32,
@@ -106,6 +114,7 @@ impl Page {
 
 /// What was read from a document.
 #[derive(Debug, Clone, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Extraction {
     /// The pages, the first one first.
     pub pages: Vec<Page>,
@@ -201,7 +210,7 @@ pub const IMAGE_TYPES: [&str; 3] = ["image/png", "image/jpeg", "image/tiff"];
 
 /// Lines in reading order: a line whose vertical centre falls inside a row's extent joins that row; rows from the top,
 /// the lines of a row from the left.
-#[cfg_attr(not(feature = "pure"), allow(dead_code))]
+#[cfg_attr(not(feature = "layer"), allow(dead_code))]
 pub(crate) fn reading_order(mut lines: Vec<Line>) -> Vec<Line> {
     let centre = |l: &Line| (l.y0 + l.y1) / 2.0;
     lines.sort_by(|a, b| centre(a).total_cmp(&centre(b)));
@@ -255,6 +264,7 @@ pub(crate) mod testing {
     }
 
     /// A one-page PDF with a text layer: "Invoice 42" and "Total 119.00 EUR" in Helvetica.
+    #[cfg_attr(not(feature = "layer"), allow(dead_code))]
     pub(crate) fn pdf() -> Vec<u8> {
         build("BT /F1 24 Tf 72 720 Td (Invoice 42) Tj 0 -40 Td (Total 119.00 EUR) Tj ET", true)
     }
@@ -286,6 +296,30 @@ mod tests {
         assert_eq!(extraction.words(), 6);
         assert_eq!(extraction.text(), "Invoice 42\nTotal 119.00 EUR\n\u{c}\nThanks");
         assert_eq!(Method::TextLayer.to_string(), "text_layer");
+    }
+
+    #[cfg(feature = "layer")]
+    #[test]
+    fn the_layer_alone_reads_text_layers_only() {
+        let pure = Pure::new();
+        assert_eq!(pure.abilities(), Abilities { text_layer: true, ocr: false });
+        let read = pure.extract(&testing::pdf(), "application/pdf", &Options::default()).unwrap();
+        assert_eq!(read.text(), "Invoice 42\nTotal 119.00 EUR");
+        assert_eq!(read.pages[0].method, Method::TextLayer);
+        if !cfg!(feature = "pure") {
+            assert!(matches!(pure.extract(b"x", "image/png", &Options::default()), Err(ExtractError::Unavailable(_))));
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn what_was_read_reads_back_from_json() {
+        let extraction = Extraction {
+            pages: vec![Page { width: 612.0, height: 792.0, lines: vec![line("Invoice 42")], method: Method::Ocr }],
+        };
+        let json = serde_json::to_string(&extraction).unwrap();
+        assert!(json.contains(r#""method":"ocr""#), "{json}");
+        assert_eq!(serde_json::from_str::<Extraction>(&json).unwrap(), extraction);
     }
 
     #[test]

@@ -19,5 +19,10 @@ aktujo-relay.workspace = true
 aktujo-tui.workspace = true
 tokio.workspace = true
 
+[features]
+default = ["ocr"]
+# Scanning and OCR, the models built in; without the default features the program is aktujo-minimal.
+ocr = ["aktujo-app/ocr"]
+
 [lints]
 workspace = true
