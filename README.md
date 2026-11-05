@@ -23,6 +23,7 @@ The brand kit lives in its own repository, [aktujo/brand](https://github.com/akt
 (cd web && pnpm install && pnpm build)   # the web app the binary embeds
 cargo run -- tui                         # the terminal interface
 cargo run -- serve                       # the API and the web app on http://127.0.0.1:8071
+cargo run -- relay --data relay          # a relay to synchronise through, on http://127.0.0.1:8072
 ```
 
 ## The name

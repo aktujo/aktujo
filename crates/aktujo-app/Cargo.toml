@@ -10,8 +10,26 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+aktujo-base.workspace = true
+aktujo-blob.workspace = true
 aktujo-core.workspace = true
+aktujo-crypt.workspace = true
+aktujo-doc.workspace = true
+aktujo-log.workspace = true
+aktujo-store = { workspace = true, features = ["sqlcipher"] }
+aktujo-sync.workspace = true
+chacha20poly1305.workspace = true
+hex.workspace = true
+hkdf.workspace = true
+keyring.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+aktujo-relay.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

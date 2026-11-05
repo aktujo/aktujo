@@ -45,6 +45,7 @@ hmac = "0.13.0"
 hpke = { version = "0.14.1", default-features = false, features = ["x25519", "chacha", "alloc", "getrandom"] }
 http-body-util = "0.1.5"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "tiff"] }
+keyring = "4.2.0"
 object_store = { version = "0.14.2", default-features = false }
 ratatui = "0.30.2"
 regex = "1.13.1"

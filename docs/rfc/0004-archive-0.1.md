@@ -4,22 +4,22 @@ parent: Design
 nav_order: 4
 ---
 
-# 0004 Archive 0.1: one person, one computer
+# 0004 Archive 0.1: a person's archive, on their devices
 
 State: draft. Scope decided by the maintainer on 2026-11-05.
 
 ## Summary
 
-Version 0.1 of the program aktujo is the archive for **one person on one computer**: capture, improve, read, label,
-version, keep and find documents – step 3 of the roadmap in the whitepaper. It is built on what is there: the core
-(0001), the document crates `aktujo-doc` and `aktujo-extract` (0002) and `aktujo-rules` (0003). What the program has
-today – `aktujo-app`, the API, the web app and the terminal interface – is the skeleton from the starter pack (a list
-of items in memory); 0.1 replaces it with the archive.
+Version 0.1 of the program aktujo is the archive of **one person, on their devices**: capture, improve, read, label,
+version, keep and find documents – step 3 of the roadmap in the whitepaper – and, brought forward from step 4,
+**sync** between devices through a relay and **sharing** a space with other people (maintainer, 2026-11-05). It is
+built on what is there: the core (0001), the document crates `aktujo-doc` and `aktujo-extract` (0002) and
+`aktujo-rules` (0003). What the program has today – `aktujo-app`, the API, the web app and the terminal interface – is
+the skeleton from the starter pack (a list of items in memory); 0.1 replaces it with the archive.
 
-Sharing, sync between devices, the audit log as a report, the mobile app, servers, workflows and signatures are
-later steps of the roadmap and not part of 0.1 – but nothing in 0.1 may stand in their way. Unlike the whitepaper's
-roadmap, the import from paperless-ngx is **not** part of 0.1 (maintainer, 2026-11-05): neither import from nor
-export to other programs.
+The audit log as a report, the mobile app, servers for organisations, workflows and signatures are later steps of the
+roadmap and not part of 0.1 – but nothing in 0.1 may stand in their way. Unlike the whitepaper's roadmap, the import
+from paperless-ngx is **not** part of 0.1 (maintainer, 2026-11-05): neither import from nor export to other programs.
 
 ## What 0.1 does
 
@@ -32,6 +32,8 @@ export to other programs.
 | **Version** | Every version listed, opened and downloaded; a new version by upload or by improving. | Comparing versions, restoring an old one as the newest – OPEN. |
 | **Keep** | **Several spaces** – a private archive beside a business's, for example; originals in a folder by hash (`aktujo-blob`), events in SQLite (`aktujo-store`), through `aktujo-sync` without a relay; **encrypted at rest**. The bin: put in, take out. | Retention, deleting for good. |
 | **Find** | Full-text search over title, labels, fields and the text that was read; filters by space, kind, label, date and the bin. | Search over encrypted content on other devices; saved searches. |
+| **Sync** | A space synchronised through a relay (`aktujo-sync`), end-to-end encrypted: started on one device, which shows the recovery code once; further devices join by an invitation. | Direct sync between devices (P2P). |
+| **Share** | Inviting other people's devices with rights – read, write, manage; the members of a space listed; a member removed (a new key, which it does not get). | Groups, people with several devices as one entry, links for people without aktujo. |
 | **Export** | Everything at any time: the originals and a JSON file of every document's state, also the events as they are – aktujo's own open format. | Import from and export to other programs (paperless-ngx and others). |
 
 ## Where it runs
@@ -44,6 +46,8 @@ export to other programs.
 - The interface speaks **English and German**; its texts are data, so that more languages can follow.
 - Where the data lives: one folder per user (OPEN: the default on Linux, macOS and Windows, and `--data` to choose
   another).
+- `aktujo relay` – the relay (`aktujo-relay`) for whoever runs one: on a small server or in the home network. Its
+  address is given when a space starts to sync. No public relay is run for 0.1 (maintainer, 2026-11-05).
 - Linux, macOS and **Windows**; CI checks all three.
 
 ## Decisions
@@ -87,13 +91,17 @@ Decided by the maintainer on 2026-11-05.
      `aktujo-extract`). OPEN: the names of the features; where the build takes the models from
      (`scripts/get-ocr-models.sh`, checked by hash); naming their licence and origin in the program and in
      `REUSE.toml`; the sizes of both builds (to be measured).
-7. **Encrypted at rest.** Originals and the text read from them are stored as envelopes (`aktujo-crypt`), the
-   events of a space encrypted with its key. The device's seed lives in the **key store of the operating system**
-   (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows); where there is none – a server
-   without a desktop, a container – in a file protected by a passphrase. This answers an open point of 0001 for the
-   program. OPEN: what in SQLite is encrypted (proposal: the payloads of events and the search views; what the core
-   needs to merge – hashes, clocks – stays readable), how the search index is protected, and the crate for the key
-   stores.
+7. **Encrypted at rest.** The database is encrypted as a whole with **SQLCipher** (maintainer, 2026-11-05) – events,
+   member records, settings, the seeds of the spaces and the search index alike; the bytes of originals and of the
+   text read from them are encrypted in their folder with a key of the device. The key of the device lives in the
+   **key store of the operating system** (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows);
+   where there is none – a server without a desktop, a container – in a file protected by a passphrase. This answers
+   an open point of 0001 for the program. SQLCipher is C with OpenSSL built in, beside SQLite, which is C already; it
+   is in `aktujo-minimal` too. Built so (2026-11-05): SQLCipher is the feature `sqlcipher` of `aktujo-store`, so the
+   core stays usable without it; the originals are sealed with XChaCha20-Poly1305 in their folder, bound to their hash
+   (`SealedBlobs` in `aktujo-app`); the key stores are reached through `keyring`; one secret of 32 bytes per data
+   folder, the keys of the database and of the originals derived from it with HKDF-SHA256. OPEN: the passphrase file
+   where there is no key store; whether `SealedBlobs` moves into the core.
 8. **No import or export of other programs** in 0.1; aktujo's own export stays.
 9. **English and German** in the interface.
 10. **Watched folders** are part of 0.1: a folder is given per space; new files are taken in, then left where they
@@ -101,6 +109,8 @@ Decided by the maintainer on 2026-11-05.
 11. **Installed from binaries** attached to each GitHub release, built by CI for Linux, macOS and Windows – each
     as `aktujo` and as `aktujo-minimal` (decision 6). Other ways
     (cargo install, Nix, Homebrew) later. OPEN: signing and notarising the binaries for macOS and Windows.
+12. **Sync and sharing are part of 0.1**: through a relay the person runs (`aktujo relay`); invitations with rights,
+    members listed and removed, the recovery code – what `aktujo-sync` does today, offered in every interface.
 
 ## Done when
 
@@ -108,6 +118,9 @@ Decided by the maintainer on 2026-11-05.
   folder, sees the suggestions, confirms some, labels them, finds them again by a word of their text, puts one in
   the bin and takes it out, adds a second version by improving a scan, founds a second space, and exports
   everything – in the web app and in the terminal, in English and German.
+- A second device joins the space by an invitation and shows the same documents; a change on either arrives on
+  the other after a sync through `aktujo relay`; a second person invited to read sees the documents and cannot
+  change them; a removed member gets nothing written after its removal.
 - The data folder copied to another computer cannot be read without the key from the first one's key store or the
   passphrase.
 - The program closed and opened again shows the same state; a log read by another device would show the same state
@@ -125,10 +138,11 @@ Decided by the maintainer on 2026-11-05.
    hash.
 3. Search (FTS5) and filters.
 4. The API and the web app for all of it, in English and German; then the terminal interface.
-5. Watched folders.
-6. Improving (`aktujo-scan`).
-7. Export.
-8. Windows in CI, binaries in the release, the release 0.1.0 of the program.
+5. Sync and sharing in every interface; `aktujo relay`.
+6. Watched folders.
+7. Improving (`aktujo-scan`).
+8. Export.
+9. Windows in CI, binaries in the release, the release 0.1.0 of the program.
 
 ## Open points
 

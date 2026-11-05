@@ -70,8 +70,15 @@ pub struct ApiError(StatusCode, String);
 impl From<AppError> for ApiError {
     fn from(error: AppError) -> Self {
         let status = match &error {
-            AppError::Invalid(_) => StatusCode::UNPROCESSABLE_ENTITY,
-            AppError::Store(_) => StatusCode::NOT_FOUND,
+            AppError::Invalid(_) | AppError::Value(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::Store(_) | AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            AppError::NotAllowed(_) => StatusCode::FORBIDDEN,
+            AppError::Sync(_) => StatusCode::BAD_GATEWAY,
+            AppError::Database(_)
+            | AppError::Originals(_)
+            | AppError::Keys(_)
+            | AppError::Folder(_)
+            | AppError::KeyMissing(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         ApiError(status, error.to_string())
     }

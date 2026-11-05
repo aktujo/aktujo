@@ -19,6 +19,10 @@ aktujo-log.workspace = true
 rusqlite.workspace = true
 thiserror.workspace = true
 
+[features]
+# The database encrypted as a whole: SQLCipher (BSD-3-Clause) with OpenSSL (Apache-2.0) built in, instead of SQLite.
+sqlcipher = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
+
 [dev-dependencies]
 serde_json.workspace = true
 

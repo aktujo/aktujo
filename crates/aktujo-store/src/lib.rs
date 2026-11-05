@@ -97,6 +97,20 @@ impl Store {
         Self::prepare(connection)
     }
 
+    /// Opens the database file at `path` encrypted as a whole with SQLCipher under a raw 256-bit `key`, creating it
+    /// if needed. A wrong key, or a file that is not encrypted, fails here – with the error of the database ("file is
+    /// not a database") – before anything is read.
+    #[cfg(feature = "sqlcipher")]
+    pub fn open_encrypted(path: &Path, key: &[u8; 32]) -> Result<Self, StoreError> {
+        let connection = Connection::open(path)?;
+        let hex: String = key.iter().map(|byte| format!("{byte:02x}")).collect();
+        // A raw key in hexadecimal: SQLCipher uses it as it is, without deriving it from a passphrase.
+        connection.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))?;
+        connection.query_row("SELECT count(*) FROM sqlite_master", [], |row| row.get::<_, i64>(0))?;
+        connection.execute_batch("PRAGMA journal_mode = WAL;")?;
+        Self::prepare(connection)
+    }
+
     /// A store in memory, gone when dropped – for tests.
     pub fn in_memory() -> Result<Self, StoreError> {
         Self::prepare(Connection::open_in_memory()?)
@@ -341,5 +355,24 @@ mod tests {
         let file = scratch.0.join("aktujo.sqlite");
         Connection::open(&file).unwrap().execute_batch("PRAGMA user_version = 99;").unwrap();
         assert!(matches!(Store::open(&file), Err(StoreError::Version(99))));
+    }
+
+    #[cfg(feature = "sqlcipher")]
+    #[test]
+    fn an_encrypted_store_opens_only_with_its_key() {
+        let scratch = Scratch::new("encrypted");
+        let file = scratch.0.join("aktujo.sqlite");
+        let key = [7u8; 32];
+        {
+            let store = Store::open_encrypted(&file, &key).unwrap();
+            store.set_setting(None, "secret", "a word that must not be found").unwrap();
+        }
+        let bytes = std::fs::read(&file).unwrap();
+        assert!(!bytes.windows(b"must not be found".len()).any(|w| w == b"must not be found"));
+        assert!(!bytes.starts_with(b"SQLite format 3"));
+        assert!(Store::open_encrypted(&file, &[8u8; 32]).is_err());
+        assert!(Store::open(&file).is_err());
+        let store = Store::open_encrypted(&file, &key).unwrap();
+        assert_eq!(store.setting(None, "secret").unwrap().as_deref(), Some("a word that must not be found"));
     }
 }
