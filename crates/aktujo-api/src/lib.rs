@@ -1,30 +1,65 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The open API of aktujo: HTTP and JSON under `/api/v1`, described in OpenAPI (`api/openapi.json`), and the web
 //! app around it, embedded into the binary. Like every interface, it works through the workspace of `aktujo-app`
-//! only. It listens on the device itself; OPEN: authentication and TLS before it listens anywhere else.
+//! only.
+//!
+//! It listens on the device itself and answers only requests addressed to it there: the `Host` must be `localhost`,
+//! `127.0.0.1` or `[::1]` (against pages that rebind their name to this device), and a request that changes
+//! something must not come from another site (`Origin`, `Sec-Fetch-Site`). OPEN: authentication and TLS before it
+//! listens anywhere else.
 
 use std::{
     net::SocketAddr,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 use axum::{
     Json, Router,
-    extract::{Path, State},
-    http::{StatusCode, header},
+    body::Bytes,
+    extract::{DefaultBodyLimit, Path, Query, Request, State},
+    http::{HeaderMap, Method, StatusCode, header},
+    middleware::{self, Next},
     response::{Html, IntoResponse, Response},
-    routing::{delete, get},
+    routing::{get, post, put},
 };
-use serde::{Deserialize, Serialize};
-use utoipa::{OpenApi, ToSchema};
+use serde::Deserialize;
+use utoipa::OpenApi;
 
-use aktujo_app::{AppError, Workspace};
+use aktujo_app::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Worker, Workspace};
+
+mod views;
+
+pub use views::*;
+
+/// The largest file taken in one request.
+pub const UPLOAD_MAX: usize = 256 * 1024 * 1024;
 
 /// The description of the API in OpenAPI.
 #[derive(Debug, OpenApi)]
 #[openapi(
     info(title = "aktujo", description = "The open API of aktujo: your documents, kept safe – end to end."),
-    paths(items, add_item, remove_item),
+    paths(
+        status,
+        spaces,
+        found_space,
+        rename_space,
+        labels,
+        kinds,
+        search,
+        add_document,
+        document,
+        original,
+        text,
+        add_version,
+        set_title,
+        set_kind,
+        set_field,
+        clear_field,
+        add_label,
+        remove_label,
+        trash,
+        restore
+    ),
     components(schemas(Problem))
 )]
 pub struct ApiDoc;
@@ -32,35 +67,6 @@ pub struct ApiDoc;
 /// The description of the API in OpenAPI, as pretty JSON – what `api/openapi.json` holds.
 pub fn openapi() -> String {
     ApiDoc::openapi().to_pretty_json().expect("the description in JSON")
-}
-
-/// An item as the API shows it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-pub struct ItemView {
-    /// Unique within the workspace.
-    pub id: u64,
-    /// What the item is called.
-    pub title: String,
-}
-
-impl From<&aktujo_core::Item> for ItemView {
-    fn from(item: &aktujo_core::Item) -> Self {
-        ItemView { id: item.id, title: item.title.clone() }
-    }
-}
-
-/// A new item.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct NewItem {
-    /// What it is called: not empty, at most 200 characters.
-    pub title: String,
-}
-
-/// An error: what was refused or went wrong.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct Problem {
-    /// What happened, in English.
-    pub error: String,
 }
 
 /// An answer that went wrong: a status and what to say.
@@ -71,7 +77,7 @@ impl From<AppError> for ApiError {
     fn from(error: AppError) -> Self {
         let status = match &error {
             AppError::Invalid(_) | AppError::Value(_) => StatusCode::UNPROCESSABLE_ENTITY,
-            AppError::Store(_) | AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::NotAllowed(_) => StatusCode::FORBIDDEN,
             AppError::Sync(_) => StatusCode::BAD_GATEWAY,
             AppError::Database(_)
@@ -91,36 +97,403 @@ impl IntoResponse for ApiError {
     }
 }
 
-/// The state of the server: one workspace.
-type Shared = Arc<Mutex<Workspace>>;
-
-/// Every item.
-#[utoipa::path(get, path = "/api/v1/items", responses((status = 200, body = Vec<ItemView>)))]
-async fn items(State(workspace): State<Shared>) -> Json<Vec<ItemView>> {
-    Json(workspace.lock().expect("the workspace").items().iter().map(ItemView::from).collect())
+fn not_found(what: &str) -> ApiError {
+    ApiError(StatusCode::NOT_FOUND, format!("no {what}"))
 }
 
-/// Adds an item.
-#[utoipa::path(post, path = "/api/v1/items", request_body = NewItem,
-    responses((status = 201, body = ItemView), (status = 422, body = Problem)))]
-async fn add_item(
-    State(workspace): State<Shared>,
-    Json(new): Json<NewItem>,
-) -> Result<(StatusCode, Json<ItemView>), ApiError> {
-    let item = workspace.lock().expect("the workspace").add_item(&new.title)?;
-    Ok((StatusCode::CREATED, Json(ItemView::from(&item))))
+/// The state of the server.
+#[derive(Clone)]
+struct Shared {
+    workspace: Arc<Mutex<Workspace>>,
+    /// Reading in the background, if it runs.
+    worker: Option<Arc<Worker>>,
+    /// For titles offered from what was read: the rules only, no models.
+    titles: Arc<Reader>,
+    /// Whether the reader in the background uses OCR.
+    ocr: bool,
 }
 
-/// Removes an item.
-#[utoipa::path(delete, path = "/api/v1/items/{id}", params(("id" = u64, Path, description = "the item")),
-    responses((status = 200, body = ItemView), (status = 404, body = Problem)))]
-async fn remove_item(State(workspace): State<Shared>, Path(id): Path<u64>) -> Result<Json<ItemView>, ApiError> {
-    let item = workspace.lock().expect("the workspace").remove_item(id)?;
-    Ok(Json(ItemView::from(&item)))
+impl Shared {
+    /// The workspace – also after a thread panicked while holding it: every command leaves it whole or not at all.
+    fn lock(&self) -> MutexGuard<'_, Workspace> {
+        self.workspace.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn wake(&self) {
+        if let Some(worker) = &self.worker {
+            worker.wake();
+        }
+    }
+}
+
+type Answer<T> = Result<Json<T>, ApiError>;
+
+fn space(id: &str) -> Result<SpaceId, ApiError> {
+    id.parse().map_err(|_| not_found("such space"))
+}
+
+fn ids(space_id: &str, document: &str) -> Result<(SpaceId, DocumentId), ApiError> {
+    Ok((space(space_id)?, document.parse().map_err(|_| not_found("such document"))?))
+}
+
+fn document_view(workspace: &Workspace, shared: &Shared, space: &SpaceId, id: &DocumentId) -> Answer<DocumentView> {
+    let document = workspace.document(space, id)?;
+    let reading = workspace.read_state(space, id)?;
+    let title = workspace.suggested_title(space, id, &shared.titles)?;
+    Ok(Json(DocumentView::of(space.as_str(), document, reading, title)))
+}
+
+/// What this program is and can do.
+#[utoipa::path(get, path = "/api/v1/status", responses((status = 200, body = StatusView)))]
+async fn status(State(shared): State<Shared>) -> Json<StatusView> {
+    Json(StatusView {
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        device: shared.lock().device().to_owned(),
+        ocr: shared.ocr,
+        reading_problem: shared.worker.as_ref().and_then(|w| w.problem()),
+    })
+}
+
+/// Every space on this device.
+#[utoipa::path(get, path = "/api/v1/spaces", responses((status = 200, body = Vec<SpaceView>)))]
+async fn spaces(State(shared): State<Shared>) -> Answer<Vec<SpaceView>> {
+    Ok(Json(shared.lock().spaces()?.into_iter().map(SpaceView::from).collect()))
+}
+
+/// Founds a space.
+#[utoipa::path(post, path = "/api/v1/spaces", request_body = SpaceName,
+    responses((status = 201, body = SpaceView), (status = 422, body = Problem)))]
+async fn found_space(
+    State(shared): State<Shared>,
+    Json(new): Json<SpaceName>,
+) -> Result<(StatusCode, Json<SpaceView>), ApiError> {
+    let mut workspace = shared.lock();
+    let id = workspace.found_space(&new.name)?;
+    let space = workspace.spaces()?.into_iter().find(|s| s.id == id).ok_or_else(|| not_found("such space"))?;
+    Ok((StatusCode::CREATED, Json(space.into())))
+}
+
+/// Gives a space a new name.
+#[utoipa::path(put, path = "/api/v1/spaces/{space}", request_body = SpaceName,
+    params(("space" = String, Path, description = "the space")),
+    responses((status = 204), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn rename_space(
+    State(shared): State<Shared>,
+    Path(id): Path<String>,
+    Json(new): Json<SpaceName>,
+) -> Result<StatusCode, ApiError> {
+    shared.lock().rename_space(&space(&id)?, &new.name)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// The labels used in a space, with how many documents outside the bin have each.
+#[utoipa::path(get, path = "/api/v1/spaces/{space}/labels", params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = Vec<LabelCount>), (status = 404, body = Problem)))]
+async fn labels(State(shared): State<Shared>, Path(id): Path<String>) -> Answer<Vec<LabelCount>> {
+    let labels = shared.lock().labels(&space(&id)?)?;
+    Ok(Json(labels.into_iter().map(|(label, documents)| LabelCount { label, documents }).collect()))
+}
+
+/// The kinds of document there are.
+#[utoipa::path(get, path = "/api/v1/kinds", responses((status = 200, body = Vec<KindView>)))]
+async fn kinds(State(shared): State<Shared>) -> Json<Vec<KindView>> {
+    Json(shared.lock().kinds().into_iter().map(KindView::from).collect())
+}
+
+/// Finds documents: with words, the best hits first; without, the newest first.
+#[utoipa::path(post, path = "/api/v1/search", request_body = SearchRequest,
+    responses((status = 200, body = Vec<DocumentSummary>), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn search(State(shared): State<Shared>, Json(request): Json<SearchRequest>) -> Answer<Vec<DocumentSummary>> {
+    let query = request.query().ok_or_else(|| not_found("such space"))?;
+    let workspace = shared.lock();
+    let mut found = Vec::new();
+    for hit in workspace.search(&query)? {
+        let document = workspace.document(&hit.space, &hit.document)?;
+        let reading = workspace.read_state(&hit.space, &hit.document).unwrap_or(ReadState::Done);
+        found.push(DocumentSummary::of_hit(hit, document, reading));
+    }
+    Ok(Json(found))
+}
+
+/// The file name of an upload.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+struct FileName {
+    /// The name the file came with.
+    name: String,
+}
+
+fn media_type(headers: &HeaderMap) -> &str {
+    headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/octet-stream")
+}
+
+/// Adds a file as a new document – the bytes as the body, its media type as `Content-Type`. The same bytes twice
+/// in a space are one document.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/documents", params(("space" = String, Path, description = "the space"), FileName),
+    request_body(content = Vec<u8>, content_type = "application/octet-stream", description = "the file"),
+    responses((status = 201, body = AddedView), (status = 200, body = AddedView, description = "the same bytes were there already"),
+        (status = 403, body = Problem), (status = 404, body = Problem)))]
+async fn add_document(
+    State(shared): State<Shared>,
+    Path(id): Path<String>,
+    Query(file): Query<FileName>,
+    headers: HeaderMap,
+    bytes: Bytes,
+) -> Result<(StatusCode, Json<AddedView>), ApiError> {
+    let new_file = NewFile { name: &file.name, media_type: media_type(&headers), bytes: &bytes };
+    let added = shared.lock().add_document(&space(&id)?, new_file)?;
+    shared.wake();
+    let status = if added.new { StatusCode::CREATED } else { StatusCode::OK };
+    Ok((status, Json(AddedView { document: added.document.to_string(), new: added.new })))
+}
+
+/// A document with everything about it.
+#[utoipa::path(get, path = "/api/v1/spaces/{space}/documents/{document}",
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
+    responses((status = 200, body = DocumentView), (status = 404, body = Problem)))]
+async fn document(State(shared): State<Shared>, Path((s, d)): Path<(String, String)>) -> Answer<DocumentView> {
+    let (space, id) = ids(&s, &d)?;
+    document_view(&shared.lock(), &shared, &space, &id)
+}
+
+/// Whether to download a file rather than show it.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+struct Download {
+    /// `true` to download it.
+    #[serde(default)]
+    download: bool,
+}
+
+/// Media types shown in the browser; every other file is downloaded.
+const SHOWN: [&str; 5] = ["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif"];
+
+/// The file of a version, with its media type.
+#[utoipa::path(get, path = "/api/v1/spaces/{space}/documents/{document}/versions/{number}/file",
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document"),
+        ("number" = usize, Path, description = "the version, the first 1"), Download),
+    responses((status = 200, content_type = "application/octet-stream", body = Vec<u8>), (status = 404, body = Problem)))]
+async fn original(
+    State(shared): State<Shared>,
+    Path((s, d, number)): Path<(String, String, usize)>,
+    Query(download): Query<Download>,
+) -> Result<Response, ApiError> {
+    let (space, id) = ids(&s, &d)?;
+    let workspace = shared.lock();
+    let document = workspace.document(&space, &id)?;
+    let version =
+        number.checked_sub(1).and_then(|i| document.versions.get(i)).ok_or_else(|| not_found("such version"))?;
+    let original = version.original.clone();
+    let bytes = workspace.original(&original.hash)?;
+    drop(workspace);
+    let shown = !download.download && SHOWN.contains(&original.media_type.as_str());
+    let media_type = if SHOWN.contains(&original.media_type.as_str()) || original.media_type.starts_with("text/plain") {
+        original.media_type.clone()
+    } else {
+        "application/octet-stream".to_owned()
+    };
+    // The name as RFC 5987 gives it, so that any character survives.
+    let name: String = original
+        .name
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect();
+    let disposition = format!("{}; filename*=UTF-8''{name}", if shown { "inline" } else { "attachment" });
+    Ok((
+        [
+            (header::CONTENT_TYPE, media_type),
+            (header::CONTENT_DISPOSITION, disposition),
+            (
+                header::CONTENT_SECURITY_POLICY,
+                "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'".to_owned(),
+            ),
+            (header::CACHE_CONTROL, "private, no-cache".to_owned()),
+        ],
+        bytes,
+    )
+        .into_response())
+}
+
+/// The text read from the newest version, page by page.
+#[utoipa::path(get, path = "/api/v1/spaces/{space}/documents/{document}/text",
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
+    responses((status = 200, body = Vec<PageText>), (status = 404, body = Problem, description = "no document, or not read yet")))]
+async fn text(State(shared): State<Shared>, Path((s, d)): Path<(String, String)>) -> Answer<Vec<PageText>> {
+    let (space, id) = ids(&s, &d)?;
+    let extraction = shared.lock().read_text(&space, &id)?.ok_or_else(|| not_found("text read yet"))?;
+    Ok(Json(
+        extraction
+            .pages
+            .iter()
+            .map(|page| PageText {
+                method: serde_json::to_value(page.method)
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .unwrap_or_default(),
+                text: page.text(),
+            })
+            .collect(),
+    ))
+}
+
+/// Adds a file as the newest version of a document – the bytes as the body, its media type as `Content-Type`.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/documents/{document}/versions",
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document"), FileName),
+    request_body(content = Vec<u8>, content_type = "application/octet-stream", description = "the file"),
+    responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
+async fn add_version(
+    State(shared): State<Shared>,
+    Path((s, d)): Path<(String, String)>,
+    Query(file): Query<FileName>,
+    headers: HeaderMap,
+    bytes: Bytes,
+) -> Answer<DocumentView> {
+    let (space, id) = ids(&s, &d)?;
+    let new_file = NewFile { name: &file.name, media_type: media_type(&headers), bytes: &bytes };
+    let mut workspace = shared.lock();
+    workspace.add_version(&space, &id, new_file)?;
+    shared.wake();
+    document_view(&workspace, &shared, &space, &id)
+}
+
+/// Runs a command on a document and answers with the document as it is then.
+fn change(
+    shared: &Shared,
+    (s, d): (String, String),
+    command: impl FnOnce(&mut Workspace, &SpaceId, &DocumentId) -> Result<(), AppError>,
+) -> Answer<DocumentView> {
+    let (space, id) = ids(&s, &d)?;
+    let mut workspace = shared.lock();
+    command(&mut workspace, &space, &id)?;
+    document_view(&workspace, shared, &space, &id)
+}
+
+/// Gives a document a new title.
+#[utoipa::path(put, path = "/api/v1/spaces/{space}/documents/{document}/title", request_body = TitleChange,
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
+    responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn set_title(
+    State(shared): State<Shared>,
+    Path(path): Path<(String, String)>,
+    Json(change_to): Json<TitleChange>,
+) -> Answer<DocumentView> {
+    change(&shared, path, |w, s, d| w.set_title(s, d, &change_to.title))
+}
+
+/// Confirms the kind of a document – or that it has none.
+#[utoipa::path(put, path = "/api/v1/spaces/{space}/documents/{document}/kind", request_body = KindChange,
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
+    responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
+async fn set_kind(
+    State(shared): State<Shared>,
+    Path(path): Path<(String, String)>,
+    Json(change_to): Json<KindChange>,
+) -> Answer<DocumentView> {
+    change(&shared, path, |w, s, d| w.set_kind(s, d, change_to.kind.as_deref()))
+}
+
+/// Confirms the value of a field.
+#[utoipa::path(put, path = "/api/v1/spaces/{space}/documents/{document}/fields/{key}", request_body = FieldChange,
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document"),
+        ("key" = String, Path, description = "the field")),
+    responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn set_field(
+    State(shared): State<Shared>,
+    Path((s, d, key)): Path<(String, String, String)>,
+    Json(change_to): Json<FieldChange>,
+) -> Answer<DocumentView> {
+    change(&shared, (s, d), |w, s, d| w.set_field(s, d, &key, change_to.value.into()))
+}
+
+/// Empties a field: its confirmed value and its suggestion.
+#[utoipa::path(delete, path = "/api/v1/spaces/{space}/documents/{document}/fields/{key}",
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document"),
+        ("key" = String, Path, description = "the field")),
+    responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
+async fn clear_field(
+    State(shared): State<Shared>,
+    Path((s, d, key)): Path<(String, String, String)>,
+) -> Answer<DocumentView> {
+    change(&shared, (s, d), |w, s, d| w.clear_field(s, d, &key))
+}
+
+/// Adds a label to a document.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/documents/{document}/labels", request_body = LabelChange,
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
+    responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn add_label(
+    State(shared): State<Shared>,
+    Path(path): Path<(String, String)>,
+    Json(change_to): Json<LabelChange>,
+) -> Answer<DocumentView> {
+    change(&shared, path, |w, s, d| w.add_label(s, d, &change_to.label))
+}
+
+/// Takes a label off a document.
+#[utoipa::path(delete, path = "/api/v1/spaces/{space}/documents/{document}/labels/{label}",
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document"),
+        ("label" = String, Path, description = "the label")),
+    responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
+async fn remove_label(
+    State(shared): State<Shared>,
+    Path((s, d, label)): Path<(String, String, String)>,
+) -> Answer<DocumentView> {
+    change(&shared, (s, d), |w, s, d| w.remove_label(s, d, &label))
+}
+
+/// Puts a document in the bin – nothing is deleted.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/documents/{document}/trash",
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
+    responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
+async fn trash(State(shared): State<Shared>, Path(path): Path<(String, String)>) -> Answer<DocumentView> {
+    change(&shared, path, |w, s, d| w.trash(s, d))
+}
+
+/// Takes a document out of the bin.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/documents/{document}/restore",
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
+    responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
+async fn restore(State(shared): State<Shared>, Path(path): Path<(String, String)>) -> Answer<DocumentView> {
+    let answer = change(&shared, path, |w, s, d| w.restore(s, d));
+    shared.wake();
+    answer
 }
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(ApiDoc::openapi())
+}
+
+/// Whether a `Host` names this device.
+fn local_host(host: &str) -> bool {
+    let name = match host.strip_prefix('[') {
+        Some(rest) => rest.split(']').next().map(|h| format!("[{h}]")).unwrap_or_default(),
+        None => host.split(':').next().unwrap_or_default().to_owned(),
+    };
+    matches!(name.to_ascii_lowercase().as_str(), "localhost" | "127.0.0.1" | "[::1]")
+}
+
+/// Answers only requests addressed to this device, and changes only for pages of its own.
+async fn guard(request: Request, next: Next) -> Response {
+    let headers = request.headers();
+    let host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or_default().to_owned();
+    if !local_host(&host) {
+        return ApiError(StatusCode::MISDIRECTED_REQUEST, "this server answers on this device only".into())
+            .into_response();
+    }
+    let changes = !matches!(*request.method(), Method::GET | Method::HEAD | Method::OPTIONS);
+    let origin = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok());
+    let site = headers.get("sec-fetch-site").and_then(|v| v.to_str().ok());
+    let foreign = origin.is_some_and(|o| o != format!("http://{host}"))
+        || site.is_some_and(|s| s == "cross-site" || s == "same-site");
+    if changes && foreign {
+        return ApiError(StatusCode::FORBIDDEN, "changes are taken from this device's own pages only".into())
+            .into_response();
+    }
+    next.run(request).await
 }
 
 /// The web app, built by `pnpm build` in `web/` and embedded into the binary; a build without it serves the API alone.
@@ -164,21 +537,47 @@ async fn web_app(uri: axum::http::Uri) -> Response {
         .into_response()
 }
 
-/// The router: the API under `/api/v1`, and the web app around it.
-pub fn router(workspace: Workspace) -> Router {
+/// The router: the API under `/api/v1`, and the web app around it. `worker` is woken when files are added; `ocr`
+/// says whether it reads with OCR.
+pub fn router(workspace: Arc<Mutex<Workspace>>, worker: Option<Arc<Worker>>, ocr: bool) -> Router {
+    let shared = Shared { workspace, worker, titles: Arc::new(Reader::text_layer()), ocr };
+    let document = "/spaces/{space}/documents/{document}";
     let api = Router::new()
         .route("/openapi.json", get(openapi_json))
-        .route("/items", get(items).post(add_item))
-        .route("/items/{id}", delete(remove_item))
-        .fallback(|| async { ApiError(StatusCode::NOT_FOUND, "no such route of the API".into()) });
-    Router::new().nest("/api/v1", api).fallback(web_app).with_state(Arc::new(Mutex::new(workspace)))
+        .route("/status", get(status))
+        .route("/spaces", get(spaces).post(found_space))
+        .route("/spaces/{space}", put(rename_space))
+        .route("/spaces/{space}/labels", get(labels))
+        .route("/kinds", get(kinds))
+        .route("/search", post(search))
+        .route("/spaces/{space}/documents", post(add_document))
+        .route(document, get(self::document))
+        .route(&format!("{document}/versions"), post(add_version))
+        .route(&format!("{document}/versions/{{number}}/file"), get(original))
+        .route(&format!("{document}/text"), get(text))
+        .route(&format!("{document}/title"), put(set_title))
+        .route(&format!("{document}/kind"), put(set_kind))
+        .route(&format!("{document}/fields/{{key}}"), put(set_field).delete(clear_field))
+        .route(&format!("{document}/labels"), post(add_label))
+        .route(&format!("{document}/labels/{{label}}"), axum::routing::delete(remove_label))
+        .route(&format!("{document}/trash"), post(trash))
+        .route(&format!("{document}/restore"), post(restore))
+        .fallback(|| async { ApiError(StatusCode::NOT_FOUND, "no such route of the API".into()) })
+        .layer(DefaultBodyLimit::max(UPLOAD_MAX));
+    Router::new().nest("/api/v1", api).fallback(web_app).layer(middleware::from_fn(guard)).with_state(shared)
 }
 
 /// Serves a workspace on the device itself, at `port`, until interrupted; `ready` is told the address.
-pub async fn serve(workspace: Workspace, port: u16, ready: impl FnOnce(SocketAddr)) -> std::io::Result<()> {
+pub async fn serve(
+    workspace: Arc<Mutex<Workspace>>,
+    worker: Option<Arc<Worker>>,
+    ocr: bool,
+    port: u16,
+    ready: impl FnOnce(SocketAddr),
+) -> std::io::Result<()> {
     let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).await?;
     ready(listener.local_addr()?);
-    axum::serve(listener, router(workspace))
+    axum::serve(listener, router(workspace, worker, ocr))
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
         })

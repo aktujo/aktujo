@@ -10,11 +10,11 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/api/v1/items": {
+    "/api/v1/kinds": {
       "get": {
         "tags": [],
-        "summary": "Every item.",
-        "operationId": "items",
+        "summary": "The kinds of document there are.",
+        "operationId": "kinds",
         "responses": {
           "200": {
             "content": {
@@ -22,34 +22,48 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ItemView"
+                    "$ref": "#/components/schemas/KindView"
                   }
                 }
               }
             }
           }
         }
-      },
+      }
+    },
+    "/api/v1/search": {
       "post": {
         "tags": [],
-        "summary": "Adds an item.",
-        "operationId": "add_item",
+        "summary": "Finds documents: with words, the best hits first; without, the newest first.",
+        "operationId": "search",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NewItem"
+                "$ref": "#/components/schemas/SearchRequest"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "201": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ItemView"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentSummary"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -66,30 +80,177 @@
         }
       }
     },
-    "/api/v1/items/{id}": {
-      "delete": {
+    "/api/v1/spaces": {
+      "get": {
         "tags": [],
-        "summary": "Removes an item.",
-        "operationId": "remove_item",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "the item",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "minimum": 0
-            }
-          }
-        ],
+        "summary": "Every space on this device.",
+        "operationId": "spaces",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ItemView"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SpaceView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [],
+        "summary": "Founds a space.",
+        "operationId": "found_space",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpaceName"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceView"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}": {
+      "put": {
+        "tags": [],
+        "summary": "Gives a space a new name.",
+        "operationId": "rename_space",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpaceName"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents": {
+      "post": {
+        "tags": [],
+        "summary": "Adds a file as a new document – the bytes as the body, its media type as `Content-Type`. The same bytes twice\nin a space are one document.",
+        "operationId": "add_document",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "The name the file came with.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "the file",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "the same bytes were there already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddedView"
+                }
+              }
+            }
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddedView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -105,40 +266,1186 @@
           }
         }
       }
+    },
+    "/api/v1/spaces/{space}/documents/{document}": {
+      "get": {
+        "tags": [],
+        "summary": "A document with everything about it.",
+        "operationId": "document",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/fields/{key}": {
+      "put": {
+        "tags": [],
+        "summary": "Confirms the value of a field.",
+        "operationId": "set_field",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "the field",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Empties a field: its confirmed value and its suggestion.",
+        "operationId": "clear_field",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "the field",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/kind": {
+      "put": {
+        "tags": [],
+        "summary": "Confirms the kind of a document – or that it has none.",
+        "operationId": "set_kind",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KindChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/labels": {
+      "post": {
+        "tags": [],
+        "summary": "Adds a label to a document.",
+        "operationId": "add_label",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/labels/{label}": {
+      "delete": {
+        "tags": [],
+        "summary": "Takes a label off a document.",
+        "operationId": "remove_label",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "description": "the label",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/restore": {
+      "post": {
+        "tags": [],
+        "summary": "Takes a document out of the bin.",
+        "operationId": "restore",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/text": {
+      "get": {
+        "tags": [],
+        "summary": "The text read from the newest version, page by page.",
+        "operationId": "text",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PageText"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no document, or not read yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/title": {
+      "put": {
+        "tags": [],
+        "summary": "Gives a document a new title.",
+        "operationId": "set_title",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TitleChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/trash": {
+      "post": {
+        "tags": [],
+        "summary": "Puts a document in the bin – nothing is deleted.",
+        "operationId": "trash",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/versions": {
+      "post": {
+        "tags": [],
+        "summary": "Adds a file as the newest version of a document – the bytes as the body, its media type as `Content-Type`.",
+        "operationId": "add_version",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "The name the file came with.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "the file",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/versions/{number}/file": {
+      "get": {
+        "tags": [],
+        "summary": "The file of a version, with its media type.",
+        "operationId": "original",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "description": "the version, the first 1",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "description": "`true` to download it.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/labels": {
+      "get": {
+        "tags": [],
+        "summary": "The labels used in a space, with how many documents outside the bin have each.",
+        "operationId": "labels",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LabelCount"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/status": {
+      "get": {
+        "tags": [],
+        "summary": "What this program is and can do.",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusView"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
-      "ItemView": {
+      "AddedView": {
         "type": "object",
-        "description": "An item as the API shows it.",
+        "description": "What adding a file did.",
         "required": [
-          "id",
-          "title"
+          "document",
+          "new"
         ],
         "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Unique within the workspace.",
-            "minimum": 0
-          },
-          "title": {
+          "document": {
             "type": "string",
-            "description": "What the item is called."
+            "description": "The document the file is in."
+          },
+          "new": {
+            "type": "boolean",
+            "description": "Whether it is new – false if the same bytes were in the space already."
           }
         }
       },
-      "NewItem": {
+      "BinView": {
+        "type": "string",
+        "description": "Where in the bin to look.",
+        "enum": [
+          "outside",
+          "inside",
+          "both"
+        ]
+      },
+      "DocumentSummary": {
         "type": "object",
-        "description": "A new item.",
+        "description": "A document in a list.",
         "required": [
-          "title"
+          "space",
+          "id",
+          "title",
+          "kind_confirmed",
+          "labels",
+          "date",
+          "added",
+          "trashed",
+          "reading",
+          "version_count",
+          "excerpt"
         ],
         "properties": {
+          "added": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When it was added, in milliseconds since 1970.",
+            "minimum": 0
+          },
+          "date": {
+            "type": "string",
+            "description": "Its date, `YYYY-MM-DD`: the field `date`, or else the day it was added."
+          },
+          "excerpt": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartView"
+            },
+            "description": "Where the words were found – empty without words."
+          },
+          "id": {
+            "type": "string",
+            "description": "The identity."
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The kind – confirmed, or else suggested."
+          },
+          "kind_confirmed": {
+            "type": "boolean",
+            "description": "Whether a person confirmed the kind."
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The labels, in order."
+          },
+          "reading": {
+            "$ref": "#/components/schemas/ReadStateView",
+            "description": "Where it is in reading."
+          },
+          "space": {
+            "type": "string",
+            "description": "Its space."
+          },
           "title": {
             "type": "string",
-            "description": "What it is called: not empty, at most 200 characters."
+            "description": "The title."
+          },
+          "trashed": {
+            "type": "boolean",
+            "description": "Whether it is in the bin."
+          },
+          "version_count": {
+            "type": "integer",
+            "description": "How many versions it has.",
+            "minimum": 0
+          }
+        }
+      },
+      "DocumentView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DocumentSummary",
+            "description": "What a list shows of it."
+          },
+          {
+            "type": "object",
+            "required": [
+              "fields",
+              "versions"
+            ],
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FieldView"
+                },
+                "description": "The fields, in the order of their keys."
+              },
+              "kind_suggestion": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The kind suggested, while one is not confirmed."
+              },
+              "title_suggestion": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "A better title, offered while the title is still the file's."
+              },
+              "versions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/VersionView"
+                },
+                "description": "The versions, the first one first."
+              }
+            }
+          }
+        ],
+        "description": "A document with everything about it."
+      },
+      "FieldChange": {
+        "type": "object",
+        "description": "A value a person confirms.",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/ValueView",
+            "description": "The value; it must fit the field of the document's kind."
+          }
+        }
+      },
+      "FieldDefView": {
+        "type": "object",
+        "description": "A field of a kind.",
+        "required": [
+          "key",
+          "name",
+          "type"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The key, e.g. `total`."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name, in English."
+          },
+          "type": {
+            "type": "string",
+            "description": "The type of its values: `text`, `date`, `money`, `number` or `flag`."
+          }
+        }
+      },
+      "FieldView": {
+        "type": "object",
+        "description": "A field of a document.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "confirmed": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ValueView",
+                "description": "The value a person confirmed."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "key": {
+            "type": "string",
+            "description": "The key, e.g. `total`."
+          },
+          "suggestion": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ValueView",
+                "description": "The latest suggestion not yet confirmed."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "KindChange": {
+        "type": "object",
+        "description": "The kind a person confirms.",
+        "properties": {
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The identity of a kind ([`KindView`]), or none: the document has no kind."
+          }
+        }
+      },
+      "KindView": {
+        "type": "object",
+        "description": "A kind of document.",
+        "required": [
+          "id",
+          "name",
+          "fields"
+        ],
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldDefView"
+            },
+            "description": "Its fields, in the order they are shown."
+          },
+          "id": {
+            "type": "string",
+            "description": "The identity, e.g. `invoice`."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name, in English."
+          }
+        }
+      },
+      "LabelChange": {
+        "type": "object",
+        "description": "A label to add.",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Not empty, at most 100 characters."
+          }
+        }
+      },
+      "LabelCount": {
+        "type": "object",
+        "description": "A label and how many documents outside the bin have it.",
+        "required": [
+          "label",
+          "documents"
+        ],
+        "properties": {
+          "documents": {
+            "type": "integer",
+            "description": "How many documents have it.",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string",
+            "description": "The label."
+          }
+        }
+      },
+      "PageText": {
+        "type": "object",
+        "description": "A page of the text that was read.",
+        "required": [
+          "method",
+          "text"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "description": "How it was read: `text_layer`, `ocr` or `none`."
+          },
+          "text": {
+            "type": "string",
+            "description": "Its lines, from the top."
+          }
+        }
+      },
+      "PartView": {
+        "type": "object",
+        "description": "A part of an excerpt.",
+        "required": [
+          "text",
+          "hit"
+        ],
+        "properties": {
+          "hit": {
+            "type": "boolean",
+            "description": "Whether it matched a word looked for."
+          },
+          "text": {
+            "type": "string",
+            "description": "The text."
           }
         }
       },
@@ -152,6 +1459,395 @@
           "error": {
             "type": "string",
             "description": "What happened, in English."
+          }
+        }
+      },
+      "ReadStateView": {
+        "type": "string",
+        "description": "Where a document is in reading.",
+        "enum": [
+          "waiting",
+          "reading",
+          "done",
+          "failed"
+        ]
+      },
+      "ReadingView": {
+        "type": "object",
+        "description": "What reading a version gave.",
+        "required": [
+          "ocr",
+          "pages",
+          "unread"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why reading failed, if it did."
+          },
+          "ocr": {
+            "type": "boolean",
+            "description": "Whether the reader could use OCR."
+          },
+          "pages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many pages there are.",
+            "minimum": 0
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many pages gave no text.",
+            "minimum": 0
+          }
+        }
+      },
+      "SearchRequest": {
+        "type": "object",
+        "description": "What to look for; every part may be left out.",
+        "properties": {
+          "bin": {
+            "$ref": "#/components/schemas/BinView",
+            "description": "Where in the bin to look.",
+            "default": "outside"
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The first day of the document's date, `YYYY-MM-DD`.",
+            "default": null
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The kind – confirmed, or else suggested.",
+            "default": null
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Labels a document must all have.",
+            "default": []
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "At most this many documents.",
+            "default": null,
+            "minimum": 0
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The spaces to look in; none: all.",
+            "default": []
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The last day of the document's date, `YYYY-MM-DD`.",
+            "default": null
+          },
+          "words": {
+            "type": "string",
+            "description": "Words, each found at the start of a word; `\"…\"` for a phrase. Case and accents do not count.",
+            "default": ""
+          }
+        }
+      },
+      "SpaceName": {
+        "type": "object",
+        "description": "A new space, or a new name for one.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Its name: not empty, at most 100 characters."
+          }
+        }
+      },
+      "SpaceView": {
+        "type": "object",
+        "description": "A space.",
+        "required": [
+          "id",
+          "documents",
+          "trashed",
+          "waiting"
+        ],
+        "properties": {
+          "documents": {
+            "type": "integer",
+            "description": "Documents outside the bin.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "description": "The identity."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its name, once one arrived."
+          },
+          "relay": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The relay it is synchronised through, if it is."
+          },
+          "rights": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What this device may do: `read`, `write` or `manage`; none for a space only on this device."
+          },
+          "trashed": {
+            "type": "integer",
+            "description": "Documents in the bin.",
+            "minimum": 0
+          },
+          "waiting": {
+            "type": "boolean",
+            "description": "Whether this device asked to join and waits to be added."
+          }
+        }
+      },
+      "StatusView": {
+        "type": "object",
+        "description": "What this program is and can do.",
+        "required": [
+          "version",
+          "device",
+          "ocr"
+        ],
+        "properties": {
+          "device": {
+            "type": "string",
+            "description": "The device name this data folder writes under."
+          },
+          "ocr": {
+            "type": "boolean",
+            "description": "Whether this build reads pages without a text layer (OCR); `false` in `aktujo-minimal`."
+          },
+          "reading_problem": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why reading in the background stopped, if it did."
+          },
+          "version": {
+            "type": "string",
+            "description": "The version of the program."
+          }
+        }
+      },
+      "TitleChange": {
+        "type": "object",
+        "description": "A new title.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Not empty, at most 200 characters."
+          }
+        }
+      },
+      "ValueView": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Any text.",
+            "required": [
+              "value",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "text"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "description": "Any text."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A day, `YYYY-MM-DD`.",
+            "required": [
+              "value",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "date"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "description": "A day, `YYYY-MM-DD`."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An amount of money.",
+            "required": [
+              "value",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "money"
+                ]
+              },
+              "value": {
+                "type": "object",
+                "description": "An amount of money.",
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "description": "A decimal number with a point, e.g. `-12.50`."
+                  },
+                  "currency": {
+                    "type": "string",
+                    "description": "Three capital letters (ISO 4217), e.g. `EUR`."
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A decimal number with a point.",
+            "required": [
+              "value",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "number"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "description": "A decimal number with a point."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Yes or no.",
+            "required": [
+              "value",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "flag"
+                ]
+              },
+              "value": {
+                "type": "boolean",
+                "description": "Yes or no."
+              }
+            }
+          }
+        ],
+        "description": "The value of a field – the same JSON as in the events."
+      },
+      "VersionView": {
+        "type": "object",
+        "description": "A version of a document.",
+        "required": [
+          "number",
+          "hash",
+          "name",
+          "media_type",
+          "size",
+          "added"
+        ],
+        "properties": {
+          "added": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When it was added, in milliseconds since 1970.",
+            "minimum": 0
+          },
+          "hash": {
+            "type": "string",
+            "description": "The hash of its original."
+          },
+          "media_type": {
+            "type": "string",
+            "description": "The media type."
+          },
+          "name": {
+            "type": "string",
+            "description": "The file name it came with."
+          },
+          "number": {
+            "type": "integer",
+            "description": "Its number, the first version 1.",
+            "minimum": 0
+          },
+          "read": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReadingView",
+                "description": "What reading it gave, if it was read."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The size in bytes.",
+            "minimum": 0
           }
         }
       }

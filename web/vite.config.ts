@@ -7,5 +7,6 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 export default defineConfig({
   plugins: [svelte()],
   build: { outDir: "dist", emptyOutDir: true, assetsInlineLimit: 0 },
-  server: { proxy: { "/api": "http://127.0.0.1:8071" } },
+  // The texts are in ../locales, shared with the terminal interface.
+  server: { proxy: { "/api": "http://127.0.0.1:8071" }, fs: { allow: [".."] } },
 });

@@ -1,26 +1,63 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* The colours of the provisional brand (aktujo/brand); system fonts only – nothing is loaded from elsewhere. */
-:root {
-  --night: #0D1117;
-  --panel: #12171E;
-  --line: #1C232B;
-  --paper: #E6EDF3;
-  --ink: #14202B;
-  --accent: #836C46;
-  --bg: #ffffff;
-  --fg: var(--ink);
-  --border: #d0d7de;
-  color-scheme: light dark;
-  font-family: system-ui, sans-serif;
+/* The colours and fonts of aktujo/brand, as on aktujo.org: near-black, one accent (sealing-wax red), straight edges;
+   headings in Space Mono (served with the app, fonts/), the rest in system fonts – nothing is loaded from elsewhere.
+   The red is for areas, never for small text on dark: links are in the text's colour with a red underline, the main
+   buttons red with white text, the chosen one a red block. */
+
+@font-face {
+  font-family: "Space Mono";
+  src: url("/fonts/SpaceMono-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
+:root {
+  --accent: #9E1F24;
+  --on-accent: #FFFFFF;
+  --bg: #F7F8FA;
+  --bg-soft: #FFFFFF;
+  --fg: #14202B;
+  --muted: #4A5563;
+  --border: #DDE2E8;
+  --mark: #F2D4D5;
+  --danger: #9E1F24;
+  --head: "Space Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+  accent-color: var(--accent);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.45;
+}
+
+/* Dark like the system, or chosen (data-theme on <html>, set by the switch in the header). */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --accent: #C9A66B;
-    --bg: var(--night);
-    --fg: var(--paper);
-    --border: var(--line);
+  :root:not([data-theme="light"]) {
+    --accent: #B3262B;
+    --bg: #0D1117;
+    --bg-soft: #12171E;
+    --fg: #E6EDF3;
+    --muted: #8B949E;
+    --border: #1C232B;
+    --mark: #5A1A1D;
+    --danger: #F0857F;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --accent: #B3262B;
+  --bg: #0D1117;
+  --bg-soft: #12171E;
+  --fg: #E6EDF3;
+  --muted: #8B949E;
+  --border: #1C232B;
+  --mark: #5A1A1D;
+  --danger: #F0857F;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -29,38 +66,429 @@ body {
   color: var(--fg);
 }
 
-main {
-  max-width: 40rem;
-  margin: 3rem auto;
-  padding: 0 1rem;
+header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
 }
 
-a,
-button {
-  color: var(--accent);
+.brand img {
+  height: 1.8rem;
+  width: auto;
+  display: block;
+}
+
+.brand .on-dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand .on-dark {
+    display: block;
+  }
+
+  :root:not([data-theme="light"]) .brand .on-light {
+    display: none;
+  }
+}
+
+:root[data-theme="dark"] .brand .on-dark {
+  display: block;
+}
+
+:root[data-theme="dark"] .brand .on-light {
+  display: none;
+}
+
+/* The switch of the colour scheme and the settings, as on aktujo.org. */
+.theme {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+}
+
+.theme button,
+.settings-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+}
+
+.theme button:hover,
+.settings-button:hover {
+  color: var(--fg);
+}
+
+.theme button[aria-pressed="true"],
+.settings-button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.theme svg,
+.settings-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+h1,
+h2 {
+  font-family: var(--head);
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.tagline {
+  color: var(--muted);
+  flex: 1;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 16rem 1fr;
+  min-height: calc(100vh - 3rem);
+}
+
+nav {
+  padding: 1rem;
+  border-right: 1px solid var(--border);
+  background: var(--bg-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+nav h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+
+nav label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+
+main {
+  padding: 1rem 1.5rem;
+  max-width: 60rem;
+  min-width: 0;
+}
+
+main.first {
+  max-width: 32rem;
+  margin: 4rem auto;
+}
+
+a {
+  color: var(--fg);
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 3px;
+}
+
+a:hover,
+a:focus-visible {
+  background: var(--accent);
+  color: var(--on-accent);
+  text-decoration: none;
 }
 
 input,
+select,
 button {
   font: inherit;
-  padding: 0.4rem 0.6rem;
+  padding: 0.35rem 0.6rem;
   border: 1px solid var(--border);
-  background: transparent;
+  border-radius: 0;
+  background: var(--bg-soft);
   color: inherit;
+  max-width: 100%;
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button[type="submit"],
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+button.link {
+  border: none;
+  background: none;
+  padding: 0.2rem;
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 3px;
+}
+
+button.danger {
+  border-color: var(--accent);
+}
+
+.small {
+  font-size: 0.85rem;
 }
 
 ul {
   padding: 0;
+  margin: 0;
   list-style: none;
 }
 
-li {
+.spaces button {
+  width: 100%;
+  text-align: left;
   display: flex;
   justify-content: space-between;
-  padding: 0.4rem 0;
+  border-color: transparent;
+  background: none;
+  color: inherit;
+}
+
+.spaces button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.new-space,
+.row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.new-space input {
+  flex: 1;
+  min-width: 0;
+}
+
+.bin {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.dates {
+  display: grid;
+  gap: 0.4rem;
+}
+
+fieldset {
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  margin: 0;
+}
+
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.count {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.active .count {
+  color: inherit;
+}
+
+.bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.words {
+  flex: 1;
+  min-width: 0;
+}
+
+.documents li {
   border-bottom: 1px solid var(--border);
 }
 
+.document {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  padding: 0.6rem 0.2rem;
+}
+
+.document:hover {
+  background: var(--bg-soft);
+}
+
+.document .title {
+  font-weight: 600;
+}
+
+.meta,
+.excerpt,
+.suggested {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+mark {
+  background: var(--mark);
+  color: inherit;
+}
+
+.label {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+.reading.waiting,
+.reading.reading {
+  color: var(--fg);
+  border-bottom: 2px solid var(--accent);
+}
+
+.reading.failed,
 .error {
-  color: #d1242f;
+  color: var(--danger);
+}
+
+.note,
+.empty {
+  color: var(--muted);
+}
+
+article h1 {
+  font-size: 1.4rem;
+  margin: 0.5rem 0;
+}
+
+article h2 {
+  font-size: 1rem;
+  margin: 1.4rem 0 0.4rem;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0;
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+}
+
+.currency {
+  width: 4.5rem;
+}
+
+.versions li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0;
+  flex-wrap: wrap;
+}
+
+.versions a {
+  margin-left: 0.6rem;
+}
+
+pre {
+  white-space: pre-wrap;
+  font-size: 0.85rem;
+  background: var(--bg-soft);
+  padding: 0.6rem;
+}
+
+.drop {
+  position: fixed;
+  inset: 1rem;
+  border: 3px dashed var(--accent);
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  pointer-events: none;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 45rem) {
+  .layout {
+    grid-template-columns: 1fr;
+    align-content: start;
+  }
+
+  nav {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tagline {
+    display: none;
+  }
 }

@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The terminal interface of aktujo: everything with the keyboard, and with the mouse – a click does what the key or
+//! The terminal interface of aktujo: the archive with the keyboard, and with the mouse – a click does what the key or
 //! the row under it does, the wheel moves like the arrow keys; `m` hands the mouse back to the terminal (to select
-//! text). It works through the workspace of `aktujo-app` only, like every other interface.
+//! text). It works through the workspace of `aktujo-app` only, like every other interface, and speaks the language
+//! of the environment where it has its texts (`locales/`), English otherwise.
+
+use std::{
+    fs,
+    path::Path,
+    sync::{Arc, Mutex, MutexGuard},
+    time::Duration,
+};
 
 use ratatui::{
     Frame,
@@ -13,12 +21,19 @@ use ratatui::{
         execute,
     },
     layout::{Constraint, Layout, Position, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, List, ListItem, ListState, Paragraph},
+    widgets::{Block, List, ListItem, ListState, Paragraph, Wrap},
 };
 
-use aktujo_app::Workspace;
+use aktujo_app::{
+    AppError, Bin, Document, DocumentId, NewFile, ReadState, Reader, Search, SpaceInfo, Value, Worker, Workspace,
+    date_of,
+};
+
+mod texts;
+
+pub use texts::Texts;
 
 /// Why the interface ended with an error.
 #[derive(Debug, thiserror::Error)]
@@ -26,58 +41,303 @@ pub enum TuiError {
     /// The terminal.
     #[error("terminal: {0}")]
     Terminal(#[from] std::io::Error),
+    /// The workspace.
+    #[error(transparent)]
+    Workspace(#[from] AppError),
 }
 
-/// The actions at the bottom, each with its key – clickable as well.
-const ACTIONS: [(char, &str); 4] = [('a', "add"), ('d', "delete"), ('m', "mouse"), ('q', "quit")];
+/// The actions at the bottom, each with its key and the key of its text – clickable as well.
+const ACTIONS: [(char, &str); 14] = [
+    ('/', "tui.search"),
+    ('a', "tui.add"),
+    ('t', "tui.title"),
+    ('T', "tui.takeTitle"),
+    ('k', "tui.kind"),
+    ('f', "tui.fields"),
+    ('l', "tui.label"),
+    ('u', "tui.unlabel"),
+    ('d', "tui.trash"),
+    ('b', "tui.showBin"),
+    ('s', "tui.space"),
+    ('n', "tui.newSpace"),
+    ('m', "tui.mouse"),
+    ('q', "tui.quit"),
+];
+
+/// The accent of aktujo/brand on dark – sealing-wax red, for areas only: the chosen row, the space and the keys,
+/// with white text on it.
+const ACCENT: Style = Style::new().bg(Color::Rgb(0xB3, 0x26, 0x2B)).fg(Color::White);
+
+/// What is being typed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Prompt {
+    Search,
+    Add,
+    Title,
+    Label,
+    Unlabel,
+    NewSpace,
+}
+
+impl Prompt {
+    fn text(self) -> &'static str {
+        match self {
+            Prompt::Search => "search",
+            Prompt::Add => "tui.path",
+            Prompt::Title => "doc.title",
+            Prompt::Label => "doc.addLabel",
+            Prompt::Unlabel => "tui.unlabel",
+            Prompt::NewSpace => "space.name",
+        }
+    }
+}
+
+/// A document in the list.
+#[derive(Debug, Clone)]
+struct Row {
+    id: DocumentId,
+    title: String,
+    date: String,
+    kind: Option<String>,
+    reading: ReadState,
+}
 
 /// The state of the interface; drawing it is [`draw`], changing it [`App::key`] and [`App::mouse`].
 #[derive(Debug)]
-pub struct App<'a> {
-    workspace: &'a mut Workspace,
+pub struct App {
+    workspace: Arc<Mutex<Workspace>>,
+    worker: Option<Arc<Worker>>,
+    /// For titles offered from what was read: the rules only.
+    titles: Reader,
+    texts: Texts,
+    spaces: Vec<SpaceInfo>,
+    space: usize,
+    words: String,
+    bin: bool,
+    rows: Vec<Row>,
     selected: Option<usize>,
-    /// The title being typed, while adding.
-    input: Option<String>,
+    input: Option<(Prompt, String)>,
     message: String,
     /// Whether the interface has the mouse.
     pub mouse: bool,
     /// Whether to end.
     pub quit: bool,
-    /// Where the last frame put the list and the actions, for clicks.
+    /// Where the last frame put the list, the spaces and the actions, for clicks.
     list: Rect,
+    tabs: Vec<(Rect, usize)>,
     actions: Vec<(Rect, char)>,
 }
 
-impl<'a> App<'a> {
-    /// The interface on a workspace.
-    pub fn new(workspace: &'a mut Workspace) -> Self {
-        let selected = (!workspace.items().is_empty()).then_some(0);
-        App {
+/// The media type of a file by its extension.
+fn media_type(path: &Path) -> &'static str {
+    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
+    match extension.as_str() {
+        "pdf" => "application/pdf",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "tif" | "tiff" => "image/tiff",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "txt" => "text/plain",
+        _ => "application/octet-stream",
+    }
+}
+
+/// A value as it is read.
+fn shown(value: &Value, texts: &Texts) -> String {
+    match value {
+        Value::Text(text) | Value::Date(text) | Value::Number(text) => text.clone(),
+        Value::Money { amount, currency } => format!("{amount} {currency}"),
+        Value::Flag(true) => texts.get("value.yes"),
+        Value::Flag(false) => texts.get("value.no"),
+    }
+}
+
+fn reading_key(state: ReadState) -> &'static str {
+    match state {
+        ReadState::Waiting => "reading.waiting",
+        ReadState::Reading => "reading.reading",
+        ReadState::Done => "reading.done",
+        ReadState::Failed => "reading.failed",
+    }
+}
+
+impl App {
+    /// The interface on a workspace, in the language of `texts`; `worker` is woken when files are added.
+    pub fn new(workspace: Arc<Mutex<Workspace>>, worker: Option<Arc<Worker>>, texts: Texts) -> Self {
+        let mut app = App {
             workspace,
-            selected,
+            worker,
+            titles: Reader::text_layer(),
+            texts,
+            spaces: Vec::new(),
+            space: 0,
+            words: String::new(),
+            bin: false,
+            rows: Vec::new(),
+            selected: None,
             input: None,
             message: String::new(),
             mouse: true,
             quit: false,
             list: Rect::default(),
+            tabs: Vec::new(),
             actions: Vec::new(),
+        };
+        app.reload();
+        if app.spaces.is_empty() {
+            app.message = app.texts.get("space.first");
+            app.input = Some((Prompt::NewSpace, String::new()));
+        }
+        app
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Workspace> {
+        self.workspace.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Reads the spaces and the documents of the chosen one again, keeping the selected document.
+    pub fn reload(&mut self) {
+        let chosen = self.selected.and_then(|i| self.rows.get(i)).map(|r| r.id.clone());
+        let workspace = self.workspace.clone();
+        let workspace = workspace.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        self.spaces = workspace.spaces().unwrap_or_default();
+        self.space = self.space.min(self.spaces.len().saturating_sub(1));
+        self.rows.clear();
+        if let Some(space) = self.spaces.get(self.space) {
+            let search = Search {
+                words: self.words.clone(),
+                spaces: vec![space.id.clone()],
+                bin: if self.bin { Bin::Inside } else { Bin::Outside },
+                ..Search::default()
+            };
+            match workspace.search(&search) {
+                Ok(hits) => {
+                    for hit in hits {
+                        let Ok(document) = workspace.document(&hit.space, &hit.document) else { continue };
+                        self.rows.push(Row {
+                            id: document.id.clone(),
+                            title: document.title.clone(),
+                            date: date_of(document),
+                            kind: document.kind.clone().or(document.kind_suggestion.as_ref().map(|s| s.kind.clone())),
+                            reading: workspace.read_state(&hit.space, &hit.document).unwrap_or(ReadState::Done),
+                        });
+                    }
+                }
+                Err(error) => self.message = error.to_string(),
+            }
+        }
+        self.selected = match chosen.and_then(|id| self.rows.iter().position(|r| r.id == id)) {
+            Some(at) => Some(at),
+            None if self.rows.is_empty() => None,
+            None => Some(self.selected.unwrap_or(0).min(self.rows.len() - 1)),
+        };
+    }
+
+    /// Runs a command on the selected document and reports what went wrong.
+    fn on_document(&mut self, command: impl FnOnce(&mut Workspace, &SpaceInfo, &Document) -> Result<(), AppError>) {
+        let (Some(space), Some(row)) = (self.spaces.get(self.space), self.selected.and_then(|i| self.rows.get(i)))
+        else {
+            return;
+        };
+        let (space, id) = (space.clone(), row.id.clone());
+        let result = {
+            let mut workspace = self.lock();
+            match workspace.document(&space.id, &id).cloned() {
+                Ok(document) => command(&mut workspace, &space, &document),
+                Err(error) => Err(error),
+            }
+        };
+        if let Err(error) = result {
+            self.message = error.to_string();
+        }
+        self.reload();
+    }
+
+    fn wake(&self) {
+        if let Some(worker) = &self.worker {
+            worker.wake();
+        }
+    }
+
+    /// Adds a file, or every file in a folder, to the chosen space.
+    fn add(&mut self, path: &str) {
+        let Some(space) = self.spaces.get(self.space).map(|s| s.id.clone()) else { return };
+        let path = Path::new(path.trim());
+        let files: Vec<_> = if path.is_dir() {
+            match fs::read_dir(path) {
+                Ok(entries) => entries.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.is_file()).collect(),
+                Err(error) => {
+                    self.message = format!("{}: {error}", path.display());
+                    return;
+                }
+            }
+        } else {
+            vec![path.to_owned()]
+        };
+        let (mut added, mut known) = (0, 0);
+        for file in files {
+            let bytes = match fs::read(&file) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    self.message = format!("{}: {error}", file.display());
+                    continue;
+                }
+            };
+            let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            let new_file = NewFile { name: &name, media_type: media_type(&file), bytes: &bytes };
+            let result = self.lock().add_document(&space, new_file);
+            match result {
+                Ok(done) if done.new => added += 1,
+                Ok(_) => known += 1,
+                Err(error) => self.message = error.to_string(),
+            }
+        }
+        if added + known > 0 {
+            let mut message = self.texts.fill("doc.added", &[("n", &added.to_string())]);
+            if known > 0 {
+                message = format!("{message}, {}", self.texts.fill("doc.known", &[("n", &known.to_string())]));
+            }
+            self.message = message;
+        }
+        self.wake();
+        self.reload();
+    }
+
+    fn enter(&mut self, prompt: Prompt, text: String) {
+        match prompt {
+            Prompt::Search => {
+                self.words = text;
+                self.selected = Some(0);
+                self.reload();
+            }
+            Prompt::Add => self.add(&text),
+            Prompt::Title => self.on_document(|w, s, d| w.set_title(&s.id, &d.id, &text)),
+            Prompt::Label => self.on_document(|w, s, d| w.add_label(&s.id, &d.id, &text)),
+            Prompt::Unlabel => self.on_document(|w, s, d| w.remove_label(&s.id, &d.id, text.trim())),
+            Prompt::NewSpace => {
+                let result = self.lock().found_space(&text);
+                match result {
+                    Ok(id) => {
+                        self.message.clear();
+                        self.reload();
+                        self.space = self.spaces.iter().position(|s| s.id == id).unwrap_or(0);
+                        self.reload();
+                    }
+                    Err(error) => self.message = error.to_string(),
+                }
+            }
         }
     }
 
     /// Handles a key.
     pub fn key(&mut self, key: KeyEvent) {
-        if let Some(input) = &mut self.input {
+        if let Some((prompt, input)) = &mut self.input {
             match key.code {
                 KeyCode::Enter => {
-                    let text = std::mem::take(input);
+                    let (prompt, text) = (*prompt, std::mem::take(input));
                     self.input = None;
-                    match self.workspace.add_item(&text) {
-                        Ok(item) => {
-                            self.message = format!("added {}", item.title);
-                            self.selected = Some(self.workspace.items().len() - 1);
-                        }
-                        Err(error) => self.message = error.to_string(),
-                    }
+                    self.enter(prompt, text);
                 }
                 KeyCode::Esc => self.input = None,
                 KeyCode::Backspace => {
@@ -88,14 +348,57 @@ impl<'a> App<'a> {
             }
             return;
         }
-        let count = self.workspace.items().len();
+        let count = self.rows.len();
+        let prompt = |app: &mut App, prompt: Prompt, text: String| app.input = Some((prompt, text));
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
-            KeyCode::Char('a') => self.input = Some(String::new()),
             KeyCode::Char('m') => self.mouse = !self.mouse,
-            KeyCode::Char('d') | KeyCode::Delete => self.delete(),
+            KeyCode::Char('n') => prompt(self, Prompt::NewSpace, String::new()),
+            KeyCode::Char('s') if !self.spaces.is_empty() => {
+                self.space = (self.space + 1) % self.spaces.len();
+                self.selected = Some(0);
+                self.reload();
+            }
+            _ if self.spaces.is_empty() => self.message = self.texts.get("tui.noSpace"),
+            KeyCode::Char('/') => prompt(self, Prompt::Search, self.words.clone()),
+            KeyCode::Char('a') => prompt(self, Prompt::Add, String::new()),
+            KeyCode::Char('b') => {
+                self.bin = !self.bin;
+                self.selected = Some(0);
+                self.reload();
+            }
             KeyCode::Down if count > 0 => self.selected = Some(self.selected.map_or(0, |s| (s + 1).min(count - 1))),
             KeyCode::Up if count > 0 => self.selected = Some(self.selected.map_or(0, |s| s.saturating_sub(1))),
+            _ if self.selected.is_none() => {}
+            KeyCode::Char('t') => {
+                let title = self.selected.and_then(|i| self.rows.get(i)).map(|r| r.title.clone()).unwrap_or_default();
+                prompt(self, Prompt::Title, title);
+            }
+            KeyCode::Char('l') => prompt(self, Prompt::Label, String::new()),
+            KeyCode::Char('u') => prompt(self, Prompt::Unlabel, String::new()),
+            KeyCode::Char('T') => {
+                let titles = Reader::text_layer();
+                self.on_document(|w, s, d| match w.suggested_title(&s.id, &d.id, &titles)? {
+                    Some(title) => w.set_title(&s.id, &d.id, &title),
+                    None => Ok(()),
+                });
+            }
+            KeyCode::Char('k') => self.on_document(|w, s, d| match &d.kind_suggestion {
+                Some(suggestion) if d.kind.is_none() => w.set_kind(&s.id, &d.id, Some(&suggestion.kind)),
+                _ => Ok(()),
+            }),
+            KeyCode::Char('f') => self.on_document(|w, s, d| {
+                for (key, field) in &d.fields {
+                    if let Some(suggestion) = &field.suggestion {
+                        w.set_field(&s.id, &d.id, key, suggestion.value.clone())?;
+                    }
+                }
+                Ok(())
+            }),
+            KeyCode::Char('d') | KeyCode::Delete => {
+                self.on_document(|w, s, d| if d.trashed { w.restore(&s.id, &d.id) } else { w.trash(&s.id, &d.id) });
+                self.wake();
+            }
             _ => {}
         }
     }
@@ -109,9 +412,13 @@ impl<'a> App<'a> {
             MouseEventKind::Down(MouseButton::Left) => {
                 if let Some(&(_, key)) = self.actions.iter().find(|(area, _)| area.contains(at)) {
                     self.key(KeyCode::Char(key).into());
+                } else if let Some(&(_, space)) = self.tabs.iter().find(|(area, _)| area.contains(at)) {
+                    self.space = space;
+                    self.selected = Some(0);
+                    self.reload();
                 } else if self.input.is_none() && self.list.contains(at) {
                     let row = usize::from(at.y - self.list.y).checked_sub(1);
-                    if let Some(row) = row.filter(|row| *row < self.workspace.items().len()) {
+                    if let Some(row) = row.filter(|row| *row < self.rows.len()) {
                         self.selected = Some(row);
                     }
                 }
@@ -120,54 +427,153 @@ impl<'a> App<'a> {
         }
     }
 
-    fn delete(&mut self) {
-        let Some(at) = self.selected else { return };
-        let id = self.workspace.items()[at].id;
-        match self.workspace.remove_item(id) {
-            Ok(item) => self.message = format!("deleted {}", item.title),
-            Err(error) => self.message = error.to_string(),
+    /// The lines that describe the selected document.
+    fn details(&self) -> Vec<Line<'static>> {
+        let texts = &self.texts;
+        let (Some(space), Some(row)) = (self.spaces.get(self.space), self.selected.and_then(|i| self.rows.get(i)))
+        else {
+            return vec![Line::from(texts.get("doc.none"))];
+        };
+        let workspace = self.lock();
+        let Ok(document) = workspace.document(&space.id, &row.id) else { return Vec::new() };
+        let bold = Style::default().add_modifier(Modifier::BOLD);
+        let dim = Style::default().add_modifier(Modifier::DIM);
+        let suggested = format!(" ({})", texts.get("doc.suggested"));
+        let mut lines = vec![Line::styled(document.title.clone(), bold)];
+        if let Ok(Some(title)) = workspace.suggested_title(&space.id, &row.id, &self.titles) {
+            lines.push(Line::styled(texts.fill("doc.titleSuggestion", &[("title", &title)]), dim));
         }
-        let count = self.workspace.items().len();
-        self.selected = (count > 0).then(|| at.min(count - 1));
+        if document.trashed {
+            lines.push(Line::from(texts.get("doc.inBin")));
+        }
+        lines.push(Line::from(format!("{}: {}", texts.get("doc.date"), row.date)));
+        let kind = match (&document.kind, &document.kind_suggestion) {
+            (Some(kind), _) => texts.kind(kind),
+            (None, Some(suggestion)) => format!("{}{suggested}", texts.kind(&suggestion.kind)),
+            (None, None) => texts.get("doc.noKind"),
+        };
+        lines.push(Line::from(format!("{}: {kind}", texts.get("doc.kind"))));
+        let mut reading = texts.get(reading_key(row.reading));
+        if let Some(read) = &document.current().read {
+            if read.ocr {
+                reading = format!("{reading}, {}", texts.get("reading.ocr"));
+            }
+            if read.unread > 0 {
+                let values = [("unread", read.unread.to_string()), ("pages", read.pages.to_string())];
+                let values: Vec<(&str, &str)> = values.iter().map(|(k, v)| (*k, v.as_str())).collect();
+                reading = format!("{reading} – {}", texts.fill("reading.unread", &values));
+            }
+            if let Some(error) = &read.error {
+                reading = format!("{reading}: {error}");
+            }
+        }
+        lines.push(Line::styled(reading, dim));
+        if !document.fields.is_empty() {
+            lines.push(Line::default());
+            lines.push(Line::styled(texts.get("doc.fields"), bold));
+            for (key, field) in &document.fields {
+                let name = texts.field(row.kind.as_deref(), key);
+                let value = match (&field.confirmed, &field.suggestion) {
+                    (_, Some(suggestion)) => format!("{}{suggested}", shown(&suggestion.value, texts)),
+                    (Some(confirmed), None) => shown(&confirmed.value, texts),
+                    (None, None) => continue,
+                };
+                lines.push(Line::from(format!("{name}: {value}")));
+            }
+        }
+        if !document.labels.is_empty() {
+            lines.push(Line::default());
+            let labels: Vec<&str> = document.labels.iter().map(String::as_str).collect();
+            lines.push(Line::from(format!("{}: {}", texts.get("doc.labels"), labels.join(", "))));
+        }
+        lines.push(Line::default());
+        lines.push(Line::styled(texts.get("doc.versions"), bold));
+        for (i, version) in document.versions.iter().enumerate() {
+            let number = texts.fill("doc.version", &[("n", &(i + 1).to_string())]);
+            let kb = version.original.size.div_ceil(1024);
+            lines.push(Line::from(format!("{number}: {} ({kb} KB)", version.original.name)));
+        }
+        lines
     }
 }
 
 /// Draws the interface and remembers where the clickable parts are.
 pub fn draw(frame: &mut Frame, app: &mut App) {
-    let [list, input, bar] =
-        Layout::vertical([Constraint::Min(3), Constraint::Length(3), Constraint::Length(1)]).areas(frame.area());
-    let rows: Vec<ListItem> = app.workspace.items().iter().map(|item| ListItem::new(item.title.as_str())).collect();
+    let [tabs, body, input, bar] =
+        Layout::vertical([Constraint::Length(1), Constraint::Min(3), Constraint::Length(3), Constraint::Length(1)])
+            .areas(frame.area());
+    let [list, detail] = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(body);
+    let highlight = ACCENT;
+
+    app.tabs.clear();
+    let mut spans = vec![Span::raw(" aktujo  ")];
+    let mut x = tabs.x + 9;
+    for (i, space) in app.spaces.iter().enumerate() {
+        let text = format!(" {} ", space.name.as_deref().unwrap_or("…"));
+        let width = text.chars().count() as u16;
+        app.tabs.push((Rect::new(x, tabs.y, width, 1), i));
+        spans.push(if i == app.space { Span::styled(text, highlight) } else { Span::raw(text) });
+        spans.push(Span::raw(" "));
+        x += width + 1;
+    }
+    frame.render_widget(Line::from(spans), tabs);
+
+    let rows: Vec<ListItem> = app
+        .rows
+        .iter()
+        .map(|row| {
+            let marker = match row.reading {
+                ReadState::Waiting | ReadState::Reading => "… ",
+                ReadState::Failed => "! ",
+                ReadState::Done => "  ",
+            };
+            let kind = row.kind.as_deref().map(|k| format!(" · {}", app.texts.kind(k))).unwrap_or_default();
+            ListItem::new(format!("{marker}{}  {}{kind}", row.date, row.title))
+        })
+        .collect();
+    let mut title = app.texts.get(if app.bin { "bin.inside" } else { "bin.outside" });
+    if !app.words.is_empty() {
+        title = format!("{title} – {}: {}", app.texts.get("search"), app.words);
+    }
     let mut state = ListState::default().with_selected(app.selected);
-    let highlight = Style::default().add_modifier(Modifier::REVERSED);
     frame.render_stateful_widget(
-        List::new(rows).block(Block::bordered().title(" aktujo ")).highlight_style(highlight),
+        List::new(rows).block(Block::bordered().title(format!(" {title} "))).highlight_style(highlight),
         list,
         &mut state,
     );
     app.list = list;
+    frame.render_widget(Paragraph::new(app.details()).wrap(Wrap { trim: false }).block(Block::bordered()), detail);
+
     let text = match &app.input {
-        Some(input) => format!("title: {input}▏ (Enter adds, Esc cancels)"),
+        Some((prompt, input)) => {
+            format!("{}: {input}▏ ({})", app.texts.get(prompt.text()), app.texts.get("tui.enter"))
+        }
         None => app.message.clone(),
     };
     frame.render_widget(Paragraph::new(text).block(Block::bordered()), input);
+
     app.actions.clear();
     let mut spans = Vec::new();
     let mut x = bar.x;
     for (key, label) in ACTIONS {
-        let label = if key == 'm' && !app.mouse { "mouse off" } else { label };
-        let text = format!(" {key} {label} ");
+        let label = match key {
+            'm' if !app.mouse => "tui.mouseOff",
+            'b' if app.bin => "tui.showDocuments",
+            _ => label,
+        };
+        let text = format!(" {key} {} ", app.texts.get(label));
         let width = text.chars().count() as u16;
         app.actions.push((Rect::new(x, bar.y, width, 1), key));
         spans.push(Span::styled(text, highlight));
         spans.push(Span::raw(" "));
         x += width + 1;
     }
-    frame.render_widget(Line::from(spans), bar);
+    frame.render_widget(Paragraph::new(Line::from(spans)).wrap(Wrap { trim: false }), bar);
 }
 
-/// Runs the terminal interface on a workspace until it is left.
-pub fn run(workspace: &mut Workspace) -> Result<(), TuiError> {
-    let mut app = App::new(workspace);
+/// Runs the terminal interface on a workspace until it is left, in the language of the environment.
+pub fn run(workspace: Arc<Mutex<Workspace>>, worker: Option<Arc<Worker>>) -> Result<(), TuiError> {
+    let mut app = App::new(workspace, worker, Texts::from_environment());
     let mut terminal = ratatui::try_init()?;
     let mut mouse = false;
     let result = (|| -> Result<(), TuiError> {
@@ -181,6 +587,11 @@ pub fn run(workspace: &mut Workspace) -> Result<(), TuiError> {
                 }
             }
             terminal.draw(|frame| draw(frame, &mut app))?;
+            // Without input, the list is read again each second – so that reading in the background shows.
+            if !event::poll(Duration::from_secs(1))? {
+                app.reload();
+                continue;
+            }
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => app.key(key),
                 Event::Mouse(event) if app.mouse => app.mouse(event),
@@ -206,33 +617,87 @@ mod tests {
         MouseEvent { kind: MouseEventKind::Down(MouseButton::Left), column, row, modifiers: KeyModifiers::NONE }
     }
 
+    fn typed(app: &mut App, text: &str) {
+        for c in text.chars() {
+            app.key(KeyCode::Char(c).into());
+        }
+        app.key(KeyCode::Enter.into());
+    }
+
+    fn screen(terminal: &Terminal<TestBackend>) -> String {
+        let buffer = terminal.backend().buffer();
+        buffer
+            .content()
+            .chunks(buffer.area.width as usize)
+            .map(|row| row.iter().map(|c| c.symbol()).collect::<String>() + "\n")
+            .collect()
+    }
+
     #[test]
-    fn keys_and_clicks_do_the_same() {
-        let mut workspace = Workspace::new();
-        let mut app = App::new(&mut workspace);
-        let mut terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
-        terminal.draw(|frame| draw(frame, &mut app)).unwrap();
-        // Click "a add", type, Enter.
-        app.mouse(click(1, 11));
-        for c in "tea".chars() {
-            app.key(KeyCode::Char(c).into());
-        }
-        app.key(KeyCode::Enter.into());
+    fn the_archive_with_keys_and_clicks() {
+        let folder = std::env::temp_dir().join(format!("aktujo-tui-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&folder);
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(folder.join("Mietvertrag.pdf"), b"%PDF-1.7 lease").unwrap();
+        fs::write(folder.join("Stromrechnung.pdf"), b"%PDF-1.7 bill").unwrap();
+
+        let workspace = Arc::new(Mutex::new(Workspace::in_memory("laptop").unwrap()));
+        let mut app = App::new(workspace.clone(), None, Texts::of("de"));
+        let mut terminal = Terminal::new(TestBackend::new(100, 20)).unwrap();
+        // The first start asks for a space.
+        assert_eq!(app.input.as_ref().map(|(p, _)| *p), Some(Prompt::NewSpace));
+        typed(&mut app, "Zuhause");
         app.key(KeyCode::Char('a').into());
-        for c in "milk".chars() {
-            app.key(KeyCode::Char(c).into());
-        }
-        app.key(KeyCode::Enter.into());
-        assert_eq!(app.selected, Some(1));
+        typed(&mut app, folder.to_str().unwrap());
+        assert_eq!(app.rows.len(), 2);
+        assert_eq!(app.message, "2 hinzugefügt");
+        app.key(KeyCode::Char('a').into());
+        typed(&mut app, folder.join("Mietvertrag.pdf").to_str().unwrap());
+        assert_eq!(app.message, "0 hinzugefügt, 1 waren schon da");
+
         terminal.draw(|frame| draw(frame, &mut app)).unwrap();
-        app.mouse(click(3, 1));
-        assert_eq!(app.selected, Some(0));
+        assert!(screen(&terminal).contains("Zuhause"), "{}", screen(&terminal));
+        // Search, label and rename the hit.
+        app.key(KeyCode::Char('/').into());
+        typed(&mut app, "miet");
+        assert_eq!(app.rows.len(), 1);
+        app.key(KeyCode::Char('l').into());
+        typed(&mut app, "Wohnung");
+        app.key(KeyCode::Char('t').into());
+        for _ in 0.."Mietvertrag".len() {
+            app.key(KeyCode::Backspace.into());
+        }
+        typed(&mut app, "Lease");
+        assert!(app.rows.is_empty(), "the search finds the old title no more");
+        app.key(KeyCode::Char('/').into());
+        for _ in 0..4 {
+            app.key(KeyCode::Backspace.into());
+        }
+        typed(&mut app, "wohnung");
+        assert_eq!(app.rows.iter().map(|r| r.title.as_str()).collect::<Vec<_>>(), ["Lease"]);
+
+        // Into the bin with a key, and the bin shown with a click on its action.
         app.key(KeyCode::Char('d').into());
-        assert_eq!(app.workspace.items().len(), 1);
-        assert_eq!(app.workspace.items()[0].title, "milk");
-        app.mouse(click(39, 11));
-        assert!(!app.quit, "nothing there");
-        app.mouse(click(30, 11));
-        assert!(app.quit, "q quit");
+        assert!(app.rows.is_empty());
+        terminal.draw(|frame| draw(frame, &mut app)).unwrap();
+        let (area, _) = *app.actions.iter().find(|(_, key)| *key == 'b').unwrap();
+        app.mouse(click(area.x, area.y));
+        assert!(app.bin);
+        assert_eq!(app.rows.len(), 1);
+        terminal.draw(|frame| draw(frame, &mut app)).unwrap();
+        assert!(screen(&terminal).contains("Im Papierkorb"), "{}", screen(&terminal));
+
+        // A second space, chosen by a click on its tab.
+        app.key(KeyCode::Char('n').into());
+        typed(&mut app, "Firma");
+        terminal.draw(|frame| draw(frame, &mut app)).unwrap();
+        let (area, first) =
+            app.tabs.iter().copied().find(|(_, i)| app.spaces[*i].name.as_deref() == Some("Zuhause")).unwrap();
+        app.mouse(click(area.x, area.y));
+        assert_eq!(app.space, first);
+        let (area, _) = *app.actions.iter().find(|(_, key)| *key == 'q').unwrap();
+        app.mouse(click(area.x + 1, area.y));
+        assert!(app.quit);
+        let _ = fs::remove_dir_all(&folder);
     }
 }

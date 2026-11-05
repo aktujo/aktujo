@@ -255,8 +255,8 @@ name = "aktujo-tui"
 version = "0.1.0"
 dependencies = [
  "aktujo-app",
- "aktujo-core",
  "ratatui",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 

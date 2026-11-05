@@ -22,6 +22,10 @@ cargo test -p aktujo-app && cargo build -p aktujo --no-default-features   # aktu
 The feature `ocr` of `aktujo-app` (on by default in `aktujo`) builds the OCR models into the program; `build.rs` takes
 them from `AKTUJO_OCR_MODELS` or `target/ocr-models` and stops if they are missing or not the expected ones.
 
+The texts of the web app and the terminal interface are in `locales/`, one JSON file per language; a new text gets a
+key in every file (a test of `aktujo-tui` checks it). Colours, fonts and the logo come from `aktujo/brand` only –
+copied, never drawn or edited here. To try the program without touching the key store: `cargo run -- serve --memory`.
+
 ## Rules
 
 - **One core, many interfaces:** the terminal interface, the API and the command line work through `aktujo-app`

@@ -11,8 +11,8 @@ publish.workspace = true
 
 [dependencies]
 aktujo-app.workspace = true
-aktujo-core.workspace = true
 ratatui.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 
 [lints]

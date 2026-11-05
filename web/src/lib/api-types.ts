@@ -4,25 +4,165 @@
  */
 
 export interface paths {
-    "/api/v1/items": {
+    "/api/v1/kinds": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Every item. */
-        get: operations["items"];
+        /** The kinds of document there are. */
+        get: operations["kinds"];
         put?: never;
-        /** Adds an item. */
-        post: operations["add_item"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/items/{id}": {
+    "/api/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finds documents: with words, the best hits first; without, the newest first. */
+        post: operations["search"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every space on this device. */
+        get: operations["spaces"];
+        put?: never;
+        /** Founds a space. */
+        post: operations["found_space"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Gives a space a new name. */
+        put: operations["rename_space"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adds a file as a new document – the bytes as the body, its media type as `Content-Type`. The same bytes twice
+         *     in a space are one document.
+         */
+        post: operations["add_document"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A document with everything about it. */
+        get: operations["document"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/fields/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Confirms the value of a field. */
+        put: operations["set_field"];
+        post?: never;
+        /** Empties a field: its confirmed value and its suggestion. */
+        delete: operations["clear_field"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/kind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Confirms the kind of a document – or that it has none. */
+        put: operations["set_kind"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a label to a document. */
+        post: operations["add_label"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/labels/{label}": {
         parameters: {
             query?: never;
             header?: never;
@@ -32,8 +172,144 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Removes an item. */
-        delete: operations["remove_item"];
+        /** Takes a label off a document. */
+        delete: operations["remove_label"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Takes a document out of the bin. */
+        post: operations["restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The text read from the newest version, page by page. */
+        get: operations["text"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Gives a document a new title. */
+        put: operations["set_title"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Puts a document in the bin – nothing is deleted. */
+        post: operations["trash"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a file as the newest version of a document – the bytes as the body, its media type as `Content-Type`. */
+        post: operations["add_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/versions/{number}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The file of a version, with its media type. */
+        get: operations["original"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The labels used in a space, with how many documents outside the bin have each. */
+        get: operations["labels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What this program is and can do. */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -43,25 +319,281 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description An item as the API shows it. */
-        ItemView: {
+        /** @description What adding a file did. */
+        AddedView: {
+            /** @description The document the file is in. */
+            document: string;
+            /** @description Whether it is new – false if the same bytes were in the space already. */
+            new: boolean;
+        };
+        /**
+         * @description Where in the bin to look.
+         * @enum {string}
+         */
+        BinView: "outside" | "inside" | "both";
+        /** @description A document in a list. */
+        DocumentSummary: {
             /**
              * Format: int64
-             * @description Unique within the workspace.
+             * @description When it was added, in milliseconds since 1970.
              */
-            id: number;
-            /** @description What the item is called. */
+            added: number;
+            /** @description Its date, `YYYY-MM-DD`: the field `date`, or else the day it was added. */
+            date: string;
+            /** @description Where the words were found – empty without words. */
+            excerpt: components["schemas"]["PartView"][];
+            /** @description The identity. */
+            id: string;
+            /** @description The kind – confirmed, or else suggested. */
+            kind?: string | null;
+            /** @description Whether a person confirmed the kind. */
+            kind_confirmed: boolean;
+            /** @description The labels, in order. */
+            labels: string[];
+            /** @description Where it is in reading. */
+            reading: components["schemas"]["ReadStateView"];
+            /** @description Its space. */
+            space: string;
+            /** @description The title. */
             title: string;
+            /** @description Whether it is in the bin. */
+            trashed: boolean;
+            /** @description How many versions it has. */
+            version_count: number;
         };
-        /** @description A new item. */
-        NewItem: {
-            /** @description What it is called: not empty, at most 200 characters. */
-            title: string;
+        /** @description A document with everything about it. */
+        DocumentView: components["schemas"]["DocumentSummary"] & {
+            /** @description The fields, in the order of their keys. */
+            fields: components["schemas"]["FieldView"][];
+            /** @description The kind suggested, while one is not confirmed. */
+            kind_suggestion?: string | null;
+            /** @description A better title, offered while the title is still the file's. */
+            title_suggestion?: string | null;
+            /** @description The versions, the first one first. */
+            versions: components["schemas"]["VersionView"][];
+        };
+        /** @description A value a person confirms. */
+        FieldChange: {
+            /** @description The value; it must fit the field of the document's kind. */
+            value: components["schemas"]["ValueView"];
+        };
+        /** @description A field of a kind. */
+        FieldDefView: {
+            /** @description The key, e.g. `total`. */
+            key: string;
+            /** @description The name, in English. */
+            name: string;
+            /** @description The type of its values: `text`, `date`, `money`, `number` or `flag`. */
+            type: string;
+        };
+        /** @description A field of a document. */
+        FieldView: {
+            confirmed?: components["schemas"]["ValueView"] | null;
+            /** @description The key, e.g. `total`. */
+            key: string;
+            suggestion?: components["schemas"]["ValueView"] | null;
+        };
+        /** @description The kind a person confirms. */
+        KindChange: {
+            /** @description The identity of a kind ([`KindView`]), or none: the document has no kind. */
+            kind?: string | null;
+        };
+        /** @description A kind of document. */
+        KindView: {
+            /** @description Its fields, in the order they are shown. */
+            fields: components["schemas"]["FieldDefView"][];
+            /** @description The identity, e.g. `invoice`. */
+            id: string;
+            /** @description The name, in English. */
+            name: string;
+        };
+        /** @description A label to add. */
+        LabelChange: {
+            /** @description Not empty, at most 100 characters. */
+            label: string;
+        };
+        /** @description A label and how many documents outside the bin have it. */
+        LabelCount: {
+            /** @description How many documents have it. */
+            documents: number;
+            /** @description The label. */
+            label: string;
+        };
+        /** @description A page of the text that was read. */
+        PageText: {
+            /** @description How it was read: `text_layer`, `ocr` or `none`. */
+            method: string;
+            /** @description Its lines, from the top. */
+            text: string;
+        };
+        /** @description A part of an excerpt. */
+        PartView: {
+            /** @description Whether it matched a word looked for. */
+            hit: boolean;
+            /** @description The text. */
+            text: string;
         };
         /** @description An error: what was refused or went wrong. */
         Problem: {
             /** @description What happened, in English. */
             error: string;
+        };
+        /**
+         * @description Where a document is in reading.
+         * @enum {string}
+         */
+        ReadStateView: "waiting" | "reading" | "done" | "failed";
+        /** @description What reading a version gave. */
+        ReadingView: {
+            /** @description Why reading failed, if it did. */
+            error?: string | null;
+            /** @description Whether the reader could use OCR. */
+            ocr: boolean;
+            /**
+             * Format: int32
+             * @description How many pages there are.
+             */
+            pages: number;
+            /**
+             * Format: int32
+             * @description How many pages gave no text.
+             */
+            unread: number;
+        };
+        /** @description What to look for; every part may be left out. */
+        SearchRequest: {
+            /**
+             * @description Where in the bin to look.
+             * @default outside
+             */
+            bin: components["schemas"]["BinView"];
+            /**
+             * @description The first day of the document's date, `YYYY-MM-DD`.
+             * @default null
+             */
+            from: string | null;
+            /**
+             * @description The kind – confirmed, or else suggested.
+             * @default null
+             */
+            kind: string | null;
+            /**
+             * @description Labels a document must all have.
+             * @default []
+             */
+            labels: string[];
+            /**
+             * @description At most this many documents.
+             * @default null
+             */
+            limit: number | null;
+            /**
+             * @description The spaces to look in; none: all.
+             * @default []
+             */
+            spaces: string[];
+            /**
+             * @description The last day of the document's date, `YYYY-MM-DD`.
+             * @default null
+             */
+            to: string | null;
+            /**
+             * @description Words, each found at the start of a word; `"…"` for a phrase. Case and accents do not count.
+             * @default
+             */
+            words: string;
+        };
+        /** @description A new space, or a new name for one. */
+        SpaceName: {
+            /** @description Its name: not empty, at most 100 characters. */
+            name: string;
+        };
+        /** @description A space. */
+        SpaceView: {
+            /** @description Documents outside the bin. */
+            documents: number;
+            /** @description The identity. */
+            id: string;
+            /** @description Its name, once one arrived. */
+            name?: string | null;
+            /** @description The relay it is synchronised through, if it is. */
+            relay?: string | null;
+            /** @description What this device may do: `read`, `write` or `manage`; none for a space only on this device. */
+            rights?: string | null;
+            /** @description Documents in the bin. */
+            trashed: number;
+            /** @description Whether this device asked to join and waits to be added. */
+            waiting: boolean;
+        };
+        /** @description What this program is and can do. */
+        StatusView: {
+            /** @description The device name this data folder writes under. */
+            device: string;
+            /** @description Whether this build reads pages without a text layer (OCR); `false` in `aktujo-minimal`. */
+            ocr: boolean;
+            /** @description Why reading in the background stopped, if it did. */
+            reading_problem?: string | null;
+            /** @description The version of the program. */
+            version: string;
+        };
+        /** @description A new title. */
+        TitleChange: {
+            /** @description Not empty, at most 200 characters. */
+            title: string;
+        };
+        /** @description The value of a field – the same JSON as in the events. */
+        ValueView: {
+            /** @enum {string} */
+            type: "text";
+            /** @description Any text. */
+            value: string;
+        } | {
+            /** @enum {string} */
+            type: "date";
+            /** @description A day, `YYYY-MM-DD`. */
+            value: string;
+        } | {
+            /** @enum {string} */
+            type: "money";
+            /** @description An amount of money. */
+            value: {
+                /** @description A decimal number with a point, e.g. `-12.50`. */
+                amount: string;
+                /** @description Three capital letters (ISO 4217), e.g. `EUR`. */
+                currency: string;
+            };
+        } | {
+            /** @enum {string} */
+            type: "number";
+            /** @description A decimal number with a point. */
+            value: string;
+        } | {
+            /** @enum {string} */
+            type: "flag";
+            /** @description Yes or no. */
+            value: boolean;
+        };
+        /** @description A version of a document. */
+        VersionView: {
+            /**
+             * Format: int64
+             * @description When it was added, in milliseconds since 1970.
+             */
+            added: number;
+            /** @description The hash of its original. */
+            hash: string;
+            /** @description The media type. */
+            media_type: string;
+            /** @description The file name it came with. */
+            name: string;
+            /** @description Its number, the first version 1. */
+            number: number;
+            read?: components["schemas"]["ReadingView"] | null;
+            /**
+             * Format: int64
+             * @description The size in bytes.
+             */
+            size: number;
         };
     };
     responses: never;
@@ -72,7 +604,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    items: {
+    kinds: {
         parameters: {
             query?: never;
             header?: never;
@@ -86,12 +618,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ItemView"][];
+                    "application/json": components["schemas"]["KindView"][];
                 };
             };
         };
     };
-    add_item: {
+    search: {
         parameters: {
             query?: never;
             header?: never;
@@ -100,16 +632,24 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NewItem"];
+                "application/json": components["schemas"]["SearchRequest"];
             };
         };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ItemView"];
+                    "application/json": components["schemas"]["DocumentSummary"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
             422: {
@@ -122,13 +662,160 @@ export interface operations {
             };
         };
     };
-    remove_item: {
+    spaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceView"][];
+                };
+            };
+        };
+    };
+    found_space: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpaceName"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceView"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    rename_space: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description the item */
-                id: number;
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpaceName"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_document: {
+        parameters: {
+            query: {
+                /** @description The name the file came with. */
+                name: string;
+            };
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        /** @description the file */
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            /** @description the same bytes were there already */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddedView"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddedView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    document: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
             };
             cookie?: never;
         };
@@ -139,7 +826,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ItemView"];
+                    "application/json": components["schemas"]["DocumentView"];
                 };
             };
             404: {
@@ -148,6 +835,539 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_field: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+                /** @description the field */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FieldChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    clear_field: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+                /** @description the field */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_kind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KindChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_label: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    remove_label: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+                /** @description the label */
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    text: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageText"][];
+                };
+            };
+            /** @description no document, or not read yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TitleChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    trash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_version: {
+        parameters: {
+            query: {
+                /** @description The name the file came with. */
+                name: string;
+            };
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+            };
+            cookie?: never;
+        };
+        /** @description the file */
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    original: {
+        parameters: {
+            query?: {
+                /** @description `true` to download it. */
+                download?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+                /** @description the version, the first 1 */
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": number[];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    labels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelCount"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusView"];
                 };
             };
         };

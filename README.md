@@ -22,10 +22,16 @@ The brand kit lives in its own repository, [aktujo/brand](https://github.com/akt
 ```sh
 (cd web && pnpm install && pnpm build)   # the web app the binary embeds
 scripts/get-ocr-models.sh                # the OCR models the binary embeds (checked by their hashes)
-cargo run -- tui                         # the terminal interface
-cargo run -- serve                       # the API and the web app on http://127.0.0.1:8071
+cargo run -- serve                       # the archive in the browser, on http://127.0.0.1:8071
+cargo run -- tui                         # the same archive in the terminal
+cargo run -- serve --memory              # to try it out: nothing is kept, no key is stored
 cargo run -- relay --data relay          # a relay to synchronise through, on http://127.0.0.1:8072
 ```
+
+The documents live in a data folder – `aktujo` in the folder for application data of the user (on macOS
+`~/Library/Application Support/aktujo`, on Linux `~/.local/share/aktujo`, on Windows `%APPDATA%\aktujo`), or the one
+given with `--data`. It is encrypted; its key is kept in the key store of the operating system. The interfaces speak
+English and German – their texts are data in `locales/`.
 
 `cargo run --no-default-features -- …` builds `aktujo-minimal`: without scanning and OCR, so without the models.
 

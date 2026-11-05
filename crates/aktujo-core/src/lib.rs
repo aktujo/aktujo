@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The domain of aktujo: its types and rules, without I/O – what a title, a label and the name of a space may be,
-//! and the events of the program that are not about documents (`aktujo-doc` holds those). The item with a title is
-//! the starter's and goes once the interfaces show the archive (`docs/rfc/0004-archive-0.1.md`).
+//! and the events of the program that are not about documents (`aktujo-doc` holds those).
 
 use serde::{Deserialize, Serialize};
 
@@ -11,15 +10,6 @@ pub const TITLE_MAX: usize = 200;
 pub const LABEL_MAX: usize = 100;
 /// The longest name of a space, in characters.
 pub const SPACE_NAME_MAX: usize = 100;
-
-/// An item: what aktujo keeps, for now.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Item {
-    /// Unique within a store, given by it.
-    pub id: u64,
-    /// What the item is called: not empty, at most [`TITLE_MAX`] characters, without surrounding spaces.
-    pub title: String,
-}
 
 /// Why something is not valid.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

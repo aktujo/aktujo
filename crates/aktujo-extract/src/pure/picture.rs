@@ -30,7 +30,8 @@ pub(crate) fn render(page: &PdfPage<'_>, dpi: u32) -> GrayImage {
     GrayImage::from_raw(pixmap.width() as u32, pixmap.height() as u32, grey).expect("one byte per pixel")
 }
 
-/// An image of one of [`crate::IMAGE_TYPES`], in grey.
+/// An image of one of [`crate::IMAGE_TYPES`], in grey; a transparent one on white, as a viewer shows it – as it is,
+/// its transparent parts would be black, and the text in them lost.
 pub(crate) fn decode(bytes: &[u8], media_type: &str) -> Result<GrayImage, ExtractError> {
     let format = match media_type {
         "image/png" => ImageFormat::Png,
@@ -39,8 +40,19 @@ pub(crate) fn decode(bytes: &[u8], media_type: &str) -> Result<GrayImage, Extrac
         other => return Err(ExtractError::Unsupported(other.to_owned())),
     };
     image::load_from_memory_with_format(bytes, format)
-        .map(|i| i.to_luma8())
+        .map(on_white)
         .map_err(|e| ExtractError::Unreadable(e.to_string()))
+}
+
+fn on_white(image: image::DynamicImage) -> GrayImage {
+    if !image.color().has_alpha() {
+        return image.to_luma8();
+    }
+    let with_alpha = image.to_luma_alpha8();
+    GrayImage::from_fn(with_alpha.width(), with_alpha.height(), |x, y| {
+        let [grey, alpha] = with_alpha.get_pixel(x, y).0.map(u32::from);
+        Luma([((grey * alpha + 255 * (255 - alpha)) / 255) as u8])
+    })
 }
 
 /// Degrees searched in each direction, and the step.
@@ -170,6 +182,18 @@ mod tests {
         let angle = skew(&turned);
         assert!((angle - 3.0).abs() < 0.3, "{angle}");
         assert!(skew(&straighten(&turned)).abs() < 0.3);
+    }
+
+    #[test]
+    fn transparent_images_are_read_on_white() {
+        // Black text on a transparent ground: transparent black pixels, and opaque black ones.
+        let mut rgba = image::RgbaImage::from_pixel(4, 1, image::Rgba([0, 0, 0, 0]));
+        rgba.put_pixel(1, 0, image::Rgba([0, 0, 0, 255]));
+        rgba.put_pixel(2, 0, image::Rgba([0, 0, 0, 128]));
+        let mut png = Vec::new();
+        rgba.write_to(&mut std::io::Cursor::new(&mut png), ImageFormat::Png).unwrap();
+        let grey = decode(&png, "image/png").unwrap();
+        assert_eq!(grey.as_raw(), &[255, 0, 127, 255]);
     }
 
     #[test]

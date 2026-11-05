@@ -44,8 +44,12 @@ from paperless-ngx is **not** part of 0.1 (maintainer, 2026-11-05): neither impo
   names).
 - Both interfaces go through `aktujo-app` (0001); the web app only through the API.
 - The interface speaks **English and German**; its texts are data, so that more languages can follow.
-- Where the data lives: one folder per user (OPEN: the default on Linux, macOS and Windows, and `--data` to choose
-  another).
+- Where the data lives: one folder per user – `aktujo` in the folder for application data (`$XDG_DATA_HOME` or
+  `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows), or the one given with
+  `--data`; `--memory` keeps nothing, to try it out (built so, 2026-11-05).
+- The API answers only requests addressed to `localhost`, `127.0.0.1` or `[::1]`, against pages that rebind their
+  name to this device, and takes changes only from its own pages (`Origin`, `Sec-Fetch-Site`); files are uploaded as
+  they are, up to 256 MiB each (OPEN: the limit), and shown in the browser only as PDF or image, else downloaded.
 - `aktujo relay` – the relay (`aktujo-relay`) for whoever runs one: on a small server or in the home network. Its
   address is given when a space starts to sync. No public relay is run for 0.1 (maintainer, 2026-11-05).
 - Linux, macOS and **Windows**; CI checks all three.
@@ -119,7 +123,10 @@ Decided by the maintainer on 2026-11-05.
    folder, the keys of the database and of the originals derived from it with HKDF-SHA256. OPEN: the passphrase file
    where there is no key store; whether `SealedBlobs` moves into the core.
 8. **No import or export of other programs** in 0.1; aktujo's own export stays.
-9. **English and German** in the interface.
+9. **English and German** in the interface. Built so (2026-11-05): the texts are data, `locales/<language>.json`,
+   shared by the web app (the browser's language, or the one chosen) and the terminal interface (the environment's,
+   `LC_ALL`, `LC_MESSAGES`, `LANG`); names of kinds and fields are translated there by their identities. OPEN: the
+   title offered from the kind is built from the kind's English name.
 10. **Watched folders** are part of 0.1: a folder is given per space; new files are taken in, then left where they
     are or moved to a folder beside it (OPEN: which is the default).
 11. **Installed from binaries** attached to each GitHub release, built by CI for Linux, macOS and Windows – each
@@ -153,7 +160,10 @@ Decided by the maintainer on 2026-11-05.
 2. Reading in the background with `aktujo-extract` and `aktujo-rules`, the models built in; the text stored by
    hash.
 3. Search (FTS5) and filters.
-4. The API and the web app for all of it, in English and German; then the terminal interface.
+4. The API and the web app for all of it, in English and German; then the terminal interface. Built so
+   (2026-11-05): the items are gone; the web app in the colours, font and lockup of `aktujo/brand`, light, dark or
+   like the system, the language in its settings; the terminal interface in the language of the environment. OPEN:
+   showing a version's pages in the app itself (today: opened in a new tab or downloaded).
 5. Sync and sharing in every interface; `aktujo relay`.
 6. Watched folders.
 7. Improving (`aktujo-scan`).

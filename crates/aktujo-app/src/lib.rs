@@ -11,13 +11,16 @@
 //! that carries is to be measured (OPEN); so is the full-text index ([`Workspace::search`]) kept beside the events,
 //! in the same database. Text is read in the background ([`Worker`]): with OCR and its models built
 //! in, with the feature `ocr`; without it, from text layers only (`aktujo-minimal`).
-//!
-//! The items of the starter are still here, in memory, until the interfaces show the archive.
 
-use std::{collections::BTreeMap, fs, io, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fs, io,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use aktujo_blob::{BlobError, Blobs, MemoryBlobs};
-use aktujo_core::{DomainError, Item, SPACE_KINDS, SpaceEvent, label, space_name, title, title_of_file};
+use aktujo_core::{DomainError, SPACE_KINDS, SpaceEvent, label, space_name, title, title_of_file};
 use aktujo_crypt::{Domain, RecoveryCode};
 use aktujo_doc::{DocumentEvent, Documents, Origin, Original, Skipped, ValueError, builtin};
 use aktujo_log::DeviceId;
@@ -25,7 +28,6 @@ use aktujo_store::Store as EventStore;
 use aktujo_sync::{Replica, SyncError, now_ms};
 use serde::{Deserialize, Serialize};
 
-mod items;
 mod keys;
 #[cfg(feature = "ocr")]
 mod models;
@@ -35,10 +37,9 @@ mod search;
 
 pub use aktujo_base::{Sha256Hash, SpaceId};
 pub use aktujo_crypt::{Member, Rights};
-pub use aktujo_doc::{Document, DocumentId, Kind, Reading, Value};
+pub use aktujo_doc::{Document, DocumentId, Kind, Reading, Value, Version};
 pub use aktujo_extract::{Extraction, Line, Method, Page};
 pub use aktujo_sync::SyncReport;
-pub use items::StoreError;
 pub use keys::{KeyError, KeyStore, MemoryKeys, SystemKeys};
 pub use reading::{Job, ReadState, Reader, Worker, read_all};
 pub use sealed::SealedBlobs;
@@ -51,6 +52,21 @@ const FOLDER: &str = "aktujo.json";
 /// The folder of the originals in a data folder.
 const ORIGINALS: &str = "originals";
 
+/// The data folder of the person using the program, unless one is given: `aktujo` in the folder for application
+/// data – `$XDG_DATA_HOME` or `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on
+/// Windows. `None` where the environment names none of these.
+pub fn default_folder() -> Option<PathBuf> {
+    let var = |name: &str| std::env::var_os(name).filter(|v| !v.is_empty()).map(PathBuf::from);
+    let base = if cfg!(windows) {
+        var("APPDATA")?
+    } else if cfg!(target_os = "macos") {
+        var("HOME")?.join("Library").join("Application Support")
+    } else {
+        var("XDG_DATA_HOME").or_else(|| var("HOME").map(|home| home.join(".local").join("share")))?
+    };
+    Some(base.join("aktujo"))
+}
+
 /// Why a command did not happen.
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -60,9 +76,6 @@ pub enum AppError {
     /// A value that is not well formed or does not fit its field.
     #[error(transparent)]
     Value(#[from] ValueError),
-    /// The store of the starter's items.
-    #[error(transparent)]
-    Store(#[from] StoreError),
     /// The database of the data folder.
     #[error(transparent)]
     Database(#[from] aktujo_store::StoreError),
@@ -163,7 +176,6 @@ pub struct Workspace {
     views: BTreeMap<SpaceId, View>,
     /// The document being read now, if any.
     reading: Option<(SpaceId, DocumentId)>,
-    items: items::Store,
 }
 
 impl Default for Workspace {
@@ -232,8 +244,7 @@ impl Workspace {
     }
 
     fn on(replica: Replica) -> Result<Self, AppError> {
-        let mut workspace =
-            Workspace { replica, views: BTreeMap::new(), reading: None, items: items::Store::default() };
+        let mut workspace = Workspace { replica, views: BTreeMap::new(), reading: None };
         search::prepare(&workspace)?;
         for space in workspace.replica.spaces()? {
             workspace.refresh(&space)?;
@@ -557,23 +568,6 @@ impl Workspace {
         }
         Ok(reports)
     }
-
-    // The starter's items
-
-    /// Adds an item.
-    pub fn add_item(&mut self, text: &str) -> Result<Item, AppError> {
-        Ok(self.items.insert(title(text)?))
-    }
-
-    /// Removes an item.
-    pub fn remove_item(&mut self, id: u64) -> Result<Item, AppError> {
-        Ok(self.items.remove(id)?)
-    }
-
-    /// Every item.
-    pub fn items(&self) -> &[Item] {
-        self.items.items()
-    }
 }
 
 #[cfg(test)]
@@ -605,17 +599,6 @@ pub(crate) mod tests {
 
     fn money(amount: &str) -> Value {
         Value::Money { amount: amount.into(), currency: "EUR".into() }
-    }
-
-    #[test]
-    fn items_are_added_and_removed() {
-        let mut workspace = Workspace::new();
-        let item = workspace.add_item(" bread ").unwrap();
-        assert_eq!(item.title, "bread");
-        assert!(matches!(workspace.add_item(""), Err(AppError::Invalid(DomainError::EmptyTitle))));
-        assert_eq!(workspace.remove_item(item.id).unwrap(), item);
-        assert!(matches!(workspace.remove_item(item.id), Err(AppError::Store(StoreError::NotFound(_)))));
-        assert!(workspace.items().is_empty());
     }
 
     #[test]
