@@ -47,12 +47,18 @@ suggestion. Later events of the same kind win, in the agreed order of the log.
 
 - `aktujo-extract` gives **lines of text with their position** on the page, as fractions of the page (0–1, y from
   the top), for every page, with where each page's text came from: the PDF's own text layer or OCR.
-- The trait `Extractor` hides how. The first backend, `external` (a feature), runs the programs that notenwart uses
-  today: `pdftotext -bbox-layout` for the text layer, `pdftoppm` and Tesseract for pages without one and for images.
-  The parsers of their output are always there, without the feature.
-- A backend in pure Rust – so that recognition runs in WebAssembly and in mobile apps, also on end-to-end
-  encrypted content on the client – is the subject of a spike (step 2 of the plan). It decides whether `external`
-  stays the default. OPEN.
+- The trait `Extractor` hides how. Two backends, each a feature:
+  - **`pure`** (the default, decided 2026-11-05 after a spike, step 2 of the plan): pure Rust everywhere –
+    on servers, desktops, in WebAssembly and in mobile apps, also on end-to-end encrypted content on the client. The
+    text layer and the rendering of pages come from hayro; OCR runs PaddleOCR's PP-OCR models (detection, then
+    recognition of each line) on tract, after the page is straightened (deskew). The models are data: loaded from
+    bytes the program hands over, never part of the crate. Without models the backend reads text layers only.
+  - **`external`**: the programs notenwart uses today – `pdftotext -bbox-layout` for the text layer, `pdftoppm` and
+    Tesseract for pages without one and for images. Optional, for whoever wants it; no longer the default.
+  The parsers of the external programs' output are always there, without either feature.
+- In the spike PP-OCR read more exactly than Tesseract (umlauts, ß and € included; sheet music too) but took 2–5 s per
+  A4 page against Tesseract's 0.5–0.9 s. The maintainer decided for pure Rust everywhere anyway, servers included
+  (2026-11-05).
 - Not yet: e-invoices (XRechnung, ZUGFeRD), rules that turn lines into field suggestions per kind (`aktujo-rules`),
   optional AI, full-text search. Each comes with its own RFC or as an amendment to this one.
 
@@ -63,7 +69,10 @@ The positioned lines, the parsers of pdftotext and Tesseract and their use are t
 
 ## Open points
 
-- OPEN: the pure-Rust backend and whether it becomes the default (spike).
+- OPEN: how the program ships or fetches the OCR models (PP-OCRv3 detection, PP-OCRv5 Latin recognition, both
+  Apache-2.0) and names their licence.
+- OPEN: speed of OCR (threads, a smaller detection input), rotated lines without deskewing, perspective correction.
+- OPEN: measuring with real samples (phone photos, faded receipts, stamps, scanned sheet music).
 - OPEN: kinds defined by users and stored as events.
 - OPEN: removing originals for good.
 - OPEN: names of kinds and fields in other languages than English.

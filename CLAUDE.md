@@ -28,7 +28,7 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 | `crates/aktujo-relay` | core, MIT: the relay over HTTP (axum) |
 | `crates/aktujo-sync` | core, MIT: a device's replica; sync through a relay (ureq), invitations, removal, recovery |
 | `crates/aktujo-doc` | documents, MIT: versions, kinds, fields suggested and confirmed, labels – as events; no I/O |
-| `crates/aktujo-extract` | documents, MIT: text with positions from PDFs and images; backend `external` (pdftotext, Tesseract) |
+| `crates/aktujo-extract` | documents, MIT: text with positions from PDFs and images; backends `pure` (hayro, PP-OCR on tract; default) and `external` (pdftotext, Tesseract) |
 | `crates/aktujo-core` | the domain – types and rules, no I/O |
 | `crates/aktujo-app` | the workspace: every command and query; the **only** layer the interfaces use |
 | `crates/aktujo-api` | HTTP/JSON with axum, described in OpenAPI by utoipa; serves the embedded web app |

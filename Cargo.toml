@@ -37,11 +37,13 @@ clap = { version = "4.6.7", features = ["derive"] }
 ed25519-dalek = "3.0.0"
 futures-util = { version = "0.3.34", default-features = false }
 getrandom = "0.4.3"
+hayro = "0.8.0"
 hex = "0.4.3"
 hkdf = "0.13.0"
 hmac = "0.13.0"
 hpke = { version = "0.14.1", default-features = false, features = ["x25519", "chacha", "alloc", "getrandom"] }
 http-body-util = "0.1.5"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "tiff"] }
 object_store = { version = "0.14.2", default-features = false }
 ratatui = "0.30.2"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
@@ -52,6 +54,7 @@ sha2 = "0.11.1"
 thiserror = "2.0.21"
 tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "net", "signal"] }
 tower = { version = "0.5.3", features = ["util"] }
+tract-onnx = "0.22.5"
 ureq = "3.4.2"
 utoipa = { version = "6.0.0", features = ["axum_extras"] }
 

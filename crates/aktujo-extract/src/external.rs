@@ -170,34 +170,7 @@ impl Extractor for External {
 mod tests {
     use super::*;
     use crate::Method;
-
-    /// A one-page PDF with a text layer: "Invoice 42" and "Total 119.00 EUR" in Helvetica.
-    fn pdf() -> Vec<u8> {
-        let content = "BT /F1 24 Tf 72 720 Td (Invoice 42) Tj 0 -40 Td (Total 119.00 EUR) Tj ET";
-        let objects = [
-            "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
-            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>"
-                .to_owned(),
-            format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()),
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_owned(),
-        ];
-        let mut out = b"%PDF-1.4\n".to_vec();
-        let mut offsets = vec![];
-        for (i, object) in objects.iter().enumerate() {
-            offsets.push(out.len());
-            out.extend(format!("{} 0 obj\n{object}\nendobj\n", i + 1).bytes());
-        }
-        let xref = out.len();
-        out.extend(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).bytes());
-        for offset in offsets {
-            out.extend(format!("{offset:010} 00000 n \n").bytes());
-        }
-        out.extend(
-            format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).bytes(),
-        );
-        out
-    }
+    use crate::testing::pdf;
 
     #[test]
     fn reads_the_text_layer_of_a_pdf() {
