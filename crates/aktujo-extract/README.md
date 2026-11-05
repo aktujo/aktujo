@@ -12,9 +12,16 @@ The OCR models are data the program hands over (`Models`), never part of this cr
 and PP-OCRv5 Latin recognition (Apache-2.0). Without them `Pure` reads text layers only. The parsers of the external
 programs' output (`parse`) are there without either feature.
 
+In the repository, `scripts/get-ocr-models.sh` downloads these models (checked by their hashes) into
+`target/ocr-models`, and `scripts/make-ocr-samples.sh` builds test PDFs with their texts into `target/ocr-samples`:
+
 ```sh
 cargo run --release --example read -- letter.pdf [<folder with det.onnx, rec.onnx, dict.txt>]
+cargo run --release --example measure -- target/ocr-samples [target/ocr-models]
 ```
+
+`measure` prints the character error rate and word recall of every PDF or image that has a `.txt` of its text
+beside it.
 
 Part of [aktujo](https://github.com/aktujo/aktujo): a library others build in, on the aktujo core. The design is in
 [RFC 0002](https://github.com/aktujo/aktujo/blob/main/docs/rfc/0002-documents.md); the documentation is on

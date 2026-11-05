@@ -49,7 +49,7 @@ and confirmed the same way ([0003](0003-recognition.md)).
 - `aktujo-extract` gives **lines of text with their position** on the page, as fractions of the page (0–1, y from
   the top), for every page, with where each page's text came from: the PDF's own text layer or OCR.
 - The trait `Extractor` hides how. Two backends, each a feature:
-  - **`pure`** (the default, decided 2026-11-05 after a spike, step 2 of the plan): pure Rust everywhere –
+  - **`pure`** (the default, decided 2026-11-05 after a [spike](../spikes/ocr.md), step 2 of the plan): pure Rust everywhere –
     on servers, desktops, in WebAssembly and in mobile apps, also on end-to-end encrypted content on the client. The
     text layer and the rendering of pages come from hayro; OCR runs PaddleOCR's PP-OCR models (detection, then
     recognition of each line) on tract, after the page is straightened (deskew). The models are data: loaded from
@@ -57,7 +57,7 @@ and confirmed the same way ([0003](0003-recognition.md)).
   - **`external`**: the programs notenwart uses today – `pdftotext -bbox-layout` for the text layer, `pdftoppm` and
     Tesseract for pages without one and for images. Optional, for whoever wants it; no longer the default.
   The parsers of the external programs' output are always there, without either feature.
-- In the spike PP-OCR read more exactly than Tesseract (umlauts, ß and € included; sheet music too) but took 2–5 s per
+- In the [spike](../spikes/ocr.md) PP-OCR read more exactly than Tesseract (umlauts, ß and € included; sheet music too) but took 2–5 s per
   A4 page against Tesseract's 0.5–0.9 s. The maintainer decided for pure Rust everywhere anyway, servers included
   (2026-11-05).
 - Rules that turn lines into a kind and field suggestions are `aktujo-rules` ([0003](0003-recognition.md)). Not yet:

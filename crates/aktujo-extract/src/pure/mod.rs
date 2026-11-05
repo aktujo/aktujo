@@ -69,7 +69,7 @@ impl Pure {
             let mut page = text::page(source);
             if page.words() < options.min_words && self.ocr.is_some() {
                 let read = self.read_image(&picture::render(source, options.dpi), options)?;
-                if read.words() > page.words() {
+                if read.words() > page.words() || options.min_words == usize::MAX {
                     // The size stays in points; the lines are fractions of the page either way.
                     page.lines = read.lines;
                     page.method = Method::Ocr;

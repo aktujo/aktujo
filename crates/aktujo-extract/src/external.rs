@@ -130,7 +130,7 @@ impl External {
                         .arg(&base),
                 )?;
                 let read = self.ocr(&base.with_extension("png"), options)?;
-                if read.words() > page.words() {
+                if read.words() > page.words() || options.min_words == usize::MAX {
                     page.lines = read.lines;
                     page.method = crate::Method::Ocr;
                 }

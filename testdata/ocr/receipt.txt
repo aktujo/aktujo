@@ -1,0 +1,18 @@
+Bäckerei Sonnenkorn
+Lindenweg 17 · 12345 Musterstadt
+Tel. 01234 567890
+USt-IdNr. DE000000000
+Roggenbrot 750 g 3,49 A
+2 x Laugenbrezel à 0,85 1,70 A
+Croissant Butter 1,35 A
+Kaffee groß 2,90 B
+Mohnschnecke 1,95 A
+Pfand Becher 1,00 B
+SUMME EUR 12,39
+Gegeben Karte 12,39
+A 7 % MwSt. netto 7,94 MwSt. 0,56
+B 19 % MwSt. netto 3,28 MwSt. 0,62
+Beleg-Nr. 4711-0815 · Kasse 2
+04.11.2026 08:17 Uhr
+TSE-Signatur: 7Q3F9K2M
+Vielen Dank für Ihren Einkauf!

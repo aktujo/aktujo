@@ -144,7 +144,8 @@ pub struct Options {
     pub languages: String,
     /// Words OCR is less sure of (0–100) are dropped.
     pub min_confidence: f32,
-    /// Fewer words than this on a page of a PDF: the page is read by OCR instead.
+    /// Fewer words than this on a page of a PDF: the page is read by OCR instead, if that finds more words.
+    /// `usize::MAX` reads every page by OCR and keeps what it finds – for a text layer that is wrong, or to measure.
     pub min_words: usize,
     /// Tesseract's page segmentation mode: 3 finds blocks of text (documents), 11 sparse text in any order (sheet
     /// music). Only for `external`.
