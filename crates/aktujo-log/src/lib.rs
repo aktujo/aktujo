@@ -3,9 +3,8 @@
 //! identified by the hash of their canonical encoding. Two logs merge by union, in any order, any number of times,
 //! with the same result; what does not fit a clean chain is reported, never resolved silently.
 //!
-//! The mechanism is that of part 0002 of the open protocol librotenado, made general: the core knows the frame of an
-//! event (`type`, `kind`, `time`, `seq`, `prev`), the program the kinds and their members. Parts are taken over from
-//! librotenado's reference library (MIT).
+//! The core knows the frame of an event (`type`, `kind`, `time`, `seq`, `prev`), the program the kinds and their
+//! members.
 
 use std::{
     collections::{BTreeMap, btree_map::Entry},

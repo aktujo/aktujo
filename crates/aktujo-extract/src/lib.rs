@@ -1,7 +1,4 @@
 // SPDX-License-Identifier: MIT
-// The positioned lines, the parsers and the external backend are taken over from notenwart
-// (crates/notenwart-app/src/recognize.rs, AGPL-3.0-or-later) and made general; published here under MIT by their
-// copyright holder (docs/rfc/0002-documents.md).
 //! Text with its position from PDFs and images: lines of text on each page, with where the page's text came from –
 //! the PDF's own text layer or optical character recognition (OCR).
 //!

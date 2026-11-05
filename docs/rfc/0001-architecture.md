@@ -18,25 +18,16 @@ aktujo has two parts in one repository:
 - **The program** – the document archive built on the core: its domain, the workspace every interface goes
   through, the API, the terminal interface, the command line and the web app. Licence: **AGPL-3.0-or-later**.
 
-The core is taken out of two places where it works today: the data layer of spezado (storage of events and
-originals, the relay) and the reference library of the open protocol librotenado (canonical encoding, events,
-encryption). It is made general: what librotenado calls a *set of books* is a **space** here, and an event carries
-any kind a program defines.
+The core stands on its own: it depends on no other program or protocol, and a space can hold any kind of event a
+program defines.
 
-## The dependency rule
+## Independence
 
-librotenado is a protocol of its own and its specification never refers to aktujo. aktujo implements its
-mechanisms – parts 0002 (events), 0003 (canonical encoding) and 0006 (encryption) – in general form:
+- aktujo refers to no other program or protocol, and nothing in it exists for compatibility with one.
+- The labels of key derivation and signatures are a parameter (`Domain` in `aktujo-crypt`): aktujo uses its own; a
+  program that builds the core in may pass its own, so that its keys never open anything of aktujo's.
 
-- aktujo does not depend on the librotenado crate. Code taken over from it keeps its licence (MIT) and names its
-  origin in the file.
-- The labels of key derivation and signatures are a parameter (`Domain` in `aktujo-crypt`): aktujo uses its own,
-  a program that has to stay compatible with librotenado passes `librotenado/0006`.
-- OPEN: whether the core reads and writes the JSON of librotenado 0006 byte for byte (member `books` where aktujo
-  writes `space`). Decided when spezado moves onto the core.
-
-Programs that build the core in – spezado, notenwart, kernoid – move onto it only once it covers everything they
-need. Until then nothing in them changes.
+Programs that build the core in move onto it only once it covers everything they need.
 
 ## The crates
 
@@ -62,7 +53,7 @@ licence in `Cargo.toml` and in the SPDX header of every file; the core crates ar
 first release.
 
 What is not in the core: tables of a program (documents, bookings, notes, mail) and a general SQL layer over SQLite
-and PostgreSQL – each program builds its own views on the events, as spezado does today, so that queries checked at
+and PostgreSQL – each program builds its own views on the events, so that queries checked at
 compile time (sqlx) stay possible.
 
 ## Spaces, events and members
@@ -73,7 +64,7 @@ compile time (sqlx) stay possible.
   identified by the SHA-256 hash of its canonical encoding as received. The kinds and their members belong to the
   program; the core keeps, merges and passes on every event, also those of kinds it does not know.
 - **Members** are the devices, backends and recovery codes of a space, in a strictly ordered list beside the
-  unordered events (librotenado 0006). Only this list needs an order; a relay keeps it.
+  unordered events. Only this list needs an order; a relay keeps it.
 - **What a removed member wrote stays.** An event is checked against the device name its author was added with,
   whether the author is still a member or not; only current members may send. Otherwise a device that joins later
   could not read the history written by a member removed since.
@@ -99,6 +90,5 @@ commit, the documentation is built, and the crates are published.
 
 - OPEN: the backend kernoid of `aktujo-blob`, PostgreSQL of `aktujo-store`.
 - OPEN: originals larger than the relay's limit of a request (64 MiB) – sent in parts.
-- OPEN: byte-for-byte compatibility with librotenado 0006 (above).
 - OPEN: direct sync between devices (`aktujo-p2p`), transport and reaching devices behind NAT.
 - OPEN: where a device keeps its seed – beside the data or in the key store of the operating system.

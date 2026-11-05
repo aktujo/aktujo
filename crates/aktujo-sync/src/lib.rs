@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-// The flow follows the synchronisation of spezado (crates/spezado-app/src/sync.rs, AGPL-3.0-or-later), made general;
-// published here under MIT by its copyright holder, as aktujo-relay.
 //! Synchronisation of spaces between the devices of their members through a relay, end-to-end encrypted.
 //!
 //! A [`Replica`] is what one device holds: the events and member records of its spaces (`aktujo-store`), their

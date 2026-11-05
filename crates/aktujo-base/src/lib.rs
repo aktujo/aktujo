@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 //! The base of the aktujo core: the canonical encoding of JSON, hashes, identities of spaces, bytes as text and root
-//! objects with their type. No I/O.
-//!
-//! Hashes, root objects and the canonical encoding follow parts 0002 and 0003 of the open protocol librotenado, from
-//! whose reference library parts are taken over (MIT); see `docs/rfc/0001-architecture.md`.
+//! objects with their type. No I/O. The design is in `docs/rfc/0001-architecture.md`.
 
 use std::{fmt, str::FromStr};
 

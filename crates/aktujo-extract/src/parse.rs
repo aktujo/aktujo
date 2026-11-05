@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-// Taken over from notenwart (crates/notenwart-app/src/recognize.rs, AGPL-3.0-or-later); published here under MIT by
-// its copyright holder.
 //! Parsers of what the external programs write: `pdftotext -bbox-layout` (XHTML with boxes in points) and Tesseract's
 //! TSV. Pure functions, so that they are there without the feature `external` – a program that runs the tools its
 //! own way can use them.

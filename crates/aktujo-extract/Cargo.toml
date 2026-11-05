@@ -32,7 +32,7 @@ pure = ["layer", "dep:image", "dep:tract-onnx"]
 layer = ["dep:hayro"]
 # What was read as JSON.
 serde = ["dep:serde"]
-# The programs notenwart uses today: pdftotext and pdftoppm (poppler-utils) and Tesseract, found at run time.
+# Programs on the system: pdftotext and pdftoppm (poppler-utils) and Tesseract, found at run time.
 external = []
 
 [lints]

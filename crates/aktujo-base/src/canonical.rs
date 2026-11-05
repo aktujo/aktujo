@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Taken over from the reference library of librotenado (crates/librotenado/src/canonical.rs, MIT).
 //! The canonical encoding: JSON as defined by the JSON Canonicalization Scheme (RFC 8785), restricted to what the
-//! core uses – no floating-point numbers, integers up to 2^53 − 1. The same as part 0003 of librotenado.
+//! core uses – no floating-point numbers, integers up to 2^53 − 1.
 
 use std::fmt;
 

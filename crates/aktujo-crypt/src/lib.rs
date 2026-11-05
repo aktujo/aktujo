@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Taken over from the reference library of librotenado (crates/librotenado/src/encryption.rs, MIT) and made general:
-// a space instead of a set of books, the labels of a [`Domain`].
-//! End-to-end encryption of a space, the mechanism of part 0006 of the open protocol librotenado: members and their
-//! keys from a seed, the chain of space keys, the strictly ordered member list beside the unordered events, envelopes
+//! End-to-end encryption of a space: members and their keys from a seed, the chain of space keys, the strictly ordered member list beside the unordered events, envelopes
 //! for events and originals, signed requests to a relay, invitations and recovery codes.
 //!
 //! | Purpose | Algorithm |
@@ -50,8 +47,6 @@ pub struct Domain {
 impl Domain {
     /// aktujo's own.
     pub const AKTUJO: Domain = Domain { label: "aktujo/crypt", scheme: "aktujo" };
-    /// That of librotenado 0006, for programs that have to stay compatible with it (OPEN: byte-for-byte JSON).
-    pub const LIBROTENADO: Domain = Domain { label: "librotenado/0006", scheme: "librotenado" };
 }
 
 /// Why something of the encryption failed.
@@ -460,7 +455,7 @@ impl MemberRecord {
     }
 }
 
-/// Why a record of the member list is not valid (librotenado 0006).
+/// Why a record of the member list is not valid.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RecordProblem {
     /// Of other space.
@@ -964,6 +959,8 @@ mod tests {
     use super::*;
 
     const D: Domain = Domain::AKTUJO;
+    /// Another domain, to show that its keys open nothing of aktujo's.
+    const OTHER: Domain = Domain { label: "example/other", scheme: "other" };
 
     fn space() -> SpaceId {
         "0192f1e4-0000-7000-8000-0000000000b1".parse().unwrap()
@@ -978,7 +975,7 @@ mod tests {
         let keys = MemberKeys::generate(D);
         let again = MemberKeys::from_seed(D, keys.seed());
         assert_eq!((keys.id(), keys.receiving()), (again.id(), again.receiving()));
-        let elsewhere = MemberKeys::from_seed(Domain::LIBROTENADO, keys.seed());
+        let elsewhere = MemberKeys::from_seed(OTHER, keys.seed());
         assert_ne!(keys.id(), elsewhere.id(), "another domain, other keys");
         let signature = keys.sign(b"text");
         assert!(verify(&keys.id(), b"text", &signature) && !verify(&keys.id(), b"other", &signature));
@@ -988,14 +985,14 @@ mod tests {
     }
 
     #[test]
-    fn librotenado_labels_give_librotenado_keys() {
-        // The member identity of the seed 0x01… under the labels of librotenado 0006, as its reference library
-        // derives it: HKDF-SHA256 of the seed with the info `librotenado/0006 signing`, then Ed25519.
+    fn the_labels_of_a_domain_give_its_keys() {
+        // The member identity of the seed 0x01… under the labels of another domain: HKDF-SHA256 of the seed with the
+        // info `{label} signing`, then Ed25519.
         let seed = [1u8; 32];
         let mut expected = [0u8; 32];
-        Hkdf::<Sha256>::new(None, &seed).expand(b"librotenado/0006 signing", &mut expected).unwrap();
+        Hkdf::<Sha256>::new(None, &seed).expand(b"example/other signing", &mut expected).unwrap();
         let expected = SigningKey::from_bytes(&expected).verifying_key().to_bytes();
-        assert_eq!(MemberKeys::from_seed(Domain::LIBROTENADO, seed).id().0, expected);
+        assert_eq!(MemberKeys::from_seed(OTHER, seed).id().0, expected);
     }
 
     #[test]
@@ -1086,7 +1083,7 @@ mod tests {
         assert_eq!(verify_request(D, &header, "GET", path, 1_200), Some(keys.id()));
         assert_eq!(verify_request(D, &header, "GET", path, 1_400), None);
         assert_eq!(verify_request(D, &header, "POST", path, 1_000), None);
-        assert_eq!(verify_request(Domain::LIBROTENADO, &header, "GET", path, 1_000), None);
+        assert_eq!(verify_request(OTHER, &header, "GET", path, 1_000), None);
         let invitation = Invitation::new("https://relay.example", space());
         let request = invitation.request(device(&keys, "phone"));
         assert!(invitation.proves(&request));

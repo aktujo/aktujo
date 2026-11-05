@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// Taken over from the reference library of librotenado (crates/librotenado/src/clock.rs, MIT).
 //! Hybrid logical clocks: an order of events across devices that respects causality and stays close to real time.
 
 use std::{fmt, str::FromStr};

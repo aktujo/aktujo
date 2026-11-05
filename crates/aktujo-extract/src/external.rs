@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-// Taken over from notenwart (crates/notenwart-app/src/recognize.rs, AGPL-3.0-or-later) and made general; published
-// here under MIT by its copyright holder.
 //! The backend `external`: pdftotext and pdftoppm (poppler-utils) and Tesseract, found when it is made. A PDF's
 //! pages are read from its text layer; a page with too few words is rendered and read by OCR; an image is read by
 //! OCR. Scratch files live in a folder of their own, removed afterwards.

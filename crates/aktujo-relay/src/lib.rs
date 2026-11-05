@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Taken over from spezado (crates/spezado-relay, AGPL-3.0-or-later) and made general; published here under MIT by
-// its copyright holder, as planned for the core (docs/rfc/0001-architecture.md).
 //! The relay of the aktujo core: it holds, per space, the ordered member list and the envelopes of events and
 //! originals, and passes them on to the members. It cannot read them: it checks signatures, the rules of the member
-//! list and who may write, never content (the mechanism of librotenado 0006, relays).
+//! list and who may write, never content.
 //!
 //! | Request | |
 //! |---|---|
@@ -161,7 +159,7 @@ impl Relay {
     }
 }
 
-/// The routes of the relay (librotenado part 0006, relays).
+/// The routes of the relay.
 pub fn router(relay: Relay) -> Router {
     Router::new()
         .route("/v1/spaces/{space}/members", get(members).post(add_record))

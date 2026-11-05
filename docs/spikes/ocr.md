@@ -6,7 +6,7 @@ nav_order: 1
 
 # Spike: document recognition in pure Rust
 
-Step 2 of the roadmap. Question: does the backend `external` (pdftotext, pdftoppm, Tesseract – as notenwart does it
+Step 2 of the roadmap. Question: does the backend `external` (pdftotext, pdftoppm, Tesseract
 today) stay the default, or does a pure-Rust path take over? Measured on 2026-11-05.
 
 **Decided (maintainer, 2026-11-05): pure Rust everywhere, servers included.** `aktujo-extract`'s backend `pure` is
@@ -90,11 +90,11 @@ handwriting. Synthetic photos flatter every engine; real ones will be worse.
   vertical centre, rows top to bottom, left to right. On rotated images that are not straightened this splits rows,
   so CER there also measures layout; word recall does not.
 - **Times**: Apple M1 Max, macOS 27.2, release build. Text layer and rendering: median of 5 runs. OCR: one run per
-  image; Tesseract's times include starting the process and loading its model (as notenwart calls it), the Rust
+  image; Tesseract's times include starting the process and loading its model (as a program calls it), the Rust
   engines load their models once (5–15 ms). Other sessions ran on the machine at the same time: times between runs
   varied by up to 30 %.
-- Tesseract runs with `deu+eng` and `--psm 3` (automatic page segmentation). notenwart uses `--psm 11` and drops
-  words below confidence 55 – not measured here (OPEN).
+- Tesseract runs with `deu+eng` and `--psm 3` (automatic page segmentation). `--psm 11` (sparse text) with words
+  below confidence 55 dropped was not measured here (OPEN).
 - PP-OCR runs with pdf_oxide's defaults (detection input at most 960 px on the long side).
 
 The engine comparison is not kept. aktujo's own pipeline is measured again with:
@@ -206,7 +206,7 @@ What this shows:
 - **ocrs** is the fastest and the most robust on unprocessed photos (it finds rotated lines itself), but its alphabet
   has no umlauts, ß or € (4–9 % CER on everything German) and it reads the score badly.
 - **Sheet music:** only PP-OCR reads the header reliably (86 % of the words, 3–6 % CER on straight images); staves
-  confuse Tesseract and ocrs. notenwart's header-strip approach (OCR of the top third only) was not measured (OPEN).
+  confuse Tesseract and ocrs. OCR of the top third only (a header strip) was not measured (OPEN).
 - **Speed:** PP-OCR on tract takes 2–5 s per A4 page natively – 4–8× Tesseract. Whether tract uses more than one
   thread here, and whether a smaller detection input, batching or rten instead of tract helps, is OPEN.
 
