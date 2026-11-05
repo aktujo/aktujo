@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Format, lints and tests on Linux and macOS (required; add more targets where the core must run); the web app with
 # its types from api/openapi.json; api/openapi.json up to date; dependencies (cargo deny). The licence check (REUSE)
-# and a sign-off (DCO) on every commit of a pull request come from falkoss/starterpack, pinned by commit. Actions are
+# and a sign-off (DCO) on every commit of a pull request come from falkoss/starterpack, pinned by commit. A version
+# tag runs the checks again and, once they pass, publishes the core crates on crates.io (job `crates`). Actions are
 # pinned by commit, with the version as a comment.
 name: CI
 
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -66,3 +68,44 @@ jobs:
     uses: falkoss/starterpack/.github/workflows/reuse.yml@8fba58423b0b95131b436cb2edcb91adad742d71
   sign-off:
     uses: falkoss/starterpack/.github/workflows/dco.yml@8fba58423b0b95131b436cb2edcb91adad742d71
+
+  # The core crates on crates.io, from a tag `v0.1.1` on a commit of main, once the checks of this run passed: in the
+  # order of their dependencies, each in the tag's version, through crates.io's trusted publishing (a short-lived
+  # token for this workflow and the environment `crates-io`, no stored secret). A version already on crates.io is
+  # left alone, so the job can run again. The program is not published.
+  crates:
+    needs: [rust, licences]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - name: The tag is on main and names the workspace's version
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_REF_NAME is not on main: release a commit of main"; exit 1; }
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "aktujo-base") | .version')
+          test "v$version" = "$GITHUB_REF_NAME" \
+            || { echo "::error::the crates are $version, the tag $GITHUB_REF_NAME"; exit 1; }
+      - uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+        id: auth
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for crate in base blob log crypt store relay sync; do
+            name="aktujo-$crate"
+            if curl -fsS -A "aktujo release (https://github.com/aktujo/aktujo)" \
+                 "https://crates.io/api/v1/crates/$name/$version" >/dev/null 2>&1; then
+              echo "$name $version is on crates.io already"; continue
+            fi
+            cargo publish --locked -p "$name"
+          done
