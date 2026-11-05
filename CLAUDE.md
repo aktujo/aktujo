@@ -24,14 +24,14 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 | `crates/aktujo-blob` | core, MIT: originals by hash – memory, folder, object store / S3 (features `object`, `s3`); OPEN: kernoid |
 | `crates/aktujo-log` | core, MIT: events of any kind, hybrid logical clocks, chains, merge by union |
 | `crates/aktujo-crypt` | core, MIT: members, keys, member list, envelopes, invitations, recovery codes |
-| `crates/aktujo-store` | core, MIT: SQLite – events, member records, settings; feature `sqlcipher` encrypts the database as a whole (OPEN: PostgreSQL) |
+| `crates/aktujo-store` | core, MIT: SQLite – events, member records, settings; programs add tables of their own through `Store::connection`; feature `sqlcipher` encrypts the database as a whole (OPEN: PostgreSQL) |
 | `crates/aktujo-relay` | core, MIT: the relay over HTTP (axum) |
 | `crates/aktujo-sync` | core, MIT: a device's replica; sync through a relay (ureq), invitations, removal, recovery |
 | `crates/aktujo-doc` | documents, MIT: versions, kinds, fields suggested and confirmed, labels – as events; no I/O |
 | `crates/aktujo-extract` | documents, MIT: text with positions from PDFs and images; backends `pure` (hayro, PP-OCR on tract; default) and `external` (pdftotext, Tesseract); `layer` is `pure` without OCR; `serde` keeps what was read as JSON |
 | `crates/aktujo-rules` | documents, MIT: the kind and the fields from the text, as suggestions; general on purpose – programs specialise it (kinds and rules as data, trait `Recogniser`); six languages; no I/O |
 | `crates/aktujo-core` | the domain – types and rules, no I/O |
-| `crates/aktujo-app` | the workspace: every command and query; the **only** layer the interfaces use – a data folder (SQLCipher database, originals sealed with XChaCha20-Poly1305, the key in the operating system's key store), spaces, documents, sync and sharing, reading in the background (`Worker`; event `document_read`); feature `ocr` builds the OCR models in (`build.rs`, from `target/ocr-models`) |
+| `crates/aktujo-app` | the workspace: every command and query; the **only** layer the interfaces use – a data folder (SQLCipher database, originals sealed with XChaCha20-Poly1305, the key in the operating system's key store), spaces, documents, sync and sharing, reading in the background (`Worker`; event `document_read`), search (FTS5 beside the core's tables, filters); feature `ocr` builds the OCR models in (`build.rs`, from `target/ocr-models`) |
 | `crates/aktujo-api` | HTTP/JSON with axum, described in OpenAPI by utoipa; serves the embedded web app |
 | `crates/aktujo-tui` | the terminal interface (ratatui) – keyboard and mouse |
 | `crates/aktujo` | the command line: `serve`, `tui`, `relay`, `openapi`; feature `ocr` on by default – without it, `aktujo-minimal` |

@@ -8,7 +8,8 @@
 //! through a relay and shared with other people's devices, with rights.
 //!
 //! The state of each space is folded from its log when the workspace opens and again after every change; how far
-//! that carries is to be measured (OPEN). Text is read in the background ([`Worker`]): with OCR and its models built
+//! that carries is to be measured (OPEN); so is the full-text index ([`Workspace::search`]) kept beside the events,
+//! in the same database. Text is read in the background ([`Worker`]): with OCR and its models built
 //! in, with the feature `ocr`; without it, from text layers only (`aktujo-minimal`).
 //!
 //! The items of the starter are still here, in memory, until the interfaces show the archive.
@@ -30,6 +31,7 @@ mod keys;
 mod models;
 mod reading;
 mod sealed;
+mod search;
 
 pub use aktujo_base::{Sha256Hash, SpaceId};
 pub use aktujo_crypt::{Member, Rights};
@@ -40,6 +42,7 @@ pub use items::StoreError;
 pub use keys::{KeyError, KeyStore, MemoryKeys, SystemKeys};
 pub use reading::{Job, ReadState, Reader, Worker, read_all};
 pub use sealed::SealedBlobs;
+pub use search::{Bin, Hit, Part, Search, date_of};
 
 /// The database of a data folder.
 const DATABASE: &str = "aktujo.sqlite";
@@ -231,6 +234,7 @@ impl Workspace {
     fn on(replica: Replica) -> Result<Self, AppError> {
         let mut workspace =
             Workspace { replica, views: BTreeMap::new(), reading: None, items: items::Store::default() };
+        search::prepare(&workspace)?;
         for space in workspace.replica.spaces()? {
             workspace.refresh(&space)?;
         }
@@ -242,7 +246,7 @@ impl Workspace {
         self.replica.device().as_str()
     }
 
-    /// Folds the state of a space from its log again.
+    /// Folds the state of a space from its log again, and brings its search index up to date.
     fn refresh(&mut self, space: &SpaceId) -> Result<(), AppError> {
         let log = self.replica.log(space)?;
         let (documents, skipped) = Documents::from_log(&log);
@@ -255,7 +259,7 @@ impl Workspace {
             }
         }
         self.views.insert(space.clone(), View { name, documents, skipped });
-        Ok(())
+        self.index(space)
     }
 
     fn view(&self, space: &SpaceId) -> Result<&View, AppError> {
@@ -622,7 +626,11 @@ pub(crate) mod tests {
         let work = workspace.found_space("Business").unwrap();
         workspace.rename_space(&work, "Business Ltd").unwrap();
         let spaces = workspace.spaces().unwrap();
-        assert_eq!(spaces.iter().map(|s| s.name.as_deref().unwrap()).collect::<Vec<_>>(), ["Home", "Business Ltd"]);
+        // In the order of their identities – within the same millisecond, that order is random.
+        assert!(spaces.windows(2).all(|pair| pair[0].id < pair[1].id));
+        let mut names: Vec<&str> = spaces.iter().map(|s| s.name.as_deref().unwrap()).collect();
+        names.sort();
+        assert_eq!(names, ["Business Ltd", "Home"]);
         assert!(spaces.iter().all(|s| s.relay.is_none() && s.rights.is_none() && !s.waiting));
         assert!(matches!(workspace.found_space("  "), Err(AppError::Invalid(DomainError::EmptySpaceName))));
         assert!(workspace.documents(&home).unwrap().is_empty());

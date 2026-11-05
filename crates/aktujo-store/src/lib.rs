@@ -12,6 +12,8 @@ use std::{collections::BTreeSet, path::Path};
 use aktujo_base::{Sha256Hash, SpaceId, to_root};
 use aktujo_crypt::{Domain, MemberList, MemberRecord, RecordProblem};
 use aktujo_log::{EventError, Log};
+/// The SQLite binding of the store, for programs that keep tables of their own beside it ([`Store::connection`]).
+pub use rusqlite;
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// Why the store failed.
@@ -125,6 +127,13 @@ impl Store {
         connection.execute_batch(SCHEMA)?;
         connection.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))?;
         Ok(Store { connection })
+    }
+
+    /// The connection, for a program's own tables beside the core's schema – views to search, for example (0001: no
+    /// general SQL layer in the core). They are in the same database, encrypted with it under `sqlcipher`. The core's
+    /// own tables (`settings`, `events`, `members`, `originals`, `sent`) are written through the store only.
+    pub fn connection(&self) -> &Connection {
+        &self.connection
     }
 
     /// The spaces with events or member records, in order.

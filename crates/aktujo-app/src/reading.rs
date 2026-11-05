@@ -217,7 +217,12 @@ impl Workspace {
         let Some(hash) = document.current().read.as_ref().and_then(|r| r.text) else {
             return Ok(None);
         };
-        let Some(bytes) = self.replica.original(&hash)? else {
+        self.stored_text(&hash)
+    }
+
+    /// The text kept under `hash`, if its bytes are on this device.
+    pub(crate) fn stored_text(&self, hash: &Sha256Hash) -> Result<Option<Extraction>, AppError> {
+        let Some(bytes) = self.replica.original(hash)? else {
             return Ok(None);
         };
         let stored: StoredText =
@@ -399,6 +404,14 @@ mod tests {
         assert_eq!(document.kind, None, "suggested, not confirmed");
         let title = w.suggested_title(&space, &id, &reader).unwrap().unwrap();
         assert!(title.starts_with("Invoice"), "{title}");
+
+        // What was read is found, with the words around it.
+        let search = crate::Search { words: "RE-2026-0042".into(), ..crate::Search::default() };
+        let hits = w.search(&search).unwrap();
+        assert_eq!(hits.iter().map(|h| &h.document).collect::<Vec<_>>(), [&id]);
+        assert!(hits[0].excerpt.iter().any(|p| p.hit && p.text == "RE-2026-0042"), "{:?}", hits[0].excerpt);
+        let search = crate::Search { words: "thank order".into(), ..crate::Search::default() };
+        assert_eq!(w.search(&search).unwrap().len(), 1);
     }
 
     #[test]

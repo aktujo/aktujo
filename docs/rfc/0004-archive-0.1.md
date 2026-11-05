@@ -59,12 +59,20 @@ Decided by the maintainer on 2026-11-05.
 2. **The state is built from the events.** On start the program reads the logs, builds `Documents` (`aktujo-doc`)
    per space and keeps them in memory; views for searching are kept in SQLite beside the core's schema, as tables of
    the program (0001: no general SQL layer in the core). OPEN: how many documents this must carry (proposal:
-   100 000 on an ordinary laptop) and measuring it.
+   100 000 on an ordinary laptop) and measuring it. Built so (2026-11-05): the program reaches the database through
+   `Store::connection` of `aktujo-store`, for its own tables only; the search index is brought up to date for a space
+   whenever its state is folded, one document at a time by a stamp of what was indexed.
 3. **The text that was read is kept as an original by hash**, beside the version it was read from, so that it syncs
    later and other devices – a phone above all – need not read again. Reading again with better OCR writes a new
    one. Full-text search runs in SQLite FTS5 over that text, the title, labels and field values. Built so
-   (2026-11-05): the positioned lines of `aktujo-extract` as JSON, linked to the version by the event
-   `document_read` – an amendment to [0002](0002-documents.md).
+   (2026-11-05): the positioned lines of `aktujo-extract` as JSON, linked to the version by the event `document_read`
+   – an amendment to [0002](0002-documents.md). Search, built so (2026-11-05): one FTS5 table over the title, the
+   labels, the kind with the field values and the text, case and accents not counting (`unicode61`,
+   `remove_diacritics 2`); every word is matched at the start of words and all are needed, `"…"` makes a phrase; hits
+   are ordered by BM25 with the title weighing most, and come with an excerpt. The filters – space, kind (confirmed,
+   or else suggested), labels (all of them), the bin, and a range of days – run on the state in memory; the day of a
+   document is its field `date`, or else the day it was added (UTC). OPEN: whether a range over other date fields is
+   needed; searching with words in other languages' word forms (stemming).
 4. **Reading in the background.** Adding returns at once; reading, recognising and indexing run in a queue, one
    document after the other, with their state visible (waiting, reading, done, failed). Suggestions are written as
    events when the reading is done. Built so (2026-11-05): the queue is the state – a version waits while it has no
