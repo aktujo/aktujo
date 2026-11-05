@@ -6,6 +6,9 @@
 //!
 //! Everything read from a document is a **suggestion** with its source; only a person **confirms** a value. A field
 //! keeps both, and a suggestion never replaces a confirmed value.
+//!
+//! Nothing in it belongs to one trade: the kinds of documents and their fields are data of a space ([`Kind`]),
+//! defined by the people and programs that use it (`docs/rfc/0005-pure-core.md`).
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -19,7 +22,9 @@ use serde::{Deserialize, Serialize};
 
 mod kinds;
 
-pub use kinds::{FieldDef, FieldType, Kind, builtin};
+pub use kinds::{
+    FieldDef, FieldType, Find, KIND_EVENTS, Kind, KindError, KindEvent, KindSkipped, Kinds, MAX_ID, MAX_NAME, Weighted,
+};
 
 /// The identity of a document: a UUID in lower case, given when it is added and never changed.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -178,7 +183,7 @@ pub enum Source {
     },
     /// An import from another program, by its name.
     Import {
-        /// The program, e.g. `paperless-ngx`.
+        /// The program.
         name: String,
     },
 }

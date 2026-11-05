@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
   import { api, fileUrl, shown, upload, type DocumentView, type Kind, type Value } from "./lib/api";
-  import { fieldName, kindName, t } from "./lib/i18n.svelte";
+  import { byName, fieldName, kindName, nameOf, t } from "./lib/i18n.svelte";
 
   let {
     space,
@@ -180,9 +180,9 @@
       <dt>{t("doc.kind")}</dt>
       <dd>
         <select value={document.kind_confirmed ? document.kind : ""} onchange={(e) => setKind(e.currentTarget.value || null)}>
-          <option value="">{document.kind_suggestion ? `${kindName(document.kind_suggestion)} (${t("doc.suggested")})` : t("doc.noKind")}</option>
-          {#each kinds as k (k.id)}
-            <option value={k.id}>{kindName(k.id)}</option>
+          <option value="">{document.kind_suggestion ? `${kindName(kinds, document.kind_suggestion)} (${t("doc.suggested")})` : t("doc.noKind")}</option>
+          {#each byName(kinds) as k (k.id)}
+            <option value={k.id}>{nameOf(k)}</option>
           {/each}
         </select>
         {#if document.kind_suggestion && !document.kind_confirmed}
@@ -203,14 +203,14 @@
     <h2>{t("doc.fields")}</h2>
     <dl class="fields">
       {#each fields as { key, type, field } (key)}
-        <dt>{fieldName(document.kind, key)}</dt>
+        <dt>{fieldName(kinds, document.kind, key)}</dt>
         <dd>
           {#if editing?.key === key}
             <form class="row" onsubmit={(e) => saveField(e, type)}>
               {#if type === "date"}
-                <input type="date" bind:value={editing.text} aria-label={fieldName(document.kind, key)} />
+                <input type="date" bind:value={editing.text} aria-label={fieldName(kinds, document.kind, key)} />
               {:else}
-                <input bind:value={editing.text} aria-label={fieldName(document.kind, key)} />
+                <input bind:value={editing.text} aria-label={fieldName(kinds, document.kind, key)} />
               {/if}
               {#if type === "money"}<input class="currency" bind:value={editing.currency} maxlength="3" aria-label="Currency" />{/if}
               <button type="submit">{t("doc.save")}</button>

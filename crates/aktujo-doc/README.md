@@ -4,7 +4,9 @@ Documents on the aktujo core. A document is not a file: it has an identity, a ti
 versions, each an original stored by its hash. Everything that happens to a document is an event in the log of its
 space (`aktujo-log`); `Documents::from_log` folds them into the state every device agrees on.
 
-Kinds are data – a few come with the library (invoice, receipt, contract, notice, payslip, policy, letter). Every
+Nothing in it belongs to one trade: kinds of documents – their fields, the words that speak for them, the ways to
+find their fields – are data of a space, events like everything else, defined by the people and programs that use it.
+Every
 value read from a document – a field, the kind – is a suggestion with its source; only a person confirms one, and a
 suggestion never replaces a confirmed value. No I/O.
 

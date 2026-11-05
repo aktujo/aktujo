@@ -12,7 +12,7 @@ State: draft.
 
 Two libraries sit between the core and the program: `aktujo-doc` (what a document is) and `aktujo-extract`
 (reading text with its position from PDFs and images). Both are **MIT** like the core, because other programs build
-them in – spezado for its receipts, notenwart for sheet music, kernoid for its search index. They are not part of
+them in. They are not part of
 the core: the core knows no documents. They depend on the core, never on the program.
 
 ## A document is not a file
@@ -29,9 +29,9 @@ the core: the core knows no documents. They depend on the core, never on the pro
 
 ## Kinds and fields
 
-- A **kind** is data, not code: an identity (`invoice`), a name and its fields, each with a key, a name and a type –
-  text, date, money, number or yes/no. A few kinds come with the library (invoice, receipt, contract, notice,
-  payslip, policy, letter); a program can define its own (notenwart: a part of a piece of music).
+- A **kind** is data, not code: an identity (`letter`), a name and its fields, each with a key, a name and a type –
+  text, date, money, number or yes/no. None come with the library: kinds are data of a space, defined by its people
+  or taken over from a template ([0005](0005-pure-core.md)).
 - Values of dates, amounts and numbers are written as text (`2026-11-05`, `"119.00"` with a currency), never as
   binary floating point, so that they are the same on every device.
 - A deadline is a field of type date like any other. Rules that compute deadlines are not part of this RFC.
@@ -54,7 +54,7 @@ and confirmed the same way ([0003](0003-recognition.md)).
     text layer and the rendering of pages come from hayro; OCR runs PaddleOCR's PP-OCR models (detection, then
     recognition of each line) on tract, after the page is straightened (deskew). The models are data: loaded from
     bytes the program hands over, never part of the crate. Without models the backend reads text layers only.
-  - **`external`**: the programs notenwart uses today – `pdftotext -bbox-layout` for the text layer, `pdftoppm` and
+  - **`external`**: programs on the system – `pdftotext -bbox-layout` for the text layer, `pdftoppm` and
     Tesseract for pages without one and for images. Optional, for whoever wants it; no longer the default.
   The parsers of the external programs' output are always there, without either feature.
 - In the [spike](../spikes/ocr.md) PP-OCR read more exactly than Tesseract (umlauts, ß and € included; sheet music too) but took 2–5 s per
@@ -76,17 +76,12 @@ and confirmed the same way ([0003](0003-recognition.md)).
   e-invoices (XRechnung, ZUGFeRD), optional AI, full-text search. Each comes with its own RFC or as an amendment to
   this one.
 
-## Origin
-
-The positioned lines, the parsers of pdftotext and Tesseract and their use are taken over from notenwart
-(`notenwart-app/src/recognize.rs`, AGPL-3.0-or-later) and published here under MIT by its copyright holder.
-
 ## Open points
 
 - How the program ships the OCR models: built in ([0004](0004-archive-0.1.md), decision 6). OPEN: naming their
   licence in the program.
 - OPEN: speed of OCR (threads, a smaller detection input), rotated lines without deskewing, perspective correction.
 - OPEN: measuring with real samples (phone photos, faded receipts, stamps, scanned sheet music).
-- OPEN: kinds defined by users and stored as events.
+- Kinds defined by users and stored as events: [0005](0005-pure-core.md).
 - OPEN: removing originals for good.
 - OPEN: names of kinds and fields in other languages than English.

@@ -37,23 +37,35 @@ export function choose(language: string) {
   }
 }
 
-function has(key: string): boolean {
-  return key in (languages[i18n.language] ?? {}) || key in en;
-}
-
 /** A text, with its `{name}`s filled in. */
 export function t(key: string, values: Record<string, string | number> = {}): string {
   const text = (languages[i18n.language] as Texts | undefined)?.[key] ?? (en as Texts)[key] ?? key;
   return Object.entries(values).reduce((s, [name, value]) => s.replaceAll(`{${name}}`, String(value)), text);
 }
 
-/** The name of a kind. */
-export function kindName(id: string): string {
-  return has(`kind.${id}`) ? t(`kind.${id}`) : id;
+/** Something with a name and names in other languages – a kind or a field, as the space defines it. */
+type Named = { name: string; names?: Record<string, string> };
+
+/** The name in the chosen language, if it has one there. */
+export function nameOf(named: Named): string {
+  return named.names?.[i18n.language] ?? named.name;
 }
 
-/** The name of a field of a kind. */
-export function fieldName(kind: string | null | undefined, key: string): string {
-  if (kind && has(`field.${kind}.${key}`)) return t(`field.${kind}.${key}`);
-  return has(`field.${key}`) ? t(`field.${key}`) : key;
+type KindLike = Named & { id: string; fields: (Named & { key: string })[] };
+
+/** Kinds in the order of their names in the chosen language. */
+export function byName<T extends Named>(items: T[]): T[] {
+  return [...items].sort((a, b) => nameOf(a).localeCompare(nameOf(b), i18n.language));
+}
+
+/** The name of a kind of the space; its identity if the space has no such kind. */
+export function kindName(kinds: KindLike[], id: string): string {
+  const kind = kinds.find((k) => k.id === id);
+  return kind ? nameOf(kind) : id;
+}
+
+/** The name of a field of a kind; its key if the kind does not have it. */
+export function fieldName(kinds: KindLike[], kind: string | null | undefined, key: string): string {
+  const field = kinds.find((k) => k.id === kind)?.fields.find((f) => f.key === key);
+  return field ? nameOf(field) : key;
 }

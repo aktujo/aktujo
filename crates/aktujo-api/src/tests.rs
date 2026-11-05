@@ -64,6 +64,36 @@ async fn the_archive_through_the_api() {
     assert_eq!(view["reading"], "waiting");
     assert_eq!(view["versions"][0]["media_type"], "application/pdf");
 
+    // A space has no kinds until someone defines or imports them.
+    let kinds = format!("/api/v1/spaces/{space}/kinds");
+    assert_eq!(call(&router, "GET", &kinds, None).await.1, json!([]));
+    assert_eq!(
+        call(&router, "PUT", &format!("{document}/kind"), Some(json!({"kind": "contract"}))).await.0,
+        StatusCode::NOT_FOUND
+    );
+    let (status, kind) = call(&router, "POST", &kinds, Some(json!({"name": "Contract"}))).await;
+    assert_eq!((status, &kind), (StatusCode::OK, &json!({"id": "contract", "name": "Contract", "fields": []})));
+    let contract = json!({"id": "contract", "name": "Contract", "names": {"de": "Vertrag"},
+        "fields": [{"key": "deposit", "name": "Deposit", "type": "money",
+            "find": [{"way": "label", "labels": ["kaution"]}]}],
+        "words": [{"word": "mietvertrag", "weight": 6}]});
+    let (status, kind) = call(&router, "PUT", &format!("{kinds}/contract"), Some(contract.clone())).await;
+    assert_eq!((status, &kind), (StatusCode::OK, &contract));
+    let mut renamed = contract.clone();
+    renamed["id"] = json!("lease");
+    let refused = call(&router, "PUT", &format!("{kinds}/contract"), Some(renamed)).await.0;
+    assert_eq!(refused, StatusCode::UNPROCESSABLE_ENTITY);
+    let bad = json!({"id": "contract", "name": "", "fields": []});
+    assert_eq!(call(&router, "PUT", &format!("{kinds}/contract"), Some(bad)).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+    let template = json!({"name": "Books", "kinds": [{"id": "book", "name": "Book",
+        "fields": [{"key": "isbn", "name": "ISBN", "type": "text", "code": true}]}]});
+    let (status, imported) =
+        call(&router, "POST", &format!("/api/v1/spaces/{space}/kind-import"), Some(template)).await;
+    assert_eq!((status, imported), (StatusCode::OK, json!({"changed": 1})));
+    assert_eq!(call(&router, "GET", &kinds, None).await.1.as_array().unwrap().len(), 2);
+    assert_eq!(call(&router, "DELETE", &format!("{kinds}/book"), None).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(call(&router, "GET", &kinds, None).await.1, json!([contract]));
+
     call(&router, "PUT", &format!("{document}/kind"), Some(json!({"kind": "contract"}))).await;
     let deposit = json!({"value": {"type": "money", "value": {"amount": "1500.00", "currency": "EUR"}}});
     let (status, view) = call(&router, "PUT", &format!("{document}/fields/deposit"), Some(deposit)).await;
@@ -109,8 +139,6 @@ async fn the_archive_through_the_api() {
 
     assert_eq!(call(&router, "GET", "/api/v1/spaces/nothing/labels", None).await.0, StatusCode::NOT_FOUND);
     assert_eq!(call(&router, "GET", "/api/v1/nothing", None).await.0, StatusCode::NOT_FOUND);
-    let (_, kinds) = call(&router, "GET", "/api/v1/kinds", None).await;
-    assert!(kinds.as_array().unwrap().iter().any(|k| k["id"] == "invoice"));
     assert_eq!(call(&router, "GET", "/api/v1/status", None).await.1["ocr"], false);
 }
 
@@ -146,6 +174,8 @@ fn the_description_names_every_route() {
         "/api/v1/search",
         "/api/v1/join",
         "/api/v1/spaces/{space}/members/{member}",
+        "/api/v1/spaces/{space}/kinds/{kind}",
+        "/api/v1/spaces/{space}/kind-import",
         "/api/v1/spaces/{space}/documents/{document}/fields/{key}",
     ] {
         assert!(description.contains(path), "{path}");

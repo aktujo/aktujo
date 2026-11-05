@@ -18,8 +18,8 @@ built on what is there: the core (0001), the document crates `aktujo-doc` and `a
 the skeleton from the starter pack (a list of items in memory); 0.1 replaces it with the archive.
 
 The audit log as a report, the mobile app, servers for organisations, workflows and signatures are later steps of the
-roadmap and not part of 0.1 – but nothing in 0.1 may stand in their way. Unlike the whitepaper's roadmap, the import
-from paperless-ngx is **not** part of 0.1 (maintainer, 2026-11-05): neither import from nor export to other programs.
+roadmap and not part of 0.1 – but nothing in 0.1 may stand in their way. Import from and export to other programs is
+**not** part of 0.1 (maintainer, 2026-11-05).
 
 ## What 0.1 does
 
@@ -28,13 +28,13 @@ from paperless-ngx is **not** part of 0.1 (maintainer, 2026-11-05): neither impo
 | **Capture** | Upload one or more files (PDF, PNG, JPEG, TIFF – OPEN: which exactly); a folder at once; **watched folders**: new files in a folder (from a scanner, for example) are taken in on their own. The same bytes twice are found by their hash and not added again. | Scanner and mail directly, the phone camera. |
 | **Improve** | For images and scanned pages: rotate, crop, deskew, black and white or greyscale; the result is a **new version**, the original stays. Several images into one document. | Finding the page's edges, perspective (keystone). |
 | **Read** | The text layer, OCR for pages without one (`aktujo-extract`, backend `pure`), in the background after adding. | E-invoices (XRechnung, ZUGFeRD), optional AI. |
-| **Label** | The kind and the fields suggested (`aktujo-rules`) and confirmed by the person; title suggested; labels added and removed by hand. | Correspondents of their own, kinds defined by users, rules that learn from what was labelled before. |
+| **Label** | Kinds defined per space by its people, or taken over from a template ([0005](0005-pure-core.md)); the kind and the fields suggested from their rules (`aktujo-rules`) and confirmed by the person; title suggested; labels added and removed by hand. | Correspondents of their own, rules that learn from what was labelled before. |
 | **Version** | Every version listed, opened and downloaded; a new version by upload or by improving. | Comparing versions, restoring an old one as the newest – OPEN. |
 | **Keep** | **Several spaces** – a private archive beside a business's, for example; originals in a folder by hash (`aktujo-blob`), events in SQLite (`aktujo-store`), through `aktujo-sync` without a relay; **encrypted at rest**. The bin: put in, take out. | Retention, deleting for good. |
 | **Find** | Full-text search over title, labels, fields and the text that was read; filters by space, kind, label, date and the bin. | Search over encrypted content on other devices; saved searches. |
 | **Sync** | A space synchronised through a relay (`aktujo-sync`), end-to-end encrypted: started on one device, which shows the recovery code once; further devices join by an invitation. | Direct sync between devices (P2P). |
 | **Share** | Inviting other people's devices with rights – read, write, manage; the members of a space listed; a member removed (a new key, which it does not get). | Groups, people with several devices as one entry, links for people without aktujo. |
-| **Export** | Everything at any time: the originals and a JSON file of every document's state, also the events as they are – aktujo's own open format. | Import from and export to other programs (paperless-ngx and others). |
+| **Export** | Everything at any time: the originals and a JSON file of every document's state, also the events as they are – aktujo's own open format. | Import from and export to other programs. |
 
 ## Where it runs
 
@@ -84,7 +84,8 @@ Decided by the maintainer on 2026-11-05.
    nothing is lost when the program stops, and what `aktujo-minimal` read is read again by the full build where that
    helps. Only the newest version of documents outside the bin is read, in spaces this device may write in. The
    reading itself runs outside the workspace's lock, on a thread of its own (`Worker` in `aktujo-app`). A better
-   title from the kind, the sender and the date is offered while the title is still the file's, not written.
+   title from the kind's name and the fields of its title is offered while the title is still the file's, not
+   written.
 5. **Improving writes a new version.** The tools for images are a crate of their own, `aktujo-scan` – MIT like the
    document crates, pure Rust, no I/O – so that apps and other programs can use them: rotate, crop, deskew, black and
    white, greyscale. Edges and perspective come after 0.1, when the camera of the mobile app needs them.
@@ -125,8 +126,8 @@ Decided by the maintainer on 2026-11-05.
 8. **No import or export of other programs** in 0.1; aktujo's own export stays.
 9. **English and German** in the interface. Built so (2026-11-05): the texts are data, `locales/<language>.json`,
    shared by the web app (the browser's language, or the one chosen) and the terminal interface (the environment's,
-   `LC_ALL`, `LC_MESSAGES`, `LANG`); names of kinds and fields are translated there by their identities. OPEN: the
-   title offered from the kind is built from the kind's English name.
+   `LC_ALL`, `LC_MESSAGES`, `LANG`). Names of kinds and fields are data of the kind, with names in other languages
+   ([0005](0005-pure-core.md)); the title offered takes the kind's name in the interface's language.
 10. **Watched folders** are part of 0.1: a folder is given per space; new files are taken in, then left where they
     are or moved to a folder beside it (OPEN: which is the default).
 11. **Installed from binaries** attached to each GitHub release, built by CI for Linux, macOS and Windows – each

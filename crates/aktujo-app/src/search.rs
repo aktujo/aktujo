@@ -10,7 +10,7 @@
 
 use std::collections::BTreeMap;
 
-use aktujo_doc::{Document, Value, builtin};
+use aktujo_doc::{Document, Value};
 use aktujo_store::rusqlite::{self, Connection, params};
 
 use crate::{AppError, DocumentId, Sha256Hash, SpaceId, Workspace};
@@ -168,7 +168,11 @@ impl Entry {
         let mut fields = Vec::new();
         let kind = document.kind.as_ref().or(document.kind_suggestion.as_ref().map(|s| &s.kind));
         if let Some(kind) = kind {
-            fields.push(kinds.iter().find(|k| &k.id == kind).map_or(kind.clone(), |k| format!("{} {}", k.id, k.name)));
+            fields.push(kinds.iter().find(|k| &k.id == kind).map_or(kind.clone(), |k| {
+                let names: Vec<&str> =
+                    std::iter::once(k.name.as_str()).chain(k.names.values().map(String::as_str)).collect();
+                format!("{} {}", k.id, names.join(" "))
+            }));
         }
         for field in document.fields.values() {
             match field.value() {
@@ -223,7 +227,7 @@ impl Workspace {
         let view = self.view(space)?;
         let connection = self.replica.store().connection();
         let mut stamps = stamps(connection, space)?;
-        let kinds = builtin();
+        let kinds = view.kinds.to_vec();
         let transaction = connection.unchecked_transaction()?;
         for document in view.documents.active().chain(view.documents.trashed()) {
             let entry = Entry::of(document, &kinds);
@@ -400,6 +404,9 @@ mod tests {
         workspace.add_label(&home, &lease, "Wohnung").unwrap();
         workspace.add_label(&home, &bill, "Wohnung").unwrap();
         workspace.add_label(&home, &bill, "Strom").unwrap();
+        let mut invoice = crate::Kind::new("invoice", "Invoice", vec![]);
+        invoice.names.insert("de".into(), "Rechnung".into());
+        workspace.define_kind(&home, invoice).unwrap();
         workspace.set_kind(&home, &bill, Some("invoice")).unwrap();
         workspace.set_field(&home, &bill, "date", Value::Date("2026-07-01".into())).unwrap();
         workspace.set_field(&home, &bill, "issuer", Value::Text("Stadtwerke Köln".into())).unwrap();
@@ -409,6 +416,8 @@ mod tests {
         assert_eq!(words(&workspace, "koln"), vec![bill.clone()]);
         assert_eq!(words(&workspace, "INVOICE stadt"), vec![bill.clone()]);
         assert_eq!(words(&workspace, "invoice miete"), Vec::<DocumentId>::new());
+        // The kind is found by its names in every language.
+        assert_eq!(words(&workspace, "rechnung"), vec![bill.clone()]);
         // The title weighs more than a label.
         assert_eq!(words(&workspace, "wohnung"), [lease.clone(), bill.clone()]);
 

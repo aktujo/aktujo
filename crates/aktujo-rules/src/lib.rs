@@ -1,32 +1,26 @@
 // SPDX-License-Identifier: MIT
 //! The kind and the fields of a document, read from its text – as **suggestions** for a person to confirm
-//! (`docs/rfc/0003-recognition.md`). Input are the positioned lines of `aktujo-extract`; output are a suggested kind
-//! and values for its fields as `aktujo-doc` writes them, each with a confidence, the rule's name and the line it
-//! came from. No I/O.
+//! (`docs/rfc/0003-recognition.md`). Input are the positioned lines of `aktujo-extract` and the kinds of a space;
+//! output are a suggested kind and values for its fields as `aktujo-doc` writes them, each with a confidence, the
+//! rule's name and the line it came from. No I/O.
 //!
-//! The crate is general on purpose: it knows the kinds every archive has and the values every document has – who
-//! sent it, when, a reference, an amount. Programs that know more **specialise** it: their own kinds and fields
-//! (`aktujo-doc`), their own rules as data ([`Rules`], JSON), their own code behind the trait [`Recogniser`] –
-//! notenwart for sheet music (composer, part), spezado for invoices (tax, VAT ID, IBAN). [`Chain`] combines them;
-//! [`text`] has the readers of dates, amounts and labels for them to build on.
-//!
-//! The approach – labels before a value, cleaning names, telling an organisation by its marks – is taken over from
-//! notenwart (`notenwart-app/src/recognize.rs`, AGPL-3.0-or-later) and published here under MIT by its copyright
-//! holder.
+//! The crate knows no kinds of documents, words or labels: it is the mechanism only. What speaks for a kind and where
+//! its fields are is data of the kind ([`Kind`]: words with weights, ways to find each field), defined by the people
+//! and programs that use it. A program that needs more brings its own code behind the trait [`Recogniser`];
+//! [`Chain`] combines them, and [`text`] has the readers of dates, amounts and labels to build on.
 
-use aktujo_doc::{Document, DocumentEvent, DocumentId, FieldType, Kind, Origin, Source, Value};
+use aktujo_doc::{Document, DocumentEvent, DocumentId, FieldType, Find, Kind, Origin, Source, Value};
 use aktujo_extract::{Extraction, Line, Method};
 use serde::{Deserialize, Serialize};
 
-mod builtin;
 pub mod text;
 
 pub use text::DateOrder;
 
-/// Something that recognises documents: the built-in [`Rules`], rules a program brings, or its own code.
+/// Something that recognises documents: [`Rules`], which reads the kinds as data, or a program's own code.
 pub trait Recogniser: Send + Sync {
     /// The kind and its fields. With `kind` – one a person confirmed or chose – only the fields of that kind are
-    /// read. `kinds` are the kinds the program knows, with the types of their fields.
+    /// read. `kinds` are the kinds of the space.
     fn recognise(&self, kinds: &[Kind], extraction: &Extraction, kind: Option<&str>) -> Recognition;
 
     /// What to suggest for `document`, as events: with a confirmed kind the fields of that kind, else the kind
@@ -37,7 +31,7 @@ pub trait Recogniser: Send + Sync {
 }
 
 /// Several recognisers as one: each reads the document, and their results are merged ([`Recognition::merge`]) –
-/// the built-in rules first, a program's specialisation after them.
+/// the rules of the kinds first, a program's own code after them.
 #[derive(Default)]
 pub struct Chain(pub Vec<Box<dyn Recogniser>>);
 
@@ -54,75 +48,13 @@ impl Recogniser for Chain {
     }
 }
 
-/// Rules for recognising documents: per kind, the words that speak for it and the ways to find its fields.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+/// Recognition by the rules the kinds carry: the words that speak for a kind ([`Kind::words`]) and the ways to find
+/// each field ([`aktujo_doc::FieldDef::find`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rules {
-    /// The rules of each kind.
-    pub kinds: Vec<KindRules>,
     /// How dates with slashes are read; without an order only those that cannot mean two days.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub date_order: Option<DateOrder>,
-}
-
-/// The rules of one kind.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct KindRules {
-    /// The kind, as `aktujo-doc` names it (`invoice`).
-    pub kind: String,
-    /// Words and phrases that speak for the kind, matched as whole words in any case.
-    pub words: Vec<Weighted>,
-    /// How to find the values of its fields.
-    pub fields: Vec<FieldRules>,
-}
-
-/// A word or phrase and how much it speaks for a kind.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Weighted {
-    /// The word or phrase.
-    pub word: String,
-    /// Its weight.
-    pub weight: f32,
-}
-
-/// How to find the value of one field.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct FieldRules {
-    /// The field, as the kind names it (`total`).
-    pub key: String,
-    /// For a text field: only the first word with a digit (a number or reference), not the rest of the line.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub code: bool,
-    /// The ways to find it, tried in order; the first that finds a value wins.
-    pub find: Vec<Find>,
-}
-
-/// A way to find a value.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "way", rename_all = "snake_case")]
-pub enum Find {
-    /// After one of the labels, tried in order: on the same line, else on the line to its right or right below.
-    Label {
-        /// The labels, as words in any case (`rechnungs nr` matches `Rechnungs-Nr.:`).
-        labels: Vec<String>,
-    },
-    /// Among all values after any of the labels, the largest – for totals.
-    Largest {
-        /// The labels.
-        labels: Vec<String>,
-    },
-    /// The first value of the field's type on the first page.
-    First,
-    /// The organisation in the letterhead, the sender line or the footer: the part of a line with one of the
-    /// markers (legal forms, words of authorities); else the topmost line of words.
-    Sender {
-        /// The markers, as words in any case.
-        markers: Vec<String>,
-    },
-    /// Yes, if one of the phrases occurs – for flags.
-    Present {
-        /// The phrases, as words in any case.
-        phrases: Vec<String>,
-    },
 }
 
 /// A kind and how much the text speaks for it.
@@ -165,8 +97,8 @@ pub struct Recognition {
     pub fields: Vec<Found>,
 }
 
-/// The score a kind needs to be suggested.
-pub const MIN_SCORE: f32 = 3.0;
+/// The score a kind needs to be suggested: the sum of the weights of its words in the text.
+pub const MIN_SCORE: f32 = 6.0;
 /// The name of the rule that suggests a kind.
 pub const KIND_RULE: &str = "kind";
 /// The pages that are read for the kind.
@@ -183,53 +115,17 @@ const PRESENT: f32 = 0.6;
 const OCR: f32 = 0.9;
 /// Text values are cut at this many characters.
 const MAX_TEXT: usize = 120;
-/// The fields that name who a document is from, and when, for a title.
-const SENDERS: &[&str] = &["issuer", "sender", "authority", "employer", "insurer", "party"];
-const WHEN: &[&str] = &["date", "period", "start"];
 
 impl Rules {
-    /// The rules that come with the library: the kinds of `aktujo-doc`, in German, English, French, Italian,
-    /// Spanish and Dutch.
-    pub fn builtin() -> Self {
-        builtin::builtin()
-    }
-
-    /// The rules of `kind`.
-    pub fn kind(&self, kind: &str) -> Option<&KindRules> {
-        self.kinds.iter().find(|k| k.kind == kind)
-    }
-
-    /// Adds `other`: its kinds that are new are added, its words and fields of a kind already here are added after
-    /// the ones here (a field already here gets the ways of `other` after its own). A program specialises the
-    /// built-in rules this way without repeating them.
-    pub fn extend(&mut self, other: Rules) {
-        for theirs in other.kinds {
-            match self.kinds.iter_mut().find(|k| k.kind == theirs.kind) {
-                None => self.kinds.push(theirs),
-                Some(ours) => {
-                    ours.words.extend(theirs.words);
-                    for field in theirs.fields {
-                        match ours.fields.iter_mut().find(|f| f.key == field.key) {
-                            Some(f) => f.find.extend(field.find),
-                            None => ours.fields.push(field),
-                        }
-                    }
-                }
-            }
-        }
-        self.date_order = other.date_order.or(self.date_order);
-    }
-
-    /// How much the text of the first pages speaks for each kind: every kind with a score above 0, the most likely
-    /// first.
-    pub fn classify(&self, extraction: &Extraction) -> Vec<Guess> {
+    /// How much the text of the first pages speaks for each of `kinds`: every kind with a score above 0, the most
+    /// likely first.
+    pub fn classify(&self, kinds: &[Kind], extraction: &Extraction) -> Vec<Guess> {
         let text: Vec<String> = extraction.pages.iter().take(KIND_PAGES).map(|p| p.text()).collect();
         let text = text::normalise(&text.join("\n"));
-        let mut guesses: Vec<Guess> = self
-            .kinds
+        let mut guesses: Vec<Guess> = kinds
             .iter()
-            .map(|rules| {
-                let score = rules
+            .map(|kind| {
+                let score: u32 = kind
                     .words
                     .iter()
                     .filter(|w| {
@@ -238,7 +134,7 @@ impl Rules {
                     })
                     .map(|w| w.weight)
                     .sum();
-                Guess { kind: rules.kind.clone(), score, confidence: 0.0 }
+                Guess { kind: kind.id.clone(), score: score as f32, confidence: 0.0 }
             })
             .filter(|g| g.score > 0.0)
             .collect();
@@ -250,18 +146,13 @@ impl Rules {
         guesses
     }
 
-    /// The fields of `kind`.
+    /// The fields of `kind` that it says how to find.
     pub fn fields(&self, kind: &Kind, extraction: &Extraction) -> Vec<Found> {
-        let Some(rules) = self.kind(&kind.id) else {
-            return vec![];
-        };
         let reader = Reader { extraction, currency: text::main_currency(&extraction.text()), order: self.date_order };
-        rules
-            .fields
+        kind.fields
             .iter()
             .filter_map(|field| {
-                let def = kind.field(&field.key)?;
-                let shape = Shape { field_type: def.field_type, code: field.code };
+                let shape = Shape { field_type: field.field_type, code: field.code };
                 let (value, confidence, page, line) = field.find.iter().find_map(|find| reader.find(find, shape))?;
                 let factor = if extraction.pages[page].method == Method::Ocr { OCR } else { 1.0 };
                 Some(Found {
@@ -284,7 +175,7 @@ impl Recogniser for Rules {
         let (kind, guesses) = match kind {
             Some(kind) => (Some(Guess { kind: kind.to_owned(), score: 0.0, confidence: 1.0 }), vec![]),
             None => {
-                let guesses = self.classify(extraction);
+                let guesses = self.classify(kinds, extraction);
                 let best = guesses
                     .first()
                     .filter(|g| g.score >= MIN_SCORE && guesses.get(1).is_none_or(|s| s.score < g.score))
@@ -365,20 +256,21 @@ impl Recognition {
         events
     }
 
-    /// A title from the kind, the sender and the date: `Invoice · Stadtwerke Musterstadt GmbH · 2026-11-05`. The
-    /// program offers it while the title is still the file name; `document_title` has no origin, so a person agrees
-    /// to it.
-    pub fn title(&self, kinds: &[Kind]) -> Option<String> {
+    /// A title from the kind's name and the fields its title is made of ([`Kind::title`]), in `language` if the
+    /// kind has a name in it: `Letter · Example Ltd · 2026-11-05`. The program offers it while the title is still
+    /// the file name; `document_title` has no origin, so a person agrees to it.
+    pub fn title(&self, kinds: &[Kind], language: &str) -> Option<String> {
         let kind = self.kind.as_ref().and_then(|g| kinds.iter().find(|k| k.id == g.kind))?;
-        let first = |keys: &[&str]| {
+        let first = |keys: &Vec<String>| {
             keys.iter().find_map(|key| {
-                self.fields.iter().find(|f| f.key == *key).and_then(|f| match &f.value {
-                    Value::Text(t) | Value::Date(t) => Some(t.clone()),
+                self.fields.iter().find(|f| &f.key == key).and_then(|f| match &f.value {
+                    Value::Text(t) | Value::Date(t) | Value::Number(t) => Some(t.clone()),
                     _ => None,
                 })
             })
         };
-        let parts: Vec<String> = [Some(kind.name.clone()), first(SENDERS), first(WHEN)].into_iter().flatten().collect();
+        let parts: Vec<String> =
+            std::iter::once(kind.name_in(language).to_owned()).chain(kind.title.iter().filter_map(first)).collect();
         Some(parts.join(" · "))
     }
 }
@@ -512,7 +404,7 @@ impl Reader<'_> {
         }
     }
 
-    /// The organisation on the first page: a marked line in the top third, then in the footer; else the topmost
+    /// The sender on the first page: a marked line in the top third, then in the footer; else the topmost
     /// line of words.
     fn sender(&self, markers: &[String]) -> Option<Hit> {
         let page = self.extraction.pages.first()?;

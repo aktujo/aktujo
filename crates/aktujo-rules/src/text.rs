@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-//! Values in text, for the built-in rules and for programs that specialise them: words and labels, dates, amounts
+//! Values in text, for the rules of the kinds and for programs with their own code: words and labels, dates, amounts
 //! with their currency, numbers and references, names. German, English, French, Italian, Spanish and Dutch.
 
 use std::ops::Range;

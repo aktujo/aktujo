@@ -20,9 +20,13 @@ use std::{
 };
 
 use aktujo_blob::{BlobError, Blobs, MemoryBlobs};
-use aktujo_core::{DomainError, SPACE_KINDS, SpaceEvent, device_name, label, space_name, title, title_of_file};
+use aktujo_core::{
+    DomainError, SPACE_KINDS, SpaceEvent, device_name, kind_id, label, space_name, title, title_of_file,
+};
 use aktujo_crypt::{Domain, RecoveryCode};
-use aktujo_doc::{DocumentEvent, Documents, Origin, Original, Skipped, ValueError, builtin};
+use aktujo_doc::{
+    DocumentEvent, Documents, KindError, KindEvent, KindSkipped, Kinds, Origin, Original, Skipped, ValueError,
+};
 use aktujo_log::DeviceId;
 use aktujo_store::Store as EventStore;
 use aktujo_sync::{Replica, SyncError, now_ms};
@@ -38,7 +42,7 @@ mod syncing;
 
 pub use aktujo_base::{Sha256Hash, SpaceId};
 pub use aktujo_crypt::{Member, MemberRole, Rights};
-pub use aktujo_doc::{Document, DocumentId, Kind, Reading, Value, Version};
+pub use aktujo_doc::{Document, DocumentId, FieldDef, FieldType, Find, Kind, Reading, Value, Version, Weighted};
 pub use aktujo_extract::{Extraction, Line, Method, Page};
 pub use aktujo_sync::SyncReport;
 pub use keys::{KeyError, KeyStore, MemoryKeys, SystemKeys};
@@ -80,6 +84,9 @@ pub enum AppError {
     /// A value that is not well formed or does not fit its field.
     #[error(transparent)]
     Value(#[from] ValueError),
+    /// A kind that is not well formed.
+    #[error(transparent)]
+    Kind(#[from] KindError),
     /// The database of the data folder.
     #[error(transparent)]
     Database(#[from] aktujo_store::StoreError),
@@ -181,7 +188,9 @@ pub struct Synced {
 struct View {
     name: Option<String>,
     documents: Documents,
+    kinds: Kinds,
     skipped: Vec<Skipped>,
+    kind_skipped: Vec<KindSkipped>,
 }
 
 /// One workspace: the data and what can be done with it.
@@ -278,6 +287,7 @@ impl Workspace {
     fn refresh(&mut self, space: &SpaceId) -> Result<(), AppError> {
         let log = self.replica.log(space)?;
         let (documents, skipped) = Documents::from_log(&log);
+        let (kinds, kind_skipped) = Kinds::from_log(&log);
         let mut name = None;
         for (_, event) in log.ordered() {
             if SPACE_KINDS.contains(&event.kind.as_str())
@@ -286,7 +296,7 @@ impl Workspace {
                 name = Some(named);
             }
         }
-        self.views.insert(space.clone(), View { name, documents, skipped });
+        self.views.insert(space.clone(), View { name, documents, kinds, skipped, kind_skipped });
         self.index(space)
     }
 
@@ -359,6 +369,72 @@ impl Workspace {
         Ok(&self.view(space)?.skipped)
     }
 
+    /// Events about kinds in a space that could not be applied.
+    pub fn kind_problems(&self, space: &SpaceId) -> Result<&[KindSkipped], AppError> {
+        Ok(&self.view(space)?.kind_skipped)
+    }
+
+    // Kinds
+
+    /// The kinds of documents a space has, by identity – none until someone defines or imports them.
+    pub fn kinds(&self, space: &SpaceId) -> Result<Vec<Kind>, AppError> {
+        Ok(self.view(space)?.kinds.to_vec())
+    }
+
+    /// The kind `id` of a space.
+    pub fn kind(&self, space: &SpaceId, id: &str) -> Result<&Kind, AppError> {
+        self.view(space)?.kinds.get(id).ok_or_else(|| AppError::NotFound(format!("no kind {id:?}")))
+    }
+
+    /// Adds a kind with a name and no fields; its identity is made from the name. Returns the identity.
+    pub fn add_kind(&mut self, space: &SpaceId, name: &str) -> Result<String, AppError> {
+        let view = self.view(space)?;
+        let base = kind_id(name);
+        let id = (1..)
+            .map(|n| if n == 1 { base.clone() } else { format!("{base}-{n}") })
+            .find(|id| view.kinds.get(id).is_none())
+            .expect("a free identity");
+        self.define_kind(space, Kind::new(&id, name, vec![]))?;
+        Ok(id)
+    }
+
+    /// Defines a kind, or defines it anew: the whole definition replaces the one before. Documents of the kind keep
+    /// their values, also of fields it no longer has.
+    pub fn define_kind(&mut self, space: &SpaceId, mut kind: Kind) -> Result<(), AppError> {
+        kind.name = kind.name.trim().to_owned();
+        for field in &mut kind.fields {
+            field.name = field.name.trim().to_owned();
+        }
+        kind.check()?;
+        if self.view(space)?.kinds.get(&kind.id) == Some(&kind) {
+            return Ok(());
+        }
+        self.write(space, &KindEvent::KindDefined { definition: kind })
+    }
+
+    /// Removes a kind. Documents keep it as their kind; defining it again brings it back.
+    pub fn remove_kind(&mut self, space: &SpaceId, id: &str) -> Result<(), AppError> {
+        self.kind(space, id)?;
+        self.write(space, &KindEvent::KindRemoved { id: id.to_owned() })
+    }
+
+    /// Takes over kinds – a template, or the kinds of another space: each is defined in the space, replacing one
+    /// with the same identity. All are checked before any is written. Returns how many changed.
+    pub fn import_kinds(&mut self, space: &SpaceId, kinds: Vec<Kind>) -> Result<usize, AppError> {
+        self.may_write(space)?;
+        for kind in &kinds {
+            kind.check()?;
+        }
+        let mut changed = 0;
+        for kind in kinds {
+            if self.view(space)?.kinds.get(&kind.id) != Some(&kind) {
+                self.define_kind(space, kind)?;
+                changed += 1;
+            }
+        }
+        Ok(changed)
+    }
+
     // Documents
 
     /// The documents of a space outside the bin, the newest first.
@@ -383,11 +459,6 @@ impl Workspace {
     /// The bytes of an original.
     pub fn original(&self, hash: &Sha256Hash) -> Result<Vec<u8>, AppError> {
         self.replica.original(hash)?.ok_or_else(|| AppError::NotFound(format!("no original {hash}")))
-    }
-
-    /// The kinds of document there are.
-    pub fn kinds(&self) -> Vec<Kind> {
-        builtin()
     }
 
     fn original_of(&self, space: &SpaceId, file: &NewFile<'_>) -> Result<Original, AppError> {
@@ -444,10 +515,8 @@ impl Workspace {
     /// Confirms the kind of a document – or that it has none.
     pub fn set_kind(&mut self, space: &SpaceId, id: &DocumentId, kind: Option<&str>) -> Result<(), AppError> {
         self.document(space, id)?;
-        if let Some(kind) = kind
-            && !builtin().iter().any(|k| k.id == kind)
-        {
-            return Err(AppError::NotFound(format!("no kind {kind:?}")));
+        if let Some(kind) = kind {
+            self.kind(space, kind)?;
         }
         let event = DocumentEvent::DocumentKind {
             document: id.clone(),
@@ -465,8 +534,8 @@ impl Workspace {
         }
         let document = self.document(space, id)?;
         let kind = document.kind.as_ref().or(document.kind_suggestion.as_ref().map(|s| &s.kind));
-        match kind.and_then(|kind| builtin().into_iter().find(|k| &k.id == kind)) {
-            Some(kind) => kind.check(key, &value)?,
+        match kind.and_then(|kind| self.view(space).ok()?.kinds.get(kind)) {
+            Some(kind) => kind.check_value(key, &value)?,
             None => value.check()?,
         }
         let event = DocumentEvent::DocumentField {
@@ -699,8 +768,16 @@ pub(crate) mod tests {
         workspace.set_title(&space, &id, "Lease of the flat").unwrap();
         workspace.add_label(&space, &id, " Flat ").unwrap();
         workspace.add_label(&space, &id, "Flat").unwrap();
+        // A space has no kinds until someone defines them.
+        assert!(matches!(workspace.set_kind(&space, &id, Some("contract")), Err(AppError::NotFound(_))));
+        let contract = Kind::new("contract", "Contract", vec![FieldDef::new("deposit", "Deposit", FieldType::Money)]);
+        workspace.define_kind(&space, contract).unwrap();
         workspace.set_kind(&space, &id, Some("contract")).unwrap();
         assert!(matches!(workspace.set_kind(&space, &id, Some("spaceship")), Err(AppError::NotFound(_))));
+        assert!(matches!(
+            workspace.set_field(&space, &id, "deposit", Value::Text("much".into())),
+            Err(AppError::Value(ValueError::Type { .. }))
+        ));
         workspace.set_field(&space, &id, "deposit", money("1500.00")).unwrap();
         assert!(matches!(
             workspace.set_field(&space, &id, "total", Value::Date("2026-02-30".into())),
@@ -727,6 +804,39 @@ pub(crate) mod tests {
         let document = workspace.document(&space, &id).unwrap();
         assert!(document.labels.is_empty() && !document.fields.contains_key("deposit") && !document.trashed);
         assert!(workspace.problems(&space).unwrap().is_empty());
+    }
+
+    #[test]
+    fn kinds_are_defined_changed_imported_and_removed_in_a_space() {
+        let mut workspace = Workspace::in_memory("laptop").unwrap();
+        let home = workspace.found_space("Home").unwrap();
+        let music = workspace.found_space("Music").unwrap();
+        assert!(workspace.kinds(&home).unwrap().is_empty());
+
+        let id = workspace.add_kind(&home, " Research paper ").unwrap();
+        assert_eq!(id, "research-paper");
+        assert_eq!(workspace.add_kind(&home, "Research paper").unwrap(), "research-paper-2");
+        let mut paper = workspace.kind(&home, &id).unwrap().clone();
+        assert_eq!((paper.name.as_str(), paper.fields.len()), ("Research paper", 0));
+        paper.fields.push(FieldDef::new("doi", "DOI", FieldType::Text));
+        paper.title = vec![vec!["doi".into()]];
+        workspace.define_kind(&home, paper.clone()).unwrap();
+        assert_eq!(workspace.kind(&home, &id).unwrap(), &paper);
+        let mut bad = paper.clone();
+        bad.title = vec![vec!["journal".into()]];
+        assert!(matches!(workspace.define_kind(&home, bad), Err(AppError::Kind(_))));
+
+        // Kinds belong to their space; another takes them over by import.
+        assert!(workspace.kinds(&music).unwrap().is_empty());
+        let kinds = workspace.kinds(&home).unwrap();
+        assert_eq!(workspace.import_kinds(&music, kinds.clone()).unwrap(), 2);
+        assert_eq!(workspace.import_kinds(&music, kinds).unwrap(), 0, "nothing changed");
+        assert_eq!(workspace.kinds(&music).unwrap().len(), 2);
+
+        workspace.remove_kind(&home, "research-paper-2").unwrap();
+        assert_eq!(workspace.kinds(&home).unwrap(), vec![paper]);
+        assert!(matches!(workspace.remove_kind(&home, "research-paper-2"), Err(AppError::NotFound(_))));
+        assert!(workspace.kind_problems(&home).unwrap().is_empty());
     }
 
     #[test]

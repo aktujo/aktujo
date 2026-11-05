@@ -27,8 +27,8 @@ use ratatui::{
 };
 
 use aktujo_app::{
-    AppError, Bin, Document, DocumentId, NewFile, ReadState, Reader, Rights, Search, SpaceInfo, Syncer, Value, Worker,
-    Workspace, date_of,
+    AppError, Bin, Document, DocumentId, Kind, NewFile, ReadState, Reader, Rights, Search, SpaceInfo, Syncer, Value,
+    Worker, Workspace, date_of,
 };
 
 mod texts;
@@ -47,12 +47,13 @@ pub enum TuiError {
 }
 
 /// The actions at the bottom, each with its key and the key of its text – clickable as well.
-const ACTIONS: [(char, &str); 21] = [
+const ACTIONS: [(char, &str); 23] = [
     ('/', "tui.search"),
     ('a', "tui.add"),
     ('t', "tui.title"),
     ('T', "tui.takeTitle"),
     ('k', "tui.kind"),
+    ('c', "tui.chooseKind"),
     ('f', "tui.fields"),
     ('l', "tui.label"),
     ('u', "tui.unlabel"),
@@ -60,6 +61,7 @@ const ACTIONS: [(char, &str); 21] = [
     ('b', "tui.showBin"),
     ('s', "tui.space"),
     ('n', "tui.newSpace"),
+    ('K', "tui.importKinds"),
     ('y', "tui.sync"),
     ('S', "tui.startSync"),
     ('i', "tui.invite"),
@@ -89,6 +91,8 @@ enum Prompt {
     Join,
     RemoveMember,
     DeviceName,
+    ChooseKind,
+    ImportKinds,
 }
 
 impl Prompt {
@@ -105,6 +109,8 @@ impl Prompt {
             Prompt::Join => "sync.invitationField",
             Prompt::RemoveMember => "tui.removeMember",
             Prompt::DeviceName => "settings.deviceName",
+            Prompt::ChooseKind => "tui.chooseKindPrompt",
+            Prompt::ImportKinds => "tui.importKindsPrompt",
         }
     }
 }
@@ -115,6 +121,7 @@ struct Row {
     id: DocumentId,
     title: String,
     date: String,
+    /// The name of its kind, confirmed or suggested.
     kind: Option<String>,
     reading: ReadState,
 }
@@ -234,6 +241,7 @@ impl App {
         self.space = self.space.min(self.spaces.len().saturating_sub(1));
         self.rows.clear();
         if let Some(space) = self.spaces.get(self.space) {
+            let kinds = workspace.kinds(&space.id).unwrap_or_default();
             let search = Search {
                 words: self.words.clone(),
                 spaces: vec![space.id.clone()],
@@ -248,7 +256,11 @@ impl App {
                             id: document.id.clone(),
                             title: document.title.clone(),
                             date: date_of(document),
-                            kind: document.kind.clone().or(document.kind_suggestion.as_ref().map(|s| s.kind.clone())),
+                            kind: document
+                                .kind
+                                .as_ref()
+                                .or(document.kind_suggestion.as_ref().map(|s| &s.kind))
+                                .map(|id| kind_name(&kinds, id, self.texts.language())),
                             reading: workspace.read_state(&hit.space, &hit.document).unwrap_or(ReadState::Done),
                         });
                     }
@@ -405,6 +417,31 @@ impl App {
                 }
             }
             Prompt::RemoveMember => self.on_space(|w, s| w.remove_member(&s.id, text.trim())),
+            Prompt::ChooseKind => {
+                let language = self.texts.language().to_owned();
+                self.on_document(|w, s, d| {
+                    let wanted = text.trim().to_lowercase();
+                    if wanted.is_empty() {
+                        return w.set_kind(&s.id, &d.id, None);
+                    }
+                    let kinds = w.kinds(&s.id)?;
+                    let kind = kinds
+                        .iter()
+                        .find(|k| k.id == wanted || k.name_in(&language).to_lowercase() == wanted)
+                        .ok_or_else(|| AppError::NotFound(format!("no kind {:?}", text.trim())))?;
+                    w.set_kind(&s.id, &d.id, Some(&kind.id))
+                });
+            }
+            Prompt::ImportKinds => {
+                let texts = self.texts.clone();
+                self.on_space(|w, s| {
+                    let path = text.trim();
+                    let bytes = std::fs::read(path).map_err(|e| AppError::NotFound(format!("{path}: {e}")))?;
+                    let kinds = kinds_of_file(&bytes).map_err(|e| AppError::NotFound(format!("{path}: {e}")))?;
+                    let changed = w.import_kinds(&s.id, kinds)?;
+                    Ok(texts.fill("kinds.imported", &[("n", &changed.to_string())]))
+                });
+            }
             Prompt::DeviceName => {
                 let result = self.lock().set_device_name(&text);
                 self.message = match result {
@@ -489,6 +526,7 @@ impl App {
                 }
             }
             KeyCode::Char('a') => prompt(self, Prompt::Add, String::new()),
+            KeyCode::Char('K') => prompt(self, Prompt::ImportKinds, String::new()),
             KeyCode::Char('b') => {
                 self.bin = !self.bin;
                 self.selected = Some(0);
@@ -502,10 +540,18 @@ impl App {
                 prompt(self, Prompt::Title, title);
             }
             KeyCode::Char('l') => prompt(self, Prompt::Label, String::new()),
+            KeyCode::Char('c') => {
+                let kinds = self.spaces.get(self.space).and_then(|s| self.lock().kinds(&s.id).ok()).unwrap_or_default();
+                let language = self.texts.language().to_owned();
+                let names: Vec<&str> = kinds.iter().map(|k| k.name_in(&language)).collect();
+                self.message = if names.is_empty() { self.texts.get("kinds.none") } else { names.join(", ") };
+                prompt(self, Prompt::ChooseKind, String::new());
+            }
             KeyCode::Char('u') => prompt(self, Prompt::Unlabel, String::new()),
             KeyCode::Char('T') => {
                 let titles = Reader::text_layer();
-                self.on_document(|w, s, d| match w.suggested_title(&s.id, &d.id, &titles)? {
+                let language = self.texts.language().to_owned();
+                self.on_document(|w, s, d| match w.suggested_title(&s.id, &d.id, &titles, &language)? {
                     Some(title) => w.set_title(&s.id, &d.id, &title),
                     None => Ok(()),
                 });
@@ -626,18 +672,22 @@ impl App {
         let dim = Style::default().add_modifier(Modifier::DIM);
         let suggested = format!(" ({})", texts.get("doc.suggested"));
         let mut lines = vec![Line::styled(document.title.clone(), bold)];
-        if let Ok(Some(title)) = workspace.suggested_title(&space.id, &row.id, &self.titles) {
+        if let Ok(Some(title)) = workspace.suggested_title(&space.id, &row.id, &self.titles, texts.language()) {
             lines.push(Line::styled(texts.fill("doc.titleSuggestion", &[("title", &title)]), dim));
         }
         if document.trashed {
             lines.push(Line::from(texts.get("doc.inBin")));
         }
         lines.push(Line::from(format!("{}: {}", texts.get("doc.date"), row.date)));
+        let kinds = workspace.kinds(&space.id).unwrap_or_default();
+        let language = texts.language();
         let kind = match (&document.kind, &document.kind_suggestion) {
-            (Some(kind), _) => texts.kind(kind),
-            (None, Some(suggestion)) => format!("{}{suggested}", texts.kind(&suggestion.kind)),
+            (Some(kind), _) => kind_name(&kinds, kind, language),
+            (None, Some(suggestion)) => format!("{}{suggested}", kind_name(&kinds, &suggestion.kind, language)),
             (None, None) => texts.get("doc.noKind"),
         };
+        let of_kind = document.kind.as_ref().or(document.kind_suggestion.as_ref().map(|s| &s.kind));
+        let of_kind = of_kind.and_then(|id| kinds.iter().find(|k| &k.id == id));
         lines.push(Line::from(format!("{}: {kind}", texts.get("doc.kind"))));
         let mut reading = texts.get(reading_key(row.reading));
         if let Some(read) = &document.current().read {
@@ -658,7 +708,7 @@ impl App {
             lines.push(Line::default());
             lines.push(Line::styled(texts.get("doc.fields"), bold));
             for (key, field) in &document.fields {
-                let name = texts.field(row.kind.as_deref(), key);
+                let name = of_kind.and_then(|k| k.field(key)).map_or(key.as_str(), |f| f.name_in(language));
                 let value = match (&field.confirmed, &field.suggestion) {
                     (_, Some(suggestion)) => format!("{}{suggested}", shown(&suggestion.value, texts)),
                     (Some(confirmed), None) => shown(&confirmed.value, texts),
@@ -681,6 +731,24 @@ impl App {
         }
         lines
     }
+}
+
+/// The name of the kind `id` in `language`, from the kinds of its space; the identity if the space has no such kind.
+fn kind_name(kinds: &[Kind], id: &str, language: &str) -> String {
+    kinds.iter().find(|k| k.id == id).map_or(id, |k| k.name_in(language)).to_owned()
+}
+
+/// The kinds in a file: a template (`{"kinds": […]}`, as in `aktujo/packs`) or a list of kinds.
+fn kinds_of_file(bytes: &[u8]) -> Result<Vec<Kind>, serde_json::Error> {
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum File {
+        Template { kinds: Vec<Kind> },
+        List(Vec<Kind>),
+    }
+    Ok(match serde_json::from_slice(bytes)? {
+        File::Template { kinds } | File::List(kinds) => kinds,
+    })
 }
 
 /// Draws the interface and remembers where the clickable parts are.
@@ -719,7 +787,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
                 ReadState::Failed => "! ",
                 ReadState::Done => "  ",
             };
-            let kind = row.kind.as_deref().map(|k| format!(" · {}", app.texts.kind(k))).unwrap_or_default();
+            let kind = row.kind.as_deref().map(|k| format!(" · {k}")).unwrap_or_default();
             ListItem::new(format!("{marker}{}  {}{kind}", row.date, row.title))
         })
         .collect();

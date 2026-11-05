@@ -534,3 +534,72 @@ input.wide,
   font-size: 1.1rem;
   border-left: 4px solid var(--accent);
 }
+
+/* Kinds: the editor of one kind. */
+.kind {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.kind > label:not(.check) {
+  display: grid;
+  gap: 0.2rem;
+  max-width: 32rem;
+}
+
+.kind textarea {
+  width: 100%;
+  font: 0.85rem ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.fields-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.fields-table th {
+  text-align: left;
+  font-weight: normal;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.fields-table td,
+.fields-table th {
+  padding: 0.25rem 0.4rem 0.25rem 0;
+  vertical-align: top;
+}
+
+.fields-table td input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 8rem;
+}
+
+.fields-table .note {
+  display: block;
+  font-size: 0.75rem;
+}
+
+.narrow-only {
+  display: none;
+}
+
+@media (max-width: 40rem) {
+  .fields-table thead {
+    display: none;
+  }
+
+  .narrow-only {
+    display: inline;
+  }
+
+  .fields-table tr {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+}

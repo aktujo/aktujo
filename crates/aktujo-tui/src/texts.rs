@@ -11,6 +11,7 @@ const LANGUAGES: [(&str, &str); 2] =
 /// The texts of one language.
 #[derive(Debug, Clone)]
 pub struct Texts {
+    language: String,
     texts: HashMap<String, String>,
     english: HashMap<String, String>,
 }
@@ -24,7 +25,7 @@ impl Texts {
     pub fn of(language: &str) -> Self {
         let code = language.split(['-', '_', '.']).next().unwrap_or_default().to_ascii_lowercase();
         let json = LANGUAGES.iter().find(|(c, _)| *c == code).map_or(LANGUAGES[0].1, |(_, json)| json);
-        Texts { texts: parse(json), english: parse(LANGUAGES[0].1) }
+        Texts { language: code, texts: parse(json), english: parse(LANGUAGES[0].1) }
     }
 
     /// The texts of the language the environment asks for (`LC_ALL`, `LC_MESSAGES`, `LANG`).
@@ -46,21 +47,9 @@ impl Texts {
         values.iter().fold(self.get(key), |text, (name, value)| text.replace(&format!("{{{name}}}"), value))
     }
 
-    /// The name of a kind.
-    pub fn kind(&self, id: &str) -> String {
-        let key = format!("kind.{id}");
-        if self.texts.contains_key(&key) || self.english.contains_key(&key) { self.get(&key) } else { id.to_owned() }
-    }
-
-    /// The name of a field of a kind.
-    pub fn field(&self, kind: Option<&str>, key: &str) -> String {
-        let special = kind.map(|kind| format!("field.{kind}.{key}"));
-        for candidate in special.into_iter().chain([format!("field.{key}")]) {
-            if self.texts.contains_key(&candidate) || self.english.contains_key(&candidate) {
-                return self.get(&candidate);
-            }
-        }
-        key.to_owned()
+    /// The language asked for, as its primary tag (`de`) – also for the names of kinds, which a space defines.
+    pub fn language(&self) -> &str {
+        &self.language
     }
 }
 
@@ -82,10 +71,7 @@ mod tests {
     #[test]
     fn texts_are_found_by_language_and_filled_in() {
         let german = Texts::of("de_DE.UTF-8");
-        assert_eq!(german.kind("invoice"), "Rechnung");
-        assert_eq!(german.field(Some("policy"), "number"), "Versicherungsnummer");
-        assert_eq!(german.field(Some("invoice"), "number"), "Nummer");
-        assert_eq!(german.field(None, "colour"), "colour");
+        assert_eq!(german.language(), "de");
         assert_eq!(german.fill("doc.added", &[("n", "3")]), "3 hinzugefügt");
         assert_eq!(Texts::of("fr").get("doc.trash"), "Put in the bin");
     }

@@ -1,9 +1,10 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
   import { api, upload, type Kind, type Space, type Summary } from "./lib/api";
-  import { i18n, kindName, t } from "./lib/i18n.svelte";
+  import { byName, i18n, kindName, nameOf, t } from "./lib/i18n.svelte";
   import { setTheme, theme, type Theme } from "./lib/theme.svelte";
   import DocumentPanel from "./DocumentPanel.svelte";
+  import KindsPanel from "./KindsPanel.svelte";
   import Settings from "./Settings.svelte";
   import SpacePanel from "./SpacePanel.svelte";
 
@@ -35,6 +36,7 @@
   let picker = $state<HTMLInputElement>();
   let settings = $state(false);
   let sharing = $state(false);
+  let editingKinds = $state(false);
   let device = $state("");
 
   const current = $derived(spaces.find((s) => s.id === space) ?? null);
@@ -54,6 +56,16 @@
     const { data } = await api.GET("/api/v1/spaces/{space}/labels", { params: { path: { space } } });
     labels = data ?? [];
     wanted = wanted.filter((w) => labels.some((l) => l.label === w));
+  }
+
+  async function loadKinds() {
+    if (!space) {
+      kinds = [];
+      return;
+    }
+    const { data } = await api.GET("/api/v1/spaces/{space}/kinds", { params: { path: { space } } });
+    kinds = data ?? [];
+    if (kind && !kinds.some((k) => k.id === kind)) kind = "";
   }
 
   async function search() {
@@ -79,7 +91,7 @@
 
   async function refresh() {
     await loadSpaces();
-    await Promise.all([loadLabels(), search()]);
+    await Promise.all([loadLabels(), loadKinds(), search()]);
   }
 
   async function foundSpace(event: SubmitEvent) {
@@ -135,7 +147,6 @@
 
   // The first loading, and again while documents wait to be read.
   $effect(() => {
-    api.GET("/api/v1/kinds").then(({ data }) => (kinds = data ?? []));
     loadStatus();
     refresh();
   });
@@ -170,6 +181,7 @@
     void space;
     chosen = null;
     loadLabels();
+    loadKinds();
   });
   $effect(() => {
     document.documentElement.lang = i18n.language;
@@ -278,8 +290,18 @@
           class:active-link={sharing}
           onclick={() => {
             sharing = !sharing;
+            editingKinds = false;
             chosen = null;
           }}>{t("sync.title")}</button
+        >
+        <button
+          class="link"
+          class:active-link={editingKinds}
+          onclick={() => {
+            editingKinds = !editingKinds;
+            sharing = false;
+            chosen = null;
+          }}>{t("kinds.title")}</button
         >
       {/if}
       <form class="new-space" onsubmit={foundSpace}>
@@ -297,8 +319,8 @@
         {t("filter.kind")}
         <select bind:value={kind}>
           <option value="">{t("filter.anyKind")}</option>
-          {#each kinds as k (k.id)}
-            <option value={k.id}>{kindName(k.id)}</option>
+          {#each byName(kinds) as k (k.id)}
+            <option value={k.id}>{nameOf(k)}</option>
           {/each}
         </select>
       </label>
@@ -352,6 +374,8 @@
 
       {#if sharing && current}
         <SpacePanel space={current} {device} onclose={() => (sharing = false)} onchange={refresh} />
+      {:else if editingKinds && current}
+        <KindsPanel space={current} {kinds} {readOnly} onclose={() => (editingKinds = false)} onchange={refresh} />
       {:else if chosen && current}
         <DocumentPanel
           space={current.id}
@@ -373,7 +397,7 @@
                 <span class="title">{d.title}</span>
                 <span class="meta">
                   {d.date}
-                  {#if d.kind}· {kindName(d.kind)}{#if !d.kind_confirmed}&nbsp;({t("doc.suggested")}){/if}{/if}
+                  {#if d.kind}· {kindName(kinds, d.kind)}{#if !d.kind_confirmed}&nbsp;({t("doc.suggested")}){/if}{/if}
                   {#if d.reading !== "done"}· <span class="reading {d.reading}">{t(`reading.${d.reading}`)}</span>{/if}
                   {#each d.labels as label (label)}<span class="label">{label}</span>{/each}
                 </span>

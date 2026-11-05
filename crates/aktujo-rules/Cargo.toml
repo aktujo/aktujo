@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 [package]
 name = "aktujo-rules"
-description = "The kind and the fields of a document from its text, as suggestions – rules as data, for aktujo"
+description = "The kind and the fields of a document from its text, as suggestions – from kinds as data, for aktujo"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,7 +9,7 @@ license = "MIT"
 repository.workspace = true
 homepage.workspace = true
 readme = "README.md"
-keywords = ["document", "invoice", "classification", "extraction", "aktujo"]
+keywords = ["document", "recognition", "classification", "extraction", "aktujo"]
 categories = ["text-processing"]
 publish.workspace = true
 

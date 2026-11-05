@@ -85,27 +85,6 @@
         }
       }
     },
-    "/api/v1/kinds": {
-      "get": {
-        "tags": [],
-        "summary": "The kinds of document there are.",
-        "operationId": "kinds",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KindView"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/recover": {
       "post": {
         "tags": [],
@@ -1235,6 +1214,298 @@
         }
       }
     },
+    "/api/v1/spaces/{space}/kind-import": {
+      "post": {
+        "tags": [],
+        "summary": "Takes over kinds – a template, or the kinds of another space – replacing those with the same identity.",
+        "operationId": "import_kinds",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KindImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Imported"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/kinds": {
+      "get": {
+        "tags": [],
+        "summary": "The kinds of documents a space has – none until someone defines or imports them.",
+        "operationId": "kinds",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KindView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [],
+        "summary": "Adds a kind with a name; its identity is made from the name.",
+        "operationId": "add_kind",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewKind"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KindView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/kinds/{kind}": {
+      "put": {
+        "tags": [],
+        "summary": "Defines a kind anew – its name, fields and rules; the whole definition replaces the one before.",
+        "operationId": "define_kind",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "the kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KindView"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KindView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Removes a kind. Documents keep it as their kind.",
+        "operationId": "remove_kind",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "the kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{space}/labels": {
       "get": {
         "tags": [],
@@ -1686,19 +1957,51 @@
           "type"
         ],
         "properties": {
+          "code": {
+            "type": "boolean",
+            "description": "For a text field: only the first word with a digit (a number or reference)."
+          },
+          "find": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FindView"
+            },
+            "description": "The ways to find it in a text, tried in order."
+          },
           "key": {
             "type": "string",
-            "description": "The key, e.g. `total`."
+            "description": "The key in events: `a-z`, `0-9`, `.`, `-`, `_`."
           },
           "name": {
             "type": "string",
-            "description": "The name, in English."
+            "description": "The name people read."
+          },
+          "names": {
+            "type": "object",
+            "description": "The name in other languages, by language tag (`de`).",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           },
           "type": {
-            "type": "string",
-            "description": "The type of its values: `text`, `date`, `money`, `number` or `flag`."
+            "$ref": "#/components/schemas/FieldTypeView",
+            "description": "The type of its values."
           }
         }
+      },
+      "FieldTypeView": {
+        "type": "string",
+        "description": "The type of a field.",
+        "enum": [
+          "text",
+          "date",
+          "money",
+          "number",
+          "flag"
+        ]
       },
       "FieldView": {
         "type": "object",
@@ -1732,6 +2035,132 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "FindView": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "After one of the labels: on the same line, else on the line to its right or right below.",
+            "required": [
+              "labels",
+              "way"
+            ],
+            "properties": {
+              "labels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The labels, as words in any case."
+              },
+              "way": {
+                "type": "string",
+                "enum": [
+                  "label"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Among all values after any of the labels, the largest.",
+            "required": [
+              "labels",
+              "way"
+            ],
+            "properties": {
+              "labels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The labels."
+              },
+              "way": {
+                "type": "string",
+                "enum": [
+                  "largest"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The first value of the field's type on the first page.",
+            "required": [
+              "way"
+            ],
+            "properties": {
+              "way": {
+                "type": "string",
+                "enum": [
+                  "first"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The name in the letterhead, the sender line or the footer: the part of a line with one of the markers; else\nthe topmost line of words.",
+            "required": [
+              "markers",
+              "way"
+            ],
+            "properties": {
+              "markers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The markers."
+              },
+              "way": {
+                "type": "string",
+                "enum": [
+                  "sender"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Yes, if one of the phrases occurs – for flags.",
+            "required": [
+              "phrases",
+              "way"
+            ],
+            "properties": {
+              "phrases": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The phrases."
+              },
+              "way": {
+                "type": "string",
+                "enum": [
+                  "present"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "A way to find the value of a field in the text of a document."
+      },
+      "Imported": {
+        "type": "object",
+        "description": "How many kinds an import changed.",
+        "required": [
+          "changed"
+        ],
+        "properties": {
+          "changed": {
+            "type": "integer",
+            "description": "The kinds new or different from before.",
+            "minimum": 0
           }
         }
       },
@@ -1774,9 +2203,25 @@
           }
         }
       },
+      "KindImport": {
+        "type": "object",
+        "description": "Kinds to take over – a template, or the kinds of another space. A template file of `aktujo/packs` has the same\nshape; other members of it are left alone.",
+        "required": [
+          "kinds"
+        ],
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KindView"
+            },
+            "description": "The kinds."
+          }
+        }
+      },
       "KindView": {
         "type": "object",
-        "description": "A kind of document.",
+        "description": "A kind of document, as the space defines it – the same JSON as in its events and in a template.",
         "required": [
           "id",
           "name",
@@ -1792,11 +2237,38 @@
           },
           "id": {
             "type": "string",
-            "description": "The identity, e.g. `invoice`."
+            "description": "The identity: `a-z`, `0-9`, `.`, `-`, `_`; at most 64."
           },
           "name": {
             "type": "string",
-            "description": "The name, in English."
+            "description": "The name people read."
+          },
+          "names": {
+            "type": "object",
+            "description": "The name in other languages, by language tag (`de`).",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "The fields a suggested title is made of after the name, the first with a value of each group."
+          },
+          "words": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeightedView"
+            },
+            "description": "Words and phrases that speak for the kind; none, and it is only ever chosen."
           }
         }
       },
@@ -1879,6 +2351,19 @@
           "rights": {
             "$ref": "#/components/schemas/RightsView",
             "description": "What the invited device may do."
+          }
+        }
+      },
+      "NewKind": {
+        "type": "object",
+        "description": "A new kind: only its name; fields and rules are added by changing it.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name people read."
           }
         }
       },
@@ -2431,6 +2916,26 @@
             "format": "int64",
             "description": "The size in bytes.",
             "minimum": 0
+          }
+        }
+      },
+      "WeightedView": {
+        "type": "object",
+        "description": "A word or phrase and how much it speaks for a kind.",
+        "required": [
+          "word",
+          "weight"
+        ],
+        "properties": {
+          "weight": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Its weight, a whole number; a kind is suggested from a sum of 6.",
+            "minimum": 0
+          },
+          "word": {
+            "type": "string",
+            "description": "The word or phrase, matched as whole words in any case."
           }
         }
       }

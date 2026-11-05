@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
-//! Reads a PDF or an image with `aktujo-extract`'s backend `pure` and prints the kind and the fields the built-in
-//! rules suggest.
-//!   cargo run --release --example recognise -- <file> [<folder with det.onnx, rec.onnx, dict.txt>]
+//! Reads a PDF or an image with `aktujo-extract`'s backend `pure` and prints the kind and the fields the rules of
+//! the kinds in a JSON file suggest – a template of `aktujo/packs` (`{"kinds": […]}`) or a list of kinds.
+//!   cargo run --release --example recognise -- <kinds.json> <file> [<folder with det.onnx, rec.onnx, dict.txt>]
 
 use aktujo_extract::{Extractor, Models, Options, Pure};
 use aktujo_rules::{Recogniser, Rules};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
-    let file = args.next().ok_or("usage: recognise <file> [<models>]")?;
+    let usage = "usage: recognise <kinds.json> <file> [<models>]";
+    let json: serde_json::Value = serde_json::from_slice(&std::fs::read(args.next().ok_or(usage)?)?)?;
+    let kinds: Vec<aktujo_doc::Kind> = serde_json::from_value(json.get("kinds").cloned().unwrap_or(json))?;
+    let file = args.next().ok_or(usage)?;
     let pure = match args.next() {
         Some(dir) => {
             let dir = std::path::PathBuf::from(dir);
@@ -26,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => return Err("unknown file type".into()),
     };
     let read = pure.extract(&std::fs::read(&file)?, media_type, &Options::default())?;
-    let recognition = Rules::builtin().recognise(&aktujo_doc::builtin(), &read, None);
+    let recognition = Rules::default().recognise(&kinds, &read, None);
     for guess in &recognition.kinds {
         println!("kind {:<10} score {:>5.1}  confidence {:.2}", guess.kind, guess.score, guess.confidence);
     }

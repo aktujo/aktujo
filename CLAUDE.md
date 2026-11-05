@@ -12,8 +12,9 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 
 - **Licences:** the core (`aktujo-base`, `-blob`, `-log`, `-crypt`, `-store`, `-relay`, `-sync`) and the document crates
   (`aktujo-doc`, `-extract`, `-rules`) MIT; the program (domain, app, API, TUI, command line, web) AGPL-3.0-or-later.
-- The core implements the mechanisms of the open protocol librotenado (events, encryption) in general form; it does
-  not depend on the librotenado crate, and librotenado's specification never depends on aktujo.
+- **Pure:** aktujo refers to no other program or protocol and has nothing built in for one trade – no kinds of
+  document, no rules, no fields of their own. Kinds and rules are data of a space (`docs/rfc/0005-pure-core.md`);
+  templates live in the repository `aktujo/packs`, specialisations in the programs that build aktujo in.
 - The architecture is `docs/rfc/0001-architecture.md`; a decision that changes it gets a new document in `docs/rfc/`.
 
 ## Layout
@@ -27,9 +28,9 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 | `crates/aktujo-store` | core, MIT: SQLite – events, member records, settings; programs add tables of their own through `Store::connection`; feature `sqlcipher` encrypts the database as a whole (OPEN: PostgreSQL) |
 | `crates/aktujo-relay` | core, MIT: the relay over HTTP (axum) |
 | `crates/aktujo-sync` | core, MIT: a device's replica; sync through a relay (ureq), invitations, removal, recovery |
-| `crates/aktujo-doc` | documents, MIT: versions, kinds, fields suggested and confirmed, labels – as events; no I/O |
+| `crates/aktujo-doc` | documents, MIT: versions, fields suggested and confirmed, labels, and kinds as data of a space (`kind_defined`, `kind_removed`) – as events; no I/O |
 | `crates/aktujo-extract` | documents, MIT: text with positions from PDFs and images; backends `pure` (hayro, PP-OCR on tract; default) and `external` (pdftotext, Tesseract); `layer` is `pure` without OCR; `serde` keeps what was read as JSON |
-| `crates/aktujo-rules` | documents, MIT: the kind and the fields from the text, as suggestions; general on purpose – programs specialise it (kinds and rules as data, trait `Recogniser`); six languages; no I/O |
+| `crates/aktujo-rules` | documents, MIT: the kind and the fields from the text, as suggestions – the mechanism only: words, labels and ways come from the kinds; programs add code behind `Recogniser`; no I/O |
 | `crates/aktujo-core` | the domain – types and rules, no I/O |
 | `crates/aktujo-app` | the workspace: every command and query; the **only** layer the interfaces use – a data folder (SQLCipher database, originals sealed with XChaCha20-Poly1305, the key in the operating system's key store), spaces, documents, sync and sharing, reading and synchronising in the background (`Worker`, `Syncer`; event `document_read`), search (FTS5 beside the core's tables, filters); feature `ocr` builds the OCR models in (`build.rs`, from `target/ocr-models`) |
 | `crates/aktujo-api` | HTTP/JSON with axum, described in OpenAPI by utoipa; serves the embedded web app; answers only `localhost` and changes only for its own pages |
@@ -54,7 +55,7 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 - The core and the document crates MIT, everything else **AGPL-3.0-or-later** – an SPDX header in every own source file and `Cargo.toml`;
   REUSE checked in CI.
 - `docs/assets/` and `web/public/favicon.svg` are copies from `aktujo/brand` under CC BY-ND 4.0 – update them by copying, never edit them here.
-- Code taken over from elsewhere keeps its licence and names its origin (librotenado: MIT).
+- Code taken over from elsewhere keeps its licence and names its origin.
 
 ## Rules
 

@@ -70,6 +70,41 @@ pub fn device_name(text: &str) -> Result<String, DomainError> {
     checked(text, SPACE_NAME_MAX, DomainError::EmptyDeviceName, DomainError::LongDeviceName)
 }
 
+/// An identity for a kind from its name: its letters and digits in lower case, joined by `-`, at most 60
+/// characters; `kind` if it has none.
+pub fn kind_id(name: &str) -> String {
+    let mut id = String::new();
+    for c in name.trim().to_lowercase().chars() {
+        if c.is_ascii_alphanumeric() {
+            id.push(c);
+        } else if let Some(plain) = plain_letter(c) {
+            id.push_str(plain);
+        } else if !id.is_empty() && !id.ends_with('-') {
+            id.push('-');
+        }
+    }
+    let id: String = id.chars().take(60).collect();
+    match id.trim_end_matches('-') {
+        "" => "kind".into(),
+        id => id.to_owned(),
+    }
+}
+
+/// Common letters with marks in plain ASCII.
+fn plain_letter(c: char) -> Option<&'static str> {
+    Some(match c {
+        'ä' | 'á' | 'à' | 'â' | 'å' | 'ã' => "a",
+        'ö' | 'ó' | 'ò' | 'ô' | 'ø' | 'õ' => "o",
+        'ü' | 'ú' | 'ù' | 'û' => "u",
+        'é' | 'è' | 'ê' | 'ë' => "e",
+        'í' | 'ì' | 'î' | 'ï' => "i",
+        'ß' => "ss",
+        'ç' => "c",
+        'ñ' => "n",
+        _ => return None,
+    })
+}
+
 /// The title a file brings: its name without the folder and the extension.
 pub fn title_of_file(name: &str) -> String {
     let name = name.rsplit(['/', '\\']).next().unwrap_or(name);
@@ -97,6 +132,15 @@ pub const SPACE_KINDS: [&str; 1] = ["space_named"];
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kinds_get_identities_from_their_names() {
+        assert_eq!(kind_id("Research paper"), "research-paper");
+        assert_eq!(kind_id("  Zeugnis / Bescheinigung "), "zeugnis-bescheinigung");
+        assert_eq!(kind_id("Grüße & Straße"), "grusse-strasse");
+        assert_eq!(kind_id("楽譜"), "kind");
+        assert_eq!(kind_id(&"a".repeat(100)).len(), 60);
+    }
 
     #[test]
     fn titles_are_trimmed_and_checked() {

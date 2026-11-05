@@ -38,23 +38,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/kinds": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The kinds of document there are. */
-        get: operations["kinds"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/recover": {
         parameters: {
             query?: never;
@@ -349,6 +332,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{space}/kind-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Takes over kinds – a template, or the kinds of another space – replacing those with the same identity. */
+        post: operations["import_kinds"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/kinds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The kinds of documents a space has – none until someone defines or imports them. */
+        get: operations["kinds"];
+        put?: never;
+        /** Adds a kind with a name; its identity is made from the name. */
+        post: operations["add_kind"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/kinds/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Defines a kind anew – its name, fields and rules; the whole definition replaces the one before. */
+        put: operations["define_kind"];
+        post?: never;
+        /** Removes a kind. Documents keep it as their kind. */
+        delete: operations["remove_kind"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{space}/labels": {
         parameters: {
             query?: never;
@@ -520,19 +556,62 @@ export interface components {
         };
         /** @description A field of a kind. */
         FieldDefView: {
-            /** @description The key, e.g. `total`. */
+            /** @description For a text field: only the first word with a digit (a number or reference). */
+            code?: boolean;
+            /** @description The ways to find it in a text, tried in order. */
+            find?: components["schemas"]["FindView"][];
+            /** @description The key in events: `a-z`, `0-9`, `.`, `-`, `_`. */
             key: string;
-            /** @description The name, in English. */
+            /** @description The name people read. */
             name: string;
-            /** @description The type of its values: `text`, `date`, `money`, `number` or `flag`. */
-            type: string;
+            /** @description The name in other languages, by language tag (`de`). */
+            names?: {
+                [key: string]: string;
+            };
+            /** @description The type of its values. */
+            type: components["schemas"]["FieldTypeView"];
         };
+        /**
+         * @description The type of a field.
+         * @enum {string}
+         */
+        FieldTypeView: "text" | "date" | "money" | "number" | "flag";
         /** @description A field of a document. */
         FieldView: {
             confirmed?: components["schemas"]["ValueView"] | null;
             /** @description The key, e.g. `total`. */
             key: string;
             suggestion?: components["schemas"]["ValueView"] | null;
+        };
+        /** @description A way to find the value of a field in the text of a document. */
+        FindView: {
+            /** @description The labels, as words in any case. */
+            labels: string[];
+            /** @enum {string} */
+            way: "label";
+        } | {
+            /** @description The labels. */
+            labels: string[];
+            /** @enum {string} */
+            way: "largest";
+        } | {
+            /** @enum {string} */
+            way: "first";
+        } | {
+            /** @description The markers. */
+            markers: string[];
+            /** @enum {string} */
+            way: "sender";
+        } | {
+            /** @description The phrases. */
+            phrases: string[];
+            /** @enum {string} */
+            way: "present";
+        };
+        /** @description How many kinds an import changed. */
+        Imported: {
+            /** @description The kinds new or different from before. */
+            changed: number;
         };
         /** @description An invitation: text to pass on, good for a day. */
         InvitationView: {
@@ -549,14 +628,30 @@ export interface components {
             /** @description The identity of a kind ([`KindView`]), or none: the document has no kind. */
             kind?: string | null;
         };
-        /** @description A kind of document. */
+        /**
+         * @description Kinds to take over – a template, or the kinds of another space. A template file of `aktujo/packs` has the same
+         *     shape; other members of it are left alone.
+         */
+        KindImport: {
+            /** @description The kinds. */
+            kinds: components["schemas"]["KindView"][];
+        };
+        /** @description A kind of document, as the space defines it – the same JSON as in its events and in a template. */
         KindView: {
             /** @description Its fields, in the order they are shown. */
             fields: components["schemas"]["FieldDefView"][];
-            /** @description The identity, e.g. `invoice`. */
+            /** @description The identity: `a-z`, `0-9`, `.`, `-`, `_`; at most 64. */
             id: string;
-            /** @description The name, in English. */
+            /** @description The name people read. */
             name: string;
+            /** @description The name in other languages, by language tag (`de`). */
+            names?: {
+                [key: string]: string;
+            };
+            /** @description The fields a suggested title is made of after the name, the first with a value of each group. */
+            title?: string[][];
+            /** @description Words and phrases that speak for the kind; none, and it is only ever chosen. */
+            words?: components["schemas"]["WeightedView"][];
         };
         /** @description A label to add. */
         LabelChange: {
@@ -587,6 +682,11 @@ export interface components {
         NewInvitation: {
             /** @description What the invited device may do. */
             rights: components["schemas"]["RightsView"];
+        };
+        /** @description A new kind: only its name; fields and rules are added by changing it. */
+        NewKind: {
+            /** @description The name people read. */
+            name: string;
         };
         /** @description A page of the text that was read. */
         PageText: {
@@ -808,6 +908,16 @@ export interface components {
              */
             size: number;
         };
+        /** @description A word or phrase and how much it speaks for a kind. */
+        WeightedView: {
+            /**
+             * Format: int32
+             * @description Its weight, a whole number; a kind is suggested from a sum of 6.
+             */
+            weight: number;
+            /** @description The word or phrase, matched as whole words in any case. */
+            word: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -881,25 +991,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    kinds: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KindView"][];
                 };
             };
         };
@@ -1676,6 +1767,226 @@ export interface operations {
                 };
             };
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    import_kinds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KindImport"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Imported"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    kinds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KindView"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_kind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewKind"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KindView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    define_kind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the kind */
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KindView"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KindView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    remove_kind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the kind */
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

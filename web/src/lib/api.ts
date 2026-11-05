@@ -2,8 +2,17 @@
 // The client of the aktujo API, typed from api/openapi.json (`pnpm api` writes api-types.ts).
 import createClient from "openapi-fetch";
 import type { components, paths } from "./api-types";
+import { i18n } from "./i18n.svelte";
 
 export const api = createClient<paths>({ baseUrl: "/" });
+
+// The chosen language, so that a suggested title takes the name of its kind in it.
+api.use({
+  onRequest({ request }) {
+    request.headers.set("Accept-Language", i18n.language);
+    return request;
+  },
+});
 
 export type Schemas = components["schemas"];
 export type Space = Schemas["SpaceView"];

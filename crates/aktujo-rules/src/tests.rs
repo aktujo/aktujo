@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
-use aktujo_doc::builtin;
 use aktujo_extract::Page;
 
 use super::*;
+
+/// Kinds of a space for the tests – data like any a person or program defines, not part of the crate.
+fn builtin() -> Vec<Kind> {
+    serde_json::from_str(include_str!("../testdata/kinds.json")).unwrap()
+}
 
 /// A page of lines, each at (x0, y0), one character 0.01 wide and lines 0.015 high.
 fn page(lines: &[(&str, f32, f32)], method: Method) -> Page {
@@ -63,7 +67,7 @@ fn money(amount: &str) -> Value {
 
 #[test]
 fn recognises_an_invoice() {
-    let read = Rules::builtin().recognise(&builtin(), &invoice(), None);
+    let read = Rules::default().recognise(&builtin(), &invoice(), None);
     let kind = read.kind.as_ref().unwrap();
     assert_eq!(kind.kind, "invoice");
     assert!(kind.confidence > 0.5, "{read:?}");
@@ -102,7 +106,7 @@ fn recognises_a_receipt_read_by_ocr() {
             Method::Ocr,
         )],
     };
-    let read = Rules::builtin().recognise(&builtin(), &receipt, None);
+    let read = Rules::default().recognise(&builtin(), &receipt, None);
     assert_eq!(read.kind.as_ref().map(|k| k.kind.as_str()), Some("receipt"));
     // No legal form: the topmost line of words.
     assert_eq!(value(&read, "issuer"), Some(&text("Bäckerei Korn")));
@@ -128,7 +132,7 @@ fn recognises_a_notice() {
             Method::TextLayer,
         )],
     };
-    let read = Rules::builtin().recognise(&builtin(), &notice, None);
+    let read = Rules::default().recognise(&builtin(), &notice, None);
     assert_eq!(read.kind.as_ref().map(|k| k.kind.as_str()), Some("notice"));
     assert_eq!(value(&read, "authority"), Some(&text("Finanzamt Musterstadt")));
     assert_eq!(value(&read, "reference"), Some(&text("123/456/78901")));
@@ -140,15 +144,15 @@ fn recognises_a_notice() {
 #[test]
 fn suggests_no_kind_without_enough_words() {
     let note = Extraction { pages: vec![page(&[("Einkaufsliste: Milch, Brot", 0.1, 0.1)], Method::TextLayer)] };
-    let read = Rules::builtin().recognise(&builtin(), &note, None);
+    let read = Rules::default().recognise(&builtin(), &note, None);
     assert_eq!(read, Recognition::default());
-    assert!(Rules::builtin().recognise(&builtin(), &Extraction::default(), None).kind.is_none());
+    assert!(Rules::default().recognise(&builtin(), &Extraction::default(), None).kind.is_none());
 }
 
 #[test]
 fn reads_the_fields_of_a_kind_given() {
     let letter = builtin().into_iter().find(|k| k.id == "letter").unwrap();
-    let found = Rules::builtin().fields(&letter, &invoice());
+    let found = Rules::default().fields(&letter, &invoice());
     let keys: Vec<&str> = found.iter().map(|f| f.key.as_str()).collect();
     assert_eq!(keys, ["sender", "date"]);
 }
@@ -184,7 +188,7 @@ fn writes_suggestions_only_where_they_add_something() {
     }
     let (documents, skipped) = Documents::from_log(&log);
     assert!(skipped.is_empty());
-    let read = Rules::builtin().recognise(&builtin(), &invoice(), None);
+    let read = Rules::default().recognise(&builtin(), &invoice(), None);
     let events = read.events(documents.get(&id).unwrap());
     let keys: Vec<&str> = events
         .iter()
@@ -210,7 +214,7 @@ fn writes_suggestions_only_where_they_add_something() {
     let (documents, _) = Documents::from_log(&log);
     let document = documents.get(&id).unwrap();
     assert!(read.events(document).is_empty());
-    let events = Rules::builtin().suggest(&builtin(), document, &invoice());
+    let events = Rules::default().suggest(&builtin(), document, &invoice());
     let keys: Vec<&str> = events
         .iter()
         .map(|e| match e {
@@ -223,25 +227,23 @@ fn writes_suggestions_only_where_they_add_something() {
 
 #[test]
 fn suggests_a_title() {
-    let read = Rules::builtin().recognise(&builtin(), &invoice(), None);
-    assert_eq!(read.title(&builtin()).as_deref(), Some("Invoice · Stadtwerke Musterstadt GmbH · 2026-11-05"));
-    assert_eq!(Recognition::default().title(&builtin()), None);
+    let read = Rules::default().recognise(&builtin(), &invoice(), None);
+    assert_eq!(read.title(&builtin(), "en").as_deref(), Some("Invoice · Stadtwerke Musterstadt GmbH · 2026-11-05"));
+    assert_eq!(read.title(&builtin(), "de").as_deref(), Some("Rechnung · Stadtwerke Musterstadt GmbH · 2026-11-05"));
+    assert_eq!(Recognition::default().title(&builtin(), "en"), None);
 }
 
 #[test]
-fn rules_are_data() {
-    let rules = Rules::builtin();
-    let json = serde_json::to_string(&rules).unwrap();
-    assert!(json.contains(r#"{"key":"number","code":true,"find":[{"way":"label","labels":["rechnungsnummer""#));
-    assert_eq!(serde_json::from_str::<Rules>(&json).unwrap(), rules);
-    // Every rule names a kind and fields that aktujo-doc has.
+fn rules_are_data_of_the_kinds() {
     let kinds = builtin();
-    for rules in &rules.kinds {
-        let kind = kinds.iter().find(|k| k.id == rules.kind).unwrap_or_else(|| panic!("{}", rules.kind));
-        for field in &rules.fields {
-            assert!(kind.field(&field.key).is_some(), "{}.{}", rules.kind, field.key);
-        }
+    let json = serde_json::to_string(&kinds).unwrap();
+    assert!(json.contains(r#"{"key":"number","name":"Number","names":{"de":"Nummer"},"type":"text","code":true,"find":[{"way":"label","labels":["rechnungsnummer""#));
+    assert_eq!(serde_json::from_str::<Vec<Kind>>(&json).unwrap(), kinds);
+    for kind in &kinds {
+        assert_eq!(kind.check(), Ok(()), "{}", kind.id);
     }
+    // Without kinds, nothing is recognised.
+    assert_eq!(Rules::default().recognise(&[], &invoice(), None), Recognition::default());
 }
 
 #[test]
@@ -259,7 +261,7 @@ fn recognises_documents_in_other_languages() {
             Method::TextLayer,
         )],
     };
-    let rules = Rules { date_order: Some(DateOrder::DayFirst), ..Rules::builtin() };
+    let rules = Rules { date_order: Some(DateOrder::DayFirst) };
     let read = rules.recognise(&builtin(), &facture, None);
     assert_eq!(read.kind.as_ref().map(|k| k.kind.as_str()), Some("invoice"));
     assert_eq!(value(&read, "issuer"), Some(&text("Boulangerie Dupont SARL")));
@@ -268,11 +270,11 @@ fn recognises_documents_in_other_languages() {
     assert_eq!(value(&read, "total"), Some(&money("1120.00")));
     assert_eq!(value(&read, "due"), Some(&date("2026-12-05")));
     // Without an order, 05/12/2026 is not read.
-    let read = Rules::builtin().recognise(&builtin(), &facture, None);
+    let read = Rules::default().recognise(&builtin(), &facture, None);
     assert_eq!(value(&read, "due"), None);
 }
 
-/// A specialisation in code, as a program like spezado would bring it: the VAT ID of an invoice.
+/// A specialisation in code, as a program would bring it: the VAT ID of an invoice.
 struct VatIds;
 
 impl Recogniser for VatIds {
@@ -285,7 +287,7 @@ impl Recogniser for VatIds {
                     key: "vat_id".into(),
                     value: text(&id),
                     confidence: 0.9,
-                    rule: "spezado.vat_id".into(),
+                    rule: "program.vat_id".into(),
                     page: p,
                     line: l,
                 })
@@ -302,28 +304,19 @@ impl Recogniser for VatIds {
 
 #[test]
 fn programs_specialise_by_code_and_by_data() {
-    // An invoice kind with one more field, as the program defines it.
+    // The program's invoice has two more fields: one found by a rule as data, one by its own code.
     let mut kinds = builtin();
     let invoice_kind = kinds.iter_mut().find(|k| k.id == "invoice").unwrap();
-    invoice_kind.fields.push(aktujo_doc::FieldDef {
-        key: "vat_id".into(),
-        name: "VAT ID".into(),
-        field_type: FieldType::Text,
-    });
-    invoice_kind.fields.push(aktujo_doc::FieldDef {
-        key: "customer".into(),
-        name: "Customer number".into(),
-        field_type: FieldType::Text,
-    });
-    // More rules as data, added to the built-in ones.
-    let mut rules = Rules::builtin();
-    let extra: Rules = serde_json::from_value(serde_json::json!({"kinds": [{
-        "kind": "invoice",
-        "words": [{"word": "kundennummer", "weight": 1.0}],
-        "fields": [{"key": "customer", "code": true, "find": [{"way": "label", "labels": ["kundennummer"]}]}]
-    }]}))
-    .unwrap();
-    rules.extend(extra);
+    invoice_kind.fields.push(aktujo_doc::FieldDef::new("vat_id", "VAT ID", FieldType::Text));
+    invoice_kind.fields.push(
+        serde_json::from_value(serde_json::json!({
+            "key": "customer", "name": "Customer number", "type": "text", "code": true,
+            "find": [{"way": "label", "labels": ["kundennummer"]}]
+        }))
+        .unwrap(),
+    );
+    invoice_kind.words.push(aktujo_doc::Weighted { word: "kundennummer".into(), weight: 2 });
+    let rules = Rules::default();
     let mut document = invoice();
     document.pages[0].lines.push(Line { text: "Kundennummer 4711".into(), x0: 0.6, y0: 0.2, x1: 0.8, y1: 0.215 });
     let chain = Chain(vec![Box::new(rules), Box::new(VatIds)]);
@@ -333,7 +326,7 @@ fn programs_specialise_by_code_and_by_data() {
     assert_eq!(value(&read, "vat_id"), Some(&text("DE123456789")));
     assert_eq!(value(&read, "total"), Some(&money("119.00")));
     let vat = read.fields.iter().find(|f| f.key == "vat_id").unwrap();
-    assert_eq!(vat.rule, "spezado.vat_id");
+    assert_eq!(vat.rule, "program.vat_id");
 }
 
 #[test]

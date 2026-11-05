@@ -2,6 +2,8 @@
 //! What the API shows and takes, described in OpenAPI. The document crates know nothing of the API, so their types
 //! are mirrored here – in the same JSON where they have one.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -362,48 +364,134 @@ pub struct LabelCount {
     pub documents: usize,
 }
 
-/// A field of a kind.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct FieldDefView {
-    /// The key, e.g. `total`.
-    pub key: String,
-    /// The name, in English.
-    pub name: String,
-    /// The type of its values: `text`, `date`, `money`, `number` or `flag`.
-    #[serde(rename = "type")]
-    pub field_type: String,
+/// The type of a field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldTypeView {
+    /// Any text.
+    Text,
+    /// A day, `YYYY-MM-DD`.
+    Date,
+    /// An amount of money with its currency.
+    Money,
+    /// A decimal number.
+    Number,
+    /// Yes or no.
+    Flag,
 }
 
-/// A kind of document.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct KindView {
-    /// The identity, e.g. `invoice`.
-    pub id: String,
-    /// The name, in English.
+/// A way to find the value of a field in the text of a document.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "way", rename_all = "snake_case")]
+pub enum FindView {
+    /// After one of the labels: on the same line, else on the line to its right or right below.
+    Label {
+        /// The labels, as words in any case.
+        labels: Vec<String>,
+    },
+    /// Among all values after any of the labels, the largest.
+    Largest {
+        /// The labels.
+        labels: Vec<String>,
+    },
+    /// The first value of the field's type on the first page.
+    First,
+    /// The name in the letterhead, the sender line or the footer: the part of a line with one of the markers; else
+    /// the topmost line of words.
+    Sender {
+        /// The markers.
+        markers: Vec<String>,
+    },
+    /// Yes, if one of the phrases occurs – for flags.
+    Present {
+        /// The phrases.
+        phrases: Vec<String>,
+    },
+}
+
+/// A word or phrase and how much it speaks for a kind.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct WeightedView {
+    /// The word or phrase, matched as whole words in any case.
+    pub word: String,
+    /// Its weight, a whole number; a kind is suggested from a sum of 6.
+    pub weight: u32,
+}
+
+/// A field of a kind.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct FieldDefView {
+    /// The key in events: `a-z`, `0-9`, `.`, `-`, `_`.
+    pub key: String,
+    /// The name people read.
     pub name: String,
+    /// The name in other languages, by language tag (`de`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub names: BTreeMap<String, String>,
+    /// The type of its values.
+    #[serde(rename = "type")]
+    pub field_type: FieldTypeView,
+    /// For a text field: only the first word with a digit (a number or reference).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub code: bool,
+    /// The ways to find it in a text, tried in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub find: Vec<FindView>,
+}
+
+/// A kind of document, as the space defines it – the same JSON as in its events and in a template.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct KindView {
+    /// The identity: `a-z`, `0-9`, `.`, `-`, `_`; at most 64.
+    pub id: String,
+    /// The name people read.
+    pub name: String,
+    /// The name in other languages, by language tag (`de`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub names: BTreeMap<String, String>,
     /// Its fields, in the order they are shown.
     pub fields: Vec<FieldDefView>,
+    /// Words and phrases that speak for the kind; none, and it is only ever chosen.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub words: Vec<WeightedView>,
+    /// The fields a suggested title is made of after the name, the first with a value of each group.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub title: Vec<Vec<String>>,
 }
 
 impl From<Kind> for KindView {
     fn from(kind: Kind) -> Self {
-        KindView {
-            id: kind.id,
-            name: kind.name,
-            fields: kind
-                .fields
-                .into_iter()
-                .map(|f| FieldDefView {
-                    key: f.key,
-                    name: f.name,
-                    field_type: serde_json::to_value(f.field_type)
-                        .ok()
-                        .and_then(|v| v.as_str().map(str::to_owned))
-                        .unwrap_or_default(),
-                })
-                .collect(),
-        }
+        // The same JSON on both sides.
+        serde_json::from_value(serde_json::to_value(kind).expect("a kind is JSON")).expect("the same JSON")
     }
+}
+
+impl From<KindView> for Kind {
+    fn from(view: KindView) -> Self {
+        serde_json::from_value(serde_json::to_value(view).expect("a kind is JSON")).expect("the same JSON")
+    }
+}
+
+/// A new kind: only its name; fields and rules are added by changing it.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct NewKind {
+    /// The name people read.
+    pub name: String,
+}
+
+/// Kinds to take over – a template, or the kinds of another space. A template file of `aktujo/packs` has the same
+/// shape; other members of it are left alone.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct KindImport {
+    /// The kinds.
+    pub kinds: Vec<KindView>,
+}
+
+/// How many kinds an import changed.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct Imported {
+    /// The kinds new or different from before.
+    pub changed: usize,
 }
 
 /// Where in the bin to look.

@@ -84,19 +84,19 @@ impl Reader {
         Reader { extractor, recogniser, options: Options::default() }
     }
 
-    /// The reader of this build: the backend `pure` with the models built in, if the build has OCR, and the
-    /// built-in rules.
+    /// The reader of this build: the backend `pure` with the models built in, if the build has OCR, and the rules
+    /// of the kinds of each space.
     pub fn builtin() -> Result<Self, AppError> {
         #[cfg(feature = "ocr")]
         let pure = Pure::with_models(crate::models::MODELS).map_err(|e| AppError::Reading(e.to_string()))?;
         #[cfg(not(feature = "ocr"))]
         let pure = Pure::new();
-        Ok(Reader::new(Box::new(pure), Box::new(Rules::builtin())))
+        Ok(Reader::new(Box::new(pure), Box::new(Rules::default())))
     }
 
-    /// A reader of text layers only, with the built-in rules – what `aktujo-minimal` reads with.
+    /// A reader of text layers only, with the rules of the kinds – what `aktujo-minimal` reads with.
     pub fn text_layer() -> Self {
-        Reader::new(Box::new(Pure::new()), Box::new(Rules::builtin()))
+        Reader::new(Box::new(Pure::new()), Box::new(Rules::default()))
     }
 
     /// Whether this reader can use OCR.
@@ -204,7 +204,7 @@ impl Workspace {
         if document.current().original.hash != job.version {
             return Ok(());
         }
-        let suggestions = reader.recogniser.suggest(&self.kinds(), document, &extraction);
+        let suggestions = reader.recogniser.suggest(&self.kinds(&job.space)?, document, &extraction);
         for suggestion in suggestions {
             self.write(&job.space, &suggestion)?;
         }
@@ -233,13 +233,15 @@ impl Workspace {
         Ok(Some(Extraction { pages: stored.pages }))
     }
 
-    /// A better title than the file name, from the kind, the sender and the date the reader's rules find – offered
-    /// while the title is still the file's; a person takes it with [`Workspace::set_title`].
+    /// A better title than the file name, from the kind's name (in `language`, if it has one) and the fields its
+    /// title is made of – offered while the title is still the file's; a person takes it with
+    /// [`Workspace::set_title`].
     pub fn suggested_title(
         &self,
         space: &SpaceId,
         id: &DocumentId,
         reader: &Reader,
+        language: &str,
     ) -> Result<Option<String>, AppError> {
         let document = self.document(space, id)?;
         if document.title != aktujo_core::title_of_file(&document.versions[0].original.name) {
@@ -248,9 +250,9 @@ impl Workspace {
         let Some(extraction) = self.read_text(space, id)? else {
             return Ok(None);
         };
-        let kinds = self.kinds();
+        let kinds = self.kinds(space)?;
         let kind = document.kind.as_deref().or(document.kind_suggestion.as_ref().map(|s| s.kind.as_str()));
-        let title = reader.recogniser.recognise(&kinds, &extraction, kind).title(&kinds);
+        let title = reader.recogniser.recognise(&kinds, &extraction, kind).title(&kinds, language);
         Ok(title.and_then(|t| aktujo_core::title(&t).ok()).filter(|t| *t != document.title))
     }
 }
@@ -324,7 +326,7 @@ impl Drop for Worker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{NewFile, Value};
+    use crate::{Kind, NewFile, Value};
 
     /// A one-page PDF; `lines` in Helvetica from the top, or a grey box without text if there are none.
     fn pdf(lines: &[&str]) -> Vec<u8> {
@@ -373,6 +375,38 @@ mod tests {
         "Thank you for your order.",
     ];
 
+    /// A kind as a person or a template defines it – a space has none of its own.
+    fn invoice() -> Kind {
+        serde_json::from_value(serde_json::json!({
+            "id": "invoice", "name": "Invoice", "names": {"de": "Rechnung"},
+            "fields": [
+                {"key": "issuer", "name": "Issuer", "type": "text", "find": [{"way": "sender", "markers": ["gmbh"]}]},
+                {"key": "number", "name": "Number", "type": "text", "code": true,
+                 "find": [{"way": "label", "labels": ["invoice number"]}]},
+                {"key": "date", "name": "Date", "type": "date", "find": [{"way": "label", "labels": ["invoice date"]}]},
+                {"key": "total", "name": "Total", "type": "money",
+                 "find": [{"way": "largest", "labels": ["total amount"]}]}
+            ],
+            "words": [{"word": "invoice", "weight": 6}, {"word": "invoice number", "weight": 4}],
+            "title": [["issuer"], ["date"]]
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn without_kinds_nothing_is_suggested() {
+        let workspace = Mutex::new(Workspace::in_memory("laptop").unwrap());
+        let (space, id) = {
+            let mut w = workspace.lock().unwrap();
+            let space = w.found_space("Home").unwrap();
+            (space.clone(), w.add_document(&space, file("scan.pdf", &pdf(&INVOICE))).unwrap().document)
+        };
+        assert_eq!(read_all(&workspace, &Reader::text_layer()).unwrap(), 1);
+        let w = workspace.lock().unwrap();
+        let document = w.document(&space, &id).unwrap();
+        assert_eq!((&document.kind_suggestion, document.fields.len()), (&None, 0));
+    }
+
     #[test]
     fn a_document_is_read_and_its_kind_and_fields_suggested() {
         let workspace = Mutex::new(Workspace::in_memory("laptop").unwrap());
@@ -380,6 +414,7 @@ mod tests {
         let (space, id) = {
             let mut w = workspace.lock().unwrap();
             let space = w.found_space("Home").unwrap();
+            assert_eq!(w.import_kinds(&space, vec![invoice()]).unwrap(), 1);
             let id = w.add_document(&space, file("scan_0001.pdf", &pdf(&INVOICE))).unwrap().document;
             assert_eq!(w.read_state(&space, &id).unwrap(), ReadState::Waiting);
             (space, id)
@@ -402,8 +437,10 @@ mod tests {
         let total = document.fields.get("total").and_then(|f| f.suggestion.as_ref()).map(|s| &s.value);
         assert_eq!(total, Some(&Value::Money { amount: "119.00".into(), currency: "EUR".into() }));
         assert_eq!(document.kind, None, "suggested, not confirmed");
-        let title = w.suggested_title(&space, &id, &reader).unwrap().unwrap();
-        assert!(title.starts_with("Invoice"), "{title}");
+        let title = w.suggested_title(&space, &id, &reader, "en").unwrap().unwrap();
+        assert_eq!(title, "Invoice · Stadtwerke Musterstadt GmbH · 2026-11-05");
+        let title = w.suggested_title(&space, &id, &reader, "de").unwrap().unwrap();
+        assert!(title.starts_with("Rechnung · "), "{title}");
 
         // What was read is found, with the words around it.
         let search = crate::Search { words: "RE-2026-0042".into(), ..crate::Search::default() };

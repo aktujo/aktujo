@@ -10,7 +10,7 @@ The website is [aktujo.org](https://aktujo.org), the documentation is at [aktujo
 
 | Path | What |
 |---|---|
-| [crates/](crates/) | the core others build in (MIT): `aktujo-base`, `-blob` (originals by hash), `-log` (events), `-crypt` (end-to-end encryption), `-store` (SQLite), `-relay`, `-sync`; documents (MIT): `aktujo-doc`, `-extract` (text from PDFs and images); the program (AGPL): `aktujo-core` (the domain), `-app` (the one layer every interface uses), `-api` (HTTP/JSON), `-tui` (terminal), `aktujo` (the command line) |
+| [crates/](crates/) | the core others build in (MIT): `aktujo-base`, `-blob` (originals by hash), `-log` (events), `-crypt` (end-to-end encryption), `-store` (SQLite), `-relay`, `-sync`; documents (MIT): `aktujo-doc` (documents, kinds as data), `-extract` (text from PDFs and images), `-rules` (suggestions from the kinds' rules); the program (AGPL): `aktujo-core` (the domain), `-app` (the one layer every interface uses), `-api` (HTTP/JSON), `-tui` (terminal), `aktujo` (the command line) |
 | [web/](web/) | the web app – Svelte and TypeScript, embedded into the binary |
 | [api/](api/) | the API description in OpenAPI, generated from the code |
 | [docs/](docs/) | the documentation site – Jekyll, published by GitHub Actions; the design in [docs/rfc/](docs/rfc/) |

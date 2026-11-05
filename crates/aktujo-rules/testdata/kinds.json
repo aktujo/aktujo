@@ -1,0 +1,1149 @@
+[
+ {
+  "id": "invoice",
+  "name": "Invoice",
+  "names": {
+   "de": "Rechnung"
+  },
+  "fields": [
+   {
+    "key": "issuer",
+    "name": "Issuer",
+    "names": {
+     "de": "Aussteller"
+    },
+    "type": "text",
+    "find": [
+     {
+      "markers": [
+       "gmbh",
+       "ag",
+       "ug",
+       "mbh",
+       "co kg",
+       "kgaa",
+       "ohg",
+       "gbr",
+       "e v",
+       "ltd",
+       "limited",
+       "inc",
+       "llc",
+       "plc",
+       "sarl",
+       "sas",
+       "sasu",
+       "eurl",
+       "s a",
+       "srl",
+       "s r l",
+       "spa",
+       "s p a",
+       "snc",
+       "s l",
+       "s l u",
+       "bv",
+       "b v",
+       "nv",
+       "n v",
+       "vof"
+      ],
+      "way": "sender"
+     }
+    ]
+   },
+   {
+    "key": "number",
+    "name": "Number",
+    "names": {
+     "de": "Nummer"
+    },
+    "type": "text",
+    "code": true,
+    "find": [
+     {
+      "labels": [
+       "rechnungsnummer",
+       "rechnungsnr",
+       "rechnungs nr",
+       "rechnung nr",
+       "rechnungs nummer",
+       "belegnummer",
+       "beleg nr",
+       "invoice number",
+       "invoice no",
+       "invoice",
+       "numéro de facture",
+       "n de facture",
+       "facture n",
+       "numero fattura",
+       "fattura n",
+       "número de factura",
+       "factura nº",
+       "factura n",
+       "factuurnummer",
+       "factuur nr"
+      ],
+      "way": "label"
+     }
+    ]
+   },
+   {
+    "key": "date",
+    "name": "Date",
+    "names": {
+     "de": "Datum"
+    },
+    "type": "date",
+    "find": [
+     {
+      "labels": [
+       "rechnungsdatum",
+       "ausstellungsdatum",
+       "invoice date",
+       "date of issue",
+       "date de facture",
+       "data fattura",
+       "fecha de factura",
+       "fecha de emisión",
+       "factuurdatum"
+      ],
+      "way": "label"
+     },
+     {
+      "labels": [
+       "datum",
+       "date",
+       "dated",
+       "ausgestellt am",
+       "vom",
+       "data",
+       "fecha"
+      ],
+      "way": "label"
+     },
+     {
+      "way": "first"
+     }
+    ]
+   },
+   {
+    "key": "total",
+    "name": "Total",
+    "names": {
+     "de": "Gesamtbetrag"
+    },
+    "type": "money",
+    "find": [
+     {
+      "labels": [
+       "rechnungsbetrag",
+       "gesamtbetrag",
+       "endbetrag",
+       "bruttobetrag",
+       "zahlbetrag",
+       "zu zahlen",
+       "summe",
+       "gesamt",
+       "brutto",
+       "total",
+       "amount due",
+       "grand total",
+       "total ttc",
+       "net à payer",
+       "montant ttc",
+       "totale",
+       "totale fattura",
+       "totale da pagare",
+       "importe total",
+       "total a pagar",
+       "totaal",
+       "te betalen"
+      ],
+      "way": "largest"
+     }
+    ]
+   },
+   {
+    "key": "due",
+    "name": "Due",
+    "names": {
+     "de": "Fällig"
+    },
+    "type": "date",
+    "find": [
+     {
+      "labels": [
+       "zahlbar bis",
+       "fällig am",
+       "fälligkeitsdatum",
+       "fälligkeit",
+       "fällig",
+       "due date",
+       "payable by",
+       "due",
+       "date d échéance",
+       "échéance",
+       "à payer avant le",
+       "data di scadenza",
+       "scadenza",
+       "fecha de vencimiento",
+       "vencimiento",
+       "vervaldatum",
+       "te betalen voor"
+      ],
+      "way": "label"
+     }
+    ]
+   },
+   {
+    "key": "paid",
+    "name": "Paid",
+    "names": {
+     "de": "Bezahlt"
+    },
+    "type": "flag",
+    "find": [
+     {
+      "phrases": [
+       "betrag dankend erhalten",
+       "dankend erhalten",
+       "bereits bezahlt",
+       "bereits beglichen",
+       "bar bezahlt",
+       "paid in full",
+       "acquittée",
+       "payée",
+       "pagata",
+       "pagado",
+       "betaald"
+      ],
+      "way": "present"
+     }
+    ]
+   }
+  ],
+  "words": [
+   {
+    "word": "rechnung",
+    "weight": 6
+   },
+   {
+    "word": "rechnungsnummer",
+    "weight": 6
+   },
+   {
+    "word": "rechnungsdatum",
+    "weight": 6
+   },
+   {
+    "word": "rechnungsnr",
+    "weight": 6
+   },
+   {
+    "word": "rechnungs nr",
+    "weight": 6
+   },
+   {
+    "word": "rechnungsbetrag",
+    "weight": 4
+   },
+   {
+    "word": "zahlungsziel",
+    "weight": 4
+   },
+   {
+    "word": "leistungszeitraum",
+    "weight": 3
+   },
+   {
+    "word": "lieferdatum",
+    "weight": 2
+   },
+   {
+    "word": "zahlbar",
+    "weight": 2
+   },
+   {
+    "word": "invoice",
+    "weight": 6
+   },
+   {
+    "word": "invoice number",
+    "weight": 4
+   },
+   {
+    "word": "invoice date",
+    "weight": 4
+   },
+   {
+    "word": "due date",
+    "weight": 2
+   },
+   {
+    "word": "facture",
+    "weight": 6
+   },
+   {
+    "word": "numéro de facture",
+    "weight": 4
+   },
+   {
+    "word": "date de facture",
+    "weight": 4
+   },
+   {
+    "word": "net à payer",
+    "weight": 3
+   },
+   {
+    "word": "fattura",
+    "weight": 6
+   },
+   {
+    "word": "numero fattura",
+    "weight": 4
+   },
+   {
+    "word": "data fattura",
+    "weight": 4
+   },
+   {
+    "word": "factura",
+    "weight": 6
+   },
+   {
+    "word": "número de factura",
+    "weight": 4
+   },
+   {
+    "word": "fecha de factura",
+    "weight": 4
+   },
+   {
+    "word": "factuur",
+    "weight": 6
+   },
+   {
+    "word": "factuurnummer",
+    "weight": 4
+   },
+   {
+    "word": "factuurdatum",
+    "weight": 4
+   }
+  ],
+  "title": [
+   [
+    "issuer"
+   ],
+   [
+    "date"
+   ]
+  ]
+ },
+ {
+  "id": "receipt",
+  "name": "Receipt",
+  "names": {
+   "de": "Beleg"
+  },
+  "fields": [
+   {
+    "key": "issuer",
+    "name": "Issuer",
+    "names": {
+     "de": "Aussteller"
+    },
+    "type": "text",
+    "find": [
+     {
+      "markers": [
+       "gmbh",
+       "ag",
+       "ug",
+       "mbh",
+       "co kg",
+       "kgaa",
+       "ohg",
+       "gbr",
+       "e v",
+       "ltd",
+       "limited",
+       "inc",
+       "llc",
+       "plc",
+       "sarl",
+       "sas",
+       "sasu",
+       "eurl",
+       "s a",
+       "srl",
+       "s r l",
+       "spa",
+       "s p a",
+       "snc",
+       "s l",
+       "s l u",
+       "bv",
+       "b v",
+       "nv",
+       "n v",
+       "vof"
+      ],
+      "way": "sender"
+     }
+    ]
+   },
+   {
+    "key": "date",
+    "name": "Date",
+    "names": {
+     "de": "Datum"
+    },
+    "type": "date",
+    "find": [
+     {
+      "labels": [
+       "datum",
+       "date",
+       "dated",
+       "ausgestellt am",
+       "vom",
+       "data",
+       "fecha"
+      ],
+      "way": "label"
+     },
+     {
+      "way": "first"
+     }
+    ]
+   },
+   {
+    "key": "total",
+    "name": "Total",
+    "names": {
+     "de": "Gesamtbetrag"
+    },
+    "type": "money",
+    "find": [
+     {
+      "labels": [
+       "summe",
+       "gesamt",
+       "zu zahlen",
+       "total",
+       "betrag",
+       "gesamtbetrag",
+       "montant",
+       "totale",
+       "importe",
+       "totaal",
+       "te betalen"
+      ],
+      "way": "largest"
+     }
+    ]
+   }
+  ],
+  "words": [
+   {
+    "word": "kassenbon",
+    "weight": 6
+   },
+   {
+    "word": "quittung",
+    "weight": 6
+   },
+   {
+    "word": "kassenbeleg",
+    "weight": 6
+   },
+   {
+    "word": "bon",
+    "weight": 3
+   },
+   {
+    "word": "beleg",
+    "weight": 2
+   },
+   {
+    "word": "summe",
+    "weight": 2
+   },
+   {
+    "word": "bar",
+    "weight": 2
+   },
+   {
+    "word": "gegeben",
+    "weight": 3
+   },
+   {
+    "word": "rückgeld",
+    "weight": 4
+   },
+   {
+    "word": "girocard",
+    "weight": 3
+   },
+   {
+    "word": "ec karte",
+    "weight": 3
+   },
+   {
+    "word": "kartenzahlung",
+    "weight": 3
+   },
+   {
+    "word": "kasse",
+    "weight": 3
+   },
+   {
+    "word": "tse",
+    "weight": 4
+   },
+   {
+    "word": "vielen dank für ihren einkauf",
+    "weight": 4
+   },
+   {
+    "word": "receipt",
+    "weight": 6
+   },
+   {
+    "word": "thank you for shopping",
+    "weight": 4
+   },
+   {
+    "word": "ticket de caisse",
+    "weight": 6
+   },
+   {
+    "word": "reçu",
+    "weight": 4
+   },
+   {
+    "word": "merci de votre visite",
+    "weight": 4
+   },
+   {
+    "word": "scontrino",
+    "weight": 6
+   },
+   {
+    "word": "documento commerciale",
+    "weight": 4
+   },
+   {
+    "word": "ricevuta",
+    "weight": 4
+   },
+   {
+    "word": "ticket de compra",
+    "weight": 6
+   },
+   {
+    "word": "factura simplificada",
+    "weight": 6
+   },
+   {
+    "word": "recibo",
+    "weight": 4
+   },
+   {
+    "word": "kassabon",
+    "weight": 6
+   },
+   {
+    "word": "kassaticket",
+    "weight": 6
+   }
+  ],
+  "title": [
+   [
+    "issuer"
+   ],
+   [
+    "date"
+   ]
+  ]
+ },
+ {
+  "id": "notice",
+  "name": "Official notice",
+  "names": {
+   "de": "Bescheid"
+  },
+  "fields": [
+   {
+    "key": "authority",
+    "name": "Authority",
+    "names": {
+     "de": "Behörde"
+    },
+    "type": "text",
+    "find": [
+     {
+      "markers": [
+       "finanzamt",
+       "stadt",
+       "gemeinde",
+       "landratsamt",
+       "landkreis",
+       "bezirksamt",
+       "amt",
+       "amtsgericht",
+       "landgericht",
+       "jobcenter",
+       "bundesagentur",
+       "agentur für arbeit",
+       "rentenversicherung",
+       "krankenkasse",
+       "familienkasse",
+       "beitragsservice",
+       "bundeszentralamt",
+       "ministerium",
+       "behörde",
+       "zollamt",
+       "polizei",
+       "mairie",
+       "préfecture",
+       "finances publiques",
+       "trésor public",
+       "urssaf",
+       "tribunal",
+       "comune",
+       "agenzia delle entrate",
+       "inps",
+       "prefettura",
+       "ayuntamiento",
+       "agencia tributaria",
+       "seguridad social",
+       "hacienda",
+       "gemeente",
+       "belastingdienst",
+       "uwv",
+       "rechtbank",
+       "gmbh",
+       "ag",
+       "ug",
+       "mbh",
+       "co kg",
+       "kgaa",
+       "ohg",
+       "gbr",
+       "e v",
+       "ltd",
+       "limited",
+       "inc",
+       "llc",
+       "plc",
+       "sarl",
+       "sas",
+       "sasu",
+       "eurl",
+       "s a",
+       "srl",
+       "s r l",
+       "spa",
+       "s p a",
+       "snc",
+       "s l",
+       "s l u",
+       "bv",
+       "b v",
+       "nv",
+       "n v",
+       "vof"
+      ],
+      "way": "sender"
+     }
+    ]
+   },
+   {
+    "key": "reference",
+    "name": "Reference",
+    "names": {
+     "de": "Aktenzeichen"
+    },
+    "type": "text",
+    "code": true,
+    "find": [
+     {
+      "labels": [
+       "aktenzeichen",
+       "az",
+       "geschäftszeichen",
+       "gz",
+       "steuernummer",
+       "kassenzeichen",
+       "unser zeichen",
+       "reference",
+       "référence de l avis",
+       "référence",
+       "riferimento",
+       "protocollo",
+       "referencia",
+       "expediente",
+       "aanslagnummer",
+       "ons kenmerk",
+       "kenmerk"
+      ],
+      "way": "label"
+     }
+    ]
+   },
+   {
+    "key": "date",
+    "name": "Date",
+    "names": {
+     "de": "Datum"
+    },
+    "type": "date",
+    "find": [
+     {
+      "labels": [
+       "datum",
+       "date",
+       "dated",
+       "ausgestellt am",
+       "vom",
+       "data",
+       "fecha"
+      ],
+      "way": "label"
+     },
+     {
+      "way": "first"
+     }
+    ]
+   },
+   {
+    "key": "deadline",
+    "name": "Deadline",
+    "names": {
+     "de": "Frist"
+    },
+    "type": "date",
+    "find": [
+     {
+      "labels": [
+       "spätestens bis",
+       "spätestens am",
+       "zahlen sie bis",
+       "bis zum",
+       "fällig am",
+       "frist",
+       "deadline",
+       "date limite de paiement",
+       "date limite",
+       "entro il",
+       "fecha límite",
+       "uiterlijk"
+      ],
+      "way": "label"
+     }
+    ]
+   },
+   {
+    "key": "amount",
+    "name": "Amount",
+    "names": {
+     "de": "Betrag"
+    },
+    "type": "money",
+    "find": [
+     {
+      "labels": [
+       "jahresbetrag",
+       "gesamtbetrag",
+       "zu zahlen",
+       "nachzahlung",
+       "erstattung",
+       "festgesetzt",
+       "betrag",
+       "verwarnungsgeld",
+       "bußgeld",
+       "amount",
+       "montant à payer",
+       "reste à payer",
+       "importo da pagare",
+       "importe a ingresar",
+       "te betalen bedrag"
+      ],
+      "way": "largest"
+     }
+    ]
+   }
+  ],
+  "words": [
+   {
+    "word": "bescheid",
+    "weight": 6
+   },
+   {
+    "word": "steuerbescheid",
+    "weight": 8
+   },
+   {
+    "word": "rechtsbehelfsbelehrung",
+    "weight": 8
+   },
+   {
+    "word": "aktenzeichen",
+    "weight": 4
+   },
+   {
+    "word": "geschäftszeichen",
+    "weight": 4
+   },
+   {
+    "word": "festgesetzt",
+    "weight": 4
+   },
+   {
+    "word": "festsetzung",
+    "weight": 4
+   },
+   {
+    "word": "finanzamt",
+    "weight": 4
+   },
+   {
+    "word": "landratsamt",
+    "weight": 4
+   },
+   {
+    "word": "bundesagentur",
+    "weight": 4
+   },
+   {
+    "word": "bußgeld",
+    "weight": 4
+   },
+   {
+    "word": "widerspruch",
+    "weight": 3
+   },
+   {
+    "word": "behörde",
+    "weight": 2
+   },
+   {
+    "word": "anhörung",
+    "weight": 2
+   },
+   {
+    "word": "steuernummer",
+    "weight": 2
+   },
+   {
+    "word": "avis d imposition",
+    "weight": 8
+   },
+   {
+    "word": "finances publiques",
+    "weight": 4
+   },
+   {
+    "word": "voies et délais de recours",
+    "weight": 6
+   },
+   {
+    "word": "avviso di accertamento",
+    "weight": 8
+   },
+   {
+    "word": "cartella di pagamento",
+    "weight": 8
+   },
+   {
+    "word": "agenzia delle entrate",
+    "weight": 4
+   },
+   {
+    "word": "agencia tributaria",
+    "weight": 4
+   },
+   {
+    "word": "resolución",
+    "weight": 4
+   },
+   {
+    "word": "notificación",
+    "weight": 4
+   },
+   {
+    "word": "aanslag",
+    "weight": 6
+   },
+   {
+    "word": "belastingdienst",
+    "weight": 4
+   },
+   {
+    "word": "beschikking",
+    "weight": 6
+   },
+   {
+    "word": "bezwaar",
+    "weight": 3
+   }
+  ],
+  "title": [
+   [
+    "authority"
+   ],
+   [
+    "date"
+   ]
+  ]
+ },
+ {
+  "id": "letter",
+  "name": "Letter",
+  "names": {
+   "de": "Brief"
+  },
+  "fields": [
+   {
+    "key": "sender",
+    "name": "Sender",
+    "names": {
+     "de": "Absender"
+    },
+    "type": "text",
+    "find": [
+     {
+      "markers": [
+       "gmbh",
+       "ag",
+       "ug",
+       "mbh",
+       "co kg",
+       "kgaa",
+       "ohg",
+       "gbr",
+       "e v",
+       "ltd",
+       "limited",
+       "inc",
+       "llc",
+       "plc",
+       "sarl",
+       "sas",
+       "sasu",
+       "eurl",
+       "s a",
+       "srl",
+       "s r l",
+       "spa",
+       "s p a",
+       "snc",
+       "s l",
+       "s l u",
+       "bv",
+       "b v",
+       "nv",
+       "n v",
+       "vof",
+       "finanzamt",
+       "stadt",
+       "gemeinde",
+       "landratsamt",
+       "landkreis",
+       "bezirksamt",
+       "amt",
+       "amtsgericht",
+       "landgericht",
+       "jobcenter",
+       "bundesagentur",
+       "agentur für arbeit",
+       "rentenversicherung",
+       "krankenkasse",
+       "familienkasse",
+       "beitragsservice",
+       "bundeszentralamt",
+       "ministerium",
+       "behörde",
+       "zollamt",
+       "polizei",
+       "mairie",
+       "préfecture",
+       "finances publiques",
+       "trésor public",
+       "urssaf",
+       "tribunal",
+       "comune",
+       "agenzia delle entrate",
+       "inps",
+       "prefettura",
+       "ayuntamiento",
+       "agencia tributaria",
+       "seguridad social",
+       "hacienda",
+       "gemeente",
+       "belastingdienst",
+       "uwv",
+       "rechtbank"
+      ],
+      "way": "sender"
+     }
+    ]
+   },
+   {
+    "key": "date",
+    "name": "Date",
+    "names": {
+     "de": "Datum"
+    },
+    "type": "date",
+    "find": [
+     {
+      "labels": [
+       "datum",
+       "date",
+       "dated",
+       "ausgestellt am",
+       "vom",
+       "data",
+       "fecha"
+      ],
+      "way": "label"
+     },
+     {
+      "way": "first"
+     }
+    ]
+   },
+   {
+    "key": "subject",
+    "name": "Subject",
+    "names": {
+     "de": "Betreff"
+    },
+    "type": "text",
+    "find": [
+     {
+      "labels": [
+       "betreff",
+       "betr",
+       "subject",
+       "re",
+       "objet",
+       "oggetto",
+       "asunto",
+       "onderwerp",
+       "betreft"
+      ],
+      "way": "label"
+     }
+    ]
+   }
+  ],
+  "words": [
+   {
+    "word": "sehr geehrte",
+    "weight": 4
+   },
+   {
+    "word": "sehr geehrter",
+    "weight": 4
+   },
+   {
+    "word": "mit freundlichen grüßen",
+    "weight": 4
+   },
+   {
+    "word": "betreff",
+    "weight": 2
+   },
+   {
+    "word": "dear",
+    "weight": 3
+   },
+   {
+    "word": "sincerely",
+    "weight": 3
+   },
+   {
+    "word": "kind regards",
+    "weight": 3
+   },
+   {
+    "word": "madame monsieur",
+    "weight": 4
+   },
+   {
+    "word": "cordialement",
+    "weight": 4
+   },
+   {
+    "word": "veuillez agréer",
+    "weight": 4
+   },
+   {
+    "word": "objet",
+    "weight": 2
+   },
+   {
+    "word": "gentile",
+    "weight": 3
+   },
+   {
+    "word": "egregio",
+    "weight": 3
+   },
+   {
+    "word": "distinti saluti",
+    "weight": 4
+   },
+   {
+    "word": "cordiali saluti",
+    "weight": 4
+   },
+   {
+    "word": "oggetto",
+    "weight": 2
+   },
+   {
+    "word": "estimado",
+    "weight": 3
+   },
+   {
+    "word": "estimada",
+    "weight": 3
+   },
+   {
+    "word": "atentamente",
+    "weight": 4
+   },
+   {
+    "word": "asunto",
+    "weight": 2
+   },
+   {
+    "word": "geachte",
+    "weight": 4
+   },
+   {
+    "word": "met vriendelijke groet",
+    "weight": 4
+   },
+   {
+    "word": "onderwerp",
+    "weight": 2
+   }
+  ],
+  "title": [
+   [
+    "sender"
+   ],
+   [
+    "date"
+   ]
+  ]
+ }
+]

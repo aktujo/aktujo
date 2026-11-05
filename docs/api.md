@@ -24,7 +24,10 @@ Paths below are under `/api/v1`; `{space}` and `{document}` are identities, `D` 
 | POST | `/spaces` | founds a space: `{"name": "…"}` |
 | PUT | `/spaces/{space}` | renames a space: `{"name": "…"}` |
 | GET | `/spaces/{space}/labels` | the labels used, with how many documents have each |
-| GET | `/kinds` | the kinds of document with their fields |
+| GET | `/spaces/{space}/kinds` | the kinds of documents the space defines – none until someone adds or imports them |
+| POST | `/spaces/{space}/kinds` | adds a kind: `{"name": "…"}`; its identity is made from the name |
+| PUT, DELETE | `/spaces/{space}/kinds/{kind}` | defines a kind anew – name, fields, words, title, as JSON ([RFC 0005](rfc/0005-pure-core.md)) – or removes it |
+| POST | `/spaces/{space}/kind-import` | takes over kinds: `{"kinds": […]}` – a template of `aktujo/packs` as it is |
 | POST | `/search` | finds documents: `{"words", "spaces", "kind", "labels", "from", "to", "bin", "limit"}`, every part optional |
 | POST | `/spaces/{space}/documents?name=…` | adds a file – its bytes as the body, its media type as `Content-Type` |
 | GET | `D` | a document with its fields, versions and suggestions |
@@ -32,7 +35,7 @@ Paths below are under `/api/v1`; `{space}` and `{document}` are identities, `D` 
 | POST | `D/versions?name=…` | adds a file as the newest version |
 | GET | `D/versions/{number}/file` | a version's file; `?download=true` to download it |
 | PUT | `D/title` | `{"title": "…"}` |
-| PUT | `D/kind` | confirms the kind: `{"kind": "invoice"}`, or `null` for none |
+| PUT | `D/kind` | confirms the kind: `{"kind": "letter"}`, or `null` for none; the space must have it |
 | PUT, DELETE | `D/fields/{key}` | confirms a value – `{"value": {"type": "money", "value": {"amount": "12.50", "currency": "EUR"}}}` – or empties the field |
 | POST | `D/labels` | adds a label: `{"label": "…"}` |
 | DELETE | `D/labels/{label}` | takes a label off |

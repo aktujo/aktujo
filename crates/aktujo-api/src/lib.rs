@@ -25,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 use utoipa::OpenApi;
 
-use aktujo_app::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Syncer, Worker, Workspace};
+use aktujo_app::{AppError, DocumentId, Kind, NewFile, ReadState, Reader, SpaceId, Syncer, Worker, Workspace};
 
 mod views;
 
@@ -45,6 +45,10 @@ pub const UPLOAD_MAX: usize = 256 * 1024 * 1024;
         rename_space,
         labels,
         kinds,
+        add_kind,
+        define_kind,
+        remove_kind,
+        import_kinds,
         search,
         add_document,
         document,
@@ -84,7 +88,7 @@ pub struct ApiError(StatusCode, String);
 impl From<AppError> for ApiError {
     fn from(error: AppError) -> Self {
         let status = match &error {
-            AppError::Invalid(_) | AppError::Value(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::Invalid(_) | AppError::Value(_) | AppError::Kind(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::NotAllowed(_) => StatusCode::FORBIDDEN,
             AppError::Sync(_) => StatusCode::BAD_GATEWAY,
@@ -167,6 +171,25 @@ impl Shared {
 
 type Answer<T> = Result<Json<T>, ApiError>;
 
+/// The language the caller reads, from the first tag of `Accept-Language` (`de-DE` → `de`); `en` without one. A
+/// suggested title takes the name of the kind in it, if the kind has one.
+struct Language(String);
+
+impl<S: Send + Sync> axum::extract::FromRequestParts<S> for Language {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut axum::http::request::Parts, _: &S) -> Result<Self, Self::Rejection> {
+        let first = parts
+            .headers
+            .get(header::ACCEPT_LANGUAGE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.split([',', ';', '-', '_']).next())
+            .map(|tag| tag.trim().to_ascii_lowercase())
+            .filter(|tag| (2..=3).contains(&tag.len()) && tag.bytes().all(|b| b.is_ascii_lowercase()));
+        Ok(Language(first.unwrap_or_else(|| "en".into())))
+    }
+}
+
 fn space(id: &str) -> Result<SpaceId, ApiError> {
     id.parse().map_err(|_| not_found("such space"))
 }
@@ -175,10 +198,16 @@ fn ids(space_id: &str, document: &str) -> Result<(SpaceId, DocumentId), ApiError
     Ok((space(space_id)?, document.parse().map_err(|_| not_found("such document"))?))
 }
 
-fn document_view(workspace: &Workspace, shared: &Shared, space: &SpaceId, id: &DocumentId) -> Answer<DocumentView> {
+fn document_view(
+    workspace: &Workspace,
+    shared: &Shared,
+    language: &str,
+    space: &SpaceId,
+    id: &DocumentId,
+) -> Answer<DocumentView> {
     let document = workspace.document(space, id)?;
     let reading = workspace.read_state(space, id)?;
-    let title = workspace.suggested_title(space, id, &shared.titles)?;
+    let title = workspace.suggested_title(space, id, &shared.titles, language)?;
     Ok(Json(DocumentView::of(space.as_str(), document, reading, title)))
 }
 
@@ -239,10 +268,72 @@ async fn labels(State(shared): State<Shared>, Path(id): Path<String>) -> Answer<
     Ok(Json(labels.into_iter().map(|(label, documents)| LabelCount { label, documents }).collect()))
 }
 
-/// The kinds of document there are.
-#[utoipa::path(get, path = "/api/v1/kinds", responses((status = 200, body = Vec<KindView>)))]
-async fn kinds(State(shared): State<Shared>) -> Json<Vec<KindView>> {
-    Json(shared.lock().kinds().into_iter().map(KindView::from).collect())
+/// The kinds of documents a space has – none until someone defines or imports them.
+#[utoipa::path(get, path = "/api/v1/spaces/{space}/kinds", params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = Vec<KindView>), (status = 404, body = Problem)))]
+async fn kinds(State(shared): State<Shared>, Path(s): Path<String>) -> Answer<Vec<KindView>> {
+    let kinds = shared.lock().kinds(&space(&s)?)?;
+    Ok(Json(kinds.into_iter().map(KindView::from).collect()))
+}
+
+/// Adds a kind with a name; its identity is made from the name.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/kinds", request_body = NewKind,
+    params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = KindView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn add_kind(State(shared): State<Shared>, Path(s): Path<String>, Json(new): Json<NewKind>) -> Answer<KindView> {
+    let space = space(&s)?;
+    let mut workspace = shared.lock();
+    let id = workspace.add_kind(&space, &new.name)?;
+    shared.changed();
+    Ok(Json(workspace.kind(&space, &id)?.clone().into()))
+}
+
+/// Defines a kind anew – its name, fields and rules; the whole definition replaces the one before.
+#[utoipa::path(put, path = "/api/v1/spaces/{space}/kinds/{kind}", request_body = KindView,
+    params(("space" = String, Path, description = "the space"), ("kind" = String, Path, description = "the kind")),
+    responses((status = 200, body = KindView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn define_kind(
+    State(shared): State<Shared>,
+    Path((s, k)): Path<(String, String)>,
+    Json(kind): Json<KindView>,
+) -> Answer<KindView> {
+    let space = space(&s)?;
+    if kind.id != k {
+        return Err(ApiError(StatusCode::UNPROCESSABLE_ENTITY, "the identity of a kind does not change".into()));
+    }
+    let mut workspace = shared.lock();
+    workspace.kind(&space, &k)?;
+    workspace.define_kind(&space, kind.into())?;
+    shared.changed();
+    Ok(Json(workspace.kind(&space, &k)?.clone().into()))
+}
+
+/// Removes a kind. Documents keep it as their kind.
+#[utoipa::path(delete, path = "/api/v1/spaces/{space}/kinds/{kind}",
+    params(("space" = String, Path, description = "the space"), ("kind" = String, Path, description = "the kind")),
+    responses((status = 204), (status = 403, body = Problem), (status = 404, body = Problem)))]
+async fn remove_kind(
+    State(shared): State<Shared>,
+    Path((s, k)): Path<(String, String)>,
+) -> Result<StatusCode, ApiError> {
+    shared.lock().remove_kind(&space(&s)?, &k)?;
+    shared.changed();
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Takes over kinds – a template, or the kinds of another space – replacing those with the same identity.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/kind-import", request_body = KindImport,
+    params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = Imported), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn import_kinds(
+    State(shared): State<Shared>,
+    Path(s): Path<String>,
+    Json(import): Json<KindImport>,
+) -> Answer<Imported> {
+    let kinds = import.kinds.into_iter().map(Kind::from).collect();
+    let changed = shared.lock().import_kinds(&space(&s)?, kinds)?;
+    shared.changed();
+    Ok(Json(Imported { changed }))
 }
 
 /// Finds documents: with words, the best hits first; without, the newest first.
@@ -295,9 +386,13 @@ async fn add_document(
 #[utoipa::path(get, path = "/api/v1/spaces/{space}/documents/{document}",
     params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
     responses((status = 200, body = DocumentView), (status = 404, body = Problem)))]
-async fn document(State(shared): State<Shared>, Path((s, d)): Path<(String, String)>) -> Answer<DocumentView> {
+async fn document(
+    State(shared): State<Shared>,
+    Language(language): Language,
+    Path((s, d)): Path<(String, String)>,
+) -> Answer<DocumentView> {
     let (space, id) = ids(&s, &d)?;
-    document_view(&shared.lock(), &shared, &space, &id)
+    document_view(&shared.lock(), &shared, &language, &space, &id)
 }
 
 /// Whether to download a file rather than show it.
@@ -392,6 +487,7 @@ async fn text(State(shared): State<Shared>, Path((s, d)): Path<(String, String)>
     responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
 async fn add_version(
     State(shared): State<Shared>,
+    Language(language): Language,
     Path((s, d)): Path<(String, String)>,
     Query(file): Query<FileName>,
     headers: HeaderMap,
@@ -402,12 +498,13 @@ async fn add_version(
     let mut workspace = shared.lock();
     workspace.add_version(&space, &id, new_file)?;
     shared.wake();
-    document_view(&workspace, &shared, &space, &id)
+    document_view(&workspace, &shared, &language, &space, &id)
 }
 
 /// Runs a command on a document and answers with the document as it is then.
 fn change(
     shared: &Shared,
+    language: &str,
     (s, d): (String, String),
     command: impl FnOnce(&mut Workspace, &SpaceId, &DocumentId) -> Result<(), AppError>,
 ) -> Answer<DocumentView> {
@@ -415,7 +512,7 @@ fn change(
     let mut workspace = shared.lock();
     command(&mut workspace, &space, &id)?;
     shared.changed();
-    document_view(&workspace, shared, &space, &id)
+    document_view(&workspace, shared, language, &space, &id)
 }
 
 /// Gives a document a new title.
@@ -424,10 +521,11 @@ fn change(
     responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
 async fn set_title(
     State(shared): State<Shared>,
+    Language(language): Language,
     Path(path): Path<(String, String)>,
     Json(change_to): Json<TitleChange>,
 ) -> Answer<DocumentView> {
-    change(&shared, path, |w, s, d| w.set_title(s, d, &change_to.title))
+    change(&shared, &language, path, |w, s, d| w.set_title(s, d, &change_to.title))
 }
 
 /// Confirms the kind of a document – or that it has none.
@@ -436,10 +534,11 @@ async fn set_title(
     responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
 async fn set_kind(
     State(shared): State<Shared>,
+    Language(language): Language,
     Path(path): Path<(String, String)>,
     Json(change_to): Json<KindChange>,
 ) -> Answer<DocumentView> {
-    change(&shared, path, |w, s, d| w.set_kind(s, d, change_to.kind.as_deref()))
+    change(&shared, &language, path, |w, s, d| w.set_kind(s, d, change_to.kind.as_deref()))
 }
 
 /// Confirms the value of a field.
@@ -449,10 +548,11 @@ async fn set_kind(
     responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
 async fn set_field(
     State(shared): State<Shared>,
+    Language(language): Language,
     Path((s, d, key)): Path<(String, String, String)>,
     Json(change_to): Json<FieldChange>,
 ) -> Answer<DocumentView> {
-    change(&shared, (s, d), |w, s, d| w.set_field(s, d, &key, change_to.value.into()))
+    change(&shared, &language, (s, d), |w, s, d| w.set_field(s, d, &key, change_to.value.into()))
 }
 
 /// Empties a field: its confirmed value and its suggestion.
@@ -462,9 +562,10 @@ async fn set_field(
     responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
 async fn clear_field(
     State(shared): State<Shared>,
+    Language(language): Language,
     Path((s, d, key)): Path<(String, String, String)>,
 ) -> Answer<DocumentView> {
-    change(&shared, (s, d), |w, s, d| w.clear_field(s, d, &key))
+    change(&shared, &language, (s, d), |w, s, d| w.clear_field(s, d, &key))
 }
 
 /// Adds a label to a document.
@@ -473,10 +574,11 @@ async fn clear_field(
     responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
 async fn add_label(
     State(shared): State<Shared>,
+    Language(language): Language,
     Path(path): Path<(String, String)>,
     Json(change_to): Json<LabelChange>,
 ) -> Answer<DocumentView> {
-    change(&shared, path, |w, s, d| w.add_label(s, d, &change_to.label))
+    change(&shared, &language, path, |w, s, d| w.add_label(s, d, &change_to.label))
 }
 
 /// Takes a label off a document.
@@ -486,25 +588,34 @@ async fn add_label(
     responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
 async fn remove_label(
     State(shared): State<Shared>,
+    Language(language): Language,
     Path((s, d, label)): Path<(String, String, String)>,
 ) -> Answer<DocumentView> {
-    change(&shared, (s, d), |w, s, d| w.remove_label(s, d, &label))
+    change(&shared, &language, (s, d), |w, s, d| w.remove_label(s, d, &label))
 }
 
 /// Puts a document in the bin – nothing is deleted.
 #[utoipa::path(post, path = "/api/v1/spaces/{space}/documents/{document}/trash",
     params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
     responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
-async fn trash(State(shared): State<Shared>, Path(path): Path<(String, String)>) -> Answer<DocumentView> {
-    change(&shared, path, |w, s, d| w.trash(s, d))
+async fn trash(
+    State(shared): State<Shared>,
+    Language(language): Language,
+    Path(path): Path<(String, String)>,
+) -> Answer<DocumentView> {
+    change(&shared, &language, path, |w, s, d| w.trash(s, d))
 }
 
 /// Takes a document out of the bin.
 #[utoipa::path(post, path = "/api/v1/spaces/{space}/documents/{document}/restore",
     params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document")),
     responses((status = 200, body = DocumentView), (status = 403, body = Problem), (status = 404, body = Problem)))]
-async fn restore(State(shared): State<Shared>, Path(path): Path<(String, String)>) -> Answer<DocumentView> {
-    let answer = change(&shared, path, |w, s, d| w.restore(s, d));
+async fn restore(
+    State(shared): State<Shared>,
+    Language(language): Language,
+    Path(path): Path<(String, String)>,
+) -> Answer<DocumentView> {
+    let answer = change(&shared, &language, path, |w, s, d| w.restore(s, d));
     shared.wake();
     answer
 }
@@ -686,7 +797,9 @@ pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Route
         .route("/spaces", get(spaces).post(found_space))
         .route("/spaces/{space}", put(rename_space))
         .route("/spaces/{space}/labels", get(labels))
-        .route("/kinds", get(kinds))
+        .route("/spaces/{space}/kinds", get(kinds).post(add_kind))
+        .route("/spaces/{space}/kind-import", post(import_kinds))
+        .route("/spaces/{space}/kinds/{kind}", put(define_kind).delete(remove_kind))
         .route("/search", post(search))
         .route("/spaces/{space}/documents", post(add_document))
         .route(document, get(self::document))

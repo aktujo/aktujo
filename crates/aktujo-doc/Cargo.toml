@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 [package]
 name = "aktujo-doc"
-description = "Documents on the aktujo core: versions, kinds, fields suggested and confirmed, labels – as events"
+description = "Documents on the aktujo core: versions, kinds as data, fields suggested and confirmed, labels – as events"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
