@@ -27,6 +27,8 @@ pub struct StatusView {
     pub ocr: bool,
     /// Why reading in the background stopped, if it did.
     pub reading_problem: Option<String>,
+    /// The name people read for this device, if it was given one.
+    pub device_name: Option<String>,
 }
 
 /// A space.
@@ -46,6 +48,10 @@ pub struct SpaceView {
     pub rights: Option<String>,
     /// Whether this device asked to join and waits to be added.
     pub waiting: bool,
+    /// When the last synchronisation since the program started ended, in milliseconds since 1970.
+    pub synced_at: Option<u64>,
+    /// Why it failed, if it did.
+    pub sync_problem: Option<String>,
 }
 
 impl From<SpaceInfo> for SpaceView {
@@ -58,6 +64,8 @@ impl From<SpaceInfo> for SpaceView {
             relay: space.relay,
             rights: space.rights.and_then(|r| serde_json::to_value(r).ok()).and_then(|v| v.as_str().map(str::to_owned)),
             waiting: space.waiting,
+            synced_at: space.synced.as_ref().map(|s| s.at),
+            sync_problem: space.synced.and_then(|s| s.problem),
         }
     }
 }
@@ -461,4 +469,138 @@ pub struct PageText {
     pub method: String,
     /// Its lines, from the top.
     pub text: String,
+}
+
+/// The name people read for this device.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DeviceName {
+    /// Not empty, at most 100 characters.
+    pub name: String,
+}
+
+/// Where to synchronise a space through.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct StartSync {
+    /// The address of the relay, e.g. `http://192.168.1.10:8072`.
+    pub relay: String,
+}
+
+/// The recovery code of a space: shown once, kept on paper.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RecoveryCodeView {
+    /// The code.
+    pub recovery_code: String,
+}
+
+/// What a synchronisation did.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SyncReportView {
+    /// Events and originals received.
+    pub received: usize,
+    /// Events and originals sent.
+    pub sent: usize,
+    /// Devices added by invitation, by name.
+    pub added: Vec<String>,
+    /// Whether this device still waits to be added.
+    pub waiting: bool,
+}
+
+impl From<aktujo_app::SyncReport> for SyncReportView {
+    fn from(report: aktujo_app::SyncReport) -> Self {
+        SyncReportView { received: report.received, sent: report.sent, added: report.added, waiting: report.waiting }
+    }
+}
+
+/// What may be done in a space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum RightsView {
+    /// Read.
+    Read,
+    /// Read and write.
+    Write,
+    /// Read, write, and add and remove members.
+    Manage,
+}
+
+impl From<RightsView> for aktujo_app::Rights {
+    fn from(rights: RightsView) -> Self {
+        match rights {
+            RightsView::Read => aktujo_app::Rights::Read,
+            RightsView::Write => aktujo_app::Rights::Write,
+            RightsView::Manage => aktujo_app::Rights::Manage,
+        }
+    }
+}
+
+impl From<aktujo_app::Rights> for RightsView {
+    fn from(rights: aktujo_app::Rights) -> Self {
+        match rights {
+            aktujo_app::Rights::Read => RightsView::Read,
+            aktujo_app::Rights::Write => RightsView::Write,
+            aktujo_app::Rights::Manage => RightsView::Manage,
+        }
+    }
+}
+
+/// An invitation to make.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct NewInvitation {
+    /// What the invited device may do.
+    pub rights: RightsView,
+}
+
+/// An invitation: text to pass on, good for a day.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct InvitationView {
+    /// The invitation – the relay's address with the space and a secret.
+    pub invitation: String,
+}
+
+/// Joining a space.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct Join {
+    /// The invitation as it was passed on.
+    pub invitation: String,
+}
+
+/// Bringing a space back with its recovery code.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct Recover {
+    /// The address of the relay.
+    pub relay: String,
+    /// The identity of the space.
+    pub space: String,
+    /// The recovery code.
+    pub code: String,
+}
+
+/// A member of a space.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct MemberView {
+    /// Its identity.
+    pub id: String,
+    /// What people call it.
+    pub name: Option<String>,
+    /// The device name it writes under; none for the recovery code.
+    pub device: Option<String>,
+    /// `device`, `backend` or `recovery`.
+    pub role: String,
+    /// What it may do.
+    pub rights: RightsView,
+}
+
+impl From<aktujo_app::Member> for MemberView {
+    fn from(member: aktujo_app::Member) -> Self {
+        MemberView {
+            id: member.id.to_string(),
+            name: member.name,
+            device: member.device.map(|d| d.as_str().to_owned()),
+            role: serde_json::to_value(member.role)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .unwrap_or_default(),
+            rights: member.rights.into(),
+        }
+    }
 }

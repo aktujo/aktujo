@@ -15,5 +15,10 @@ ratatui.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+aktujo-crypt.workspace = true
+aktujo-relay.workspace = true
+tokio.workspace = true
+
 [lints]
 workspace = true

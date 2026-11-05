@@ -20,6 +20,8 @@ tokio.workspace = true
 utoipa.workspace = true
 
 [dev-dependencies]
+aktujo-crypt.workspace = true
+aktujo-relay.workspace = true
 http-body-util.workspace = true
 tower.workspace = true
 

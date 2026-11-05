@@ -7,9 +7,17 @@
     space,
     id,
     kinds,
+    readOnly = false,
     onclose,
     onchange,
-  }: { space: string; id: string; kinds: Kind[]; onclose: () => void; onchange: () => void } = $props();
+  }: {
+    space: string;
+    id: string;
+    kinds: Kind[];
+    readOnly?: boolean;
+    onclose: () => void;
+    onchange: () => void;
+  } = $props();
 
   let document = $state<DocumentView | null>(null);
   let pages = $state<{ method: string; text: string }[] | null>(null);
@@ -137,6 +145,8 @@
 <article>
   <button class="link" onclick={onclose}>← {t("doc.back")}</button>
   {#if error}<p class="error">{error}</p>{/if}
+  <!-- On a device that may only read, every control that changes something is off. -->
+  <fieldset class="plain" disabled={readOnly}>
   {#if document}
     {#if editingTitle !== null}
       <form
@@ -272,4 +282,5 @@
 
     <p><button class="danger" onclick={bin}>{document.trashed ? t("doc.restore") : t("doc.trash")}</button></p>
   {/if}
+  </fieldset>
 </article>

@@ -27,8 +27,8 @@ use ratatui::{
 };
 
 use aktujo_app::{
-    AppError, Bin, Document, DocumentId, NewFile, ReadState, Reader, Search, SpaceInfo, Value, Worker, Workspace,
-    date_of,
+    AppError, Bin, Document, DocumentId, NewFile, ReadState, Reader, Rights, Search, SpaceInfo, Syncer, Value, Worker,
+    Workspace, date_of,
 };
 
 mod texts;
@@ -47,7 +47,7 @@ pub enum TuiError {
 }
 
 /// The actions at the bottom, each with its key and the key of its text – clickable as well.
-const ACTIONS: [(char, &str); 14] = [
+const ACTIONS: [(char, &str); 21] = [
     ('/', "tui.search"),
     ('a', "tui.add"),
     ('t', "tui.title"),
@@ -60,6 +60,13 @@ const ACTIONS: [(char, &str); 14] = [
     ('b', "tui.showBin"),
     ('s', "tui.space"),
     ('n', "tui.newSpace"),
+    ('y', "tui.sync"),
+    ('S', "tui.startSync"),
+    ('i', "tui.invite"),
+    ('j', "tui.join"),
+    ('M', "tui.members"),
+    ('X', "tui.removeMember"),
+    ('N', "tui.deviceName"),
     ('m', "tui.mouse"),
     ('q', "tui.quit"),
 ];
@@ -77,6 +84,11 @@ enum Prompt {
     Label,
     Unlabel,
     NewSpace,
+    StartSync,
+    Invite,
+    Join,
+    RemoveMember,
+    DeviceName,
 }
 
 impl Prompt {
@@ -88,6 +100,11 @@ impl Prompt {
             Prompt::Label => "doc.addLabel",
             Prompt::Unlabel => "tui.unlabel",
             Prompt::NewSpace => "space.name",
+            Prompt::StartSync => "sync.relay",
+            Prompt::Invite => "tui.rights",
+            Prompt::Join => "sync.invitationField",
+            Prompt::RemoveMember => "tui.removeMember",
+            Prompt::DeviceName => "settings.deviceName",
         }
     }
 }
@@ -107,6 +124,10 @@ struct Row {
 pub struct App {
     workspace: Arc<Mutex<Workspace>>,
     worker: Option<Arc<Worker>>,
+    syncer: Option<Arc<Syncer>>,
+    /// What the right side shows instead of the document: the sync and the members of the space, read from its relay
+    /// when asked for – not at every frame.
+    members: Option<Vec<Line<'static>>>,
     /// For titles offered from what was read: the rules only.
     titles: Reader,
     texts: Texts,
@@ -163,11 +184,19 @@ fn reading_key(state: ReadState) -> &'static str {
 }
 
 impl App {
-    /// The interface on a workspace, in the language of `texts`; `worker` is woken when files are added.
-    pub fn new(workspace: Arc<Mutex<Workspace>>, worker: Option<Arc<Worker>>, texts: Texts) -> Self {
+    /// The interface on a workspace, in the language of `texts`; `worker` is woken when files are added, `syncer`
+    /// after every change.
+    pub fn new(
+        workspace: Arc<Mutex<Workspace>>,
+        worker: Option<Arc<Worker>>,
+        syncer: Option<Arc<Syncer>>,
+        texts: Texts,
+    ) -> Self {
         let mut app = App {
             workspace,
             worker,
+            syncer,
+            members: None,
             titles: Reader::text_layer(),
             texts,
             spaces: Vec::new(),
@@ -251,12 +280,37 @@ impl App {
         if let Err(error) = result {
             self.message = error.to_string();
         }
+        self.changed();
         self.reload();
     }
 
     fn wake(&self) {
         if let Some(worker) = &self.worker {
             worker.wake();
+        }
+        self.changed();
+    }
+
+    fn changed(&self) {
+        if let Some(syncer) = &self.syncer {
+            syncer.wake();
+        }
+    }
+
+    /// Runs a command on the chosen space and shows what it says, or what went wrong.
+    fn on_space(&mut self, command: impl FnOnce(&mut Workspace, &SpaceInfo) -> Result<String, AppError>) {
+        let Some(space) = self.spaces.get(self.space).cloned() else { return };
+        let result = command(&mut self.lock(), &space);
+        match result {
+            Ok(message) => self.message = message,
+            Err(error) => self.message = error.to_string(),
+        }
+        if let Some(worker) = &self.worker {
+            worker.wake();
+        }
+        self.reload();
+        if self.members.is_some() {
+            self.members = Some(self.sharing());
         }
     }
 
@@ -315,6 +369,49 @@ impl App {
             Prompt::Title => self.on_document(|w, s, d| w.set_title(&s.id, &d.id, &text)),
             Prompt::Label => self.on_document(|w, s, d| w.add_label(&s.id, &d.id, &text)),
             Prompt::Unlabel => self.on_document(|w, s, d| w.remove_label(&s.id, &d.id, text.trim())),
+            Prompt::StartSync => {
+                let texts = self.texts.clone();
+                self.on_space(|w, s| {
+                    let code = w.start_sync(&s.id, &text, None)?;
+                    Ok(texts.fill("tui.codeShown", &[("code", &code)]))
+                });
+            }
+            Prompt::Invite => {
+                let rights = match text.trim() {
+                    "r" => Rights::Read,
+                    "w" => Rights::Write,
+                    "m" => Rights::Manage,
+                    _ => {
+                        self.message = self.texts.get("tui.rights");
+                        return;
+                    }
+                };
+                let texts = self.texts.clone();
+                self.on_space(|w, s| {
+                    let invitation = w.invite(&s.id, rights)?;
+                    Ok(texts.fill("tui.invitationShown", &[("invitation", &invitation)]))
+                });
+            }
+            Prompt::Join => {
+                let result = self.lock().join(&text, None);
+                match result {
+                    Ok(id) => {
+                        self.message = self.texts.get("sync.waiting");
+                        self.reload();
+                        self.space = self.spaces.iter().position(|s| s.id == id).unwrap_or(0);
+                        self.reload();
+                    }
+                    Err(error) => self.message = error.to_string(),
+                }
+            }
+            Prompt::RemoveMember => self.on_space(|w, s| w.remove_member(&s.id, text.trim())),
+            Prompt::DeviceName => {
+                let result = self.lock().set_device_name(&text);
+                self.message = match result {
+                    Ok(()) => String::new(),
+                    Err(error) => error.to_string(),
+                };
+            }
             Prompt::NewSpace => {
                 let result = self.lock().found_space(&text);
                 match result {
@@ -354,6 +451,11 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
             KeyCode::Char('m') => self.mouse = !self.mouse,
             KeyCode::Char('n') => prompt(self, Prompt::NewSpace, String::new()),
+            KeyCode::Char('j') => prompt(self, Prompt::Join, String::new()),
+            KeyCode::Char('N') => {
+                let name = self.lock().device_name().ok().flatten().unwrap_or_default();
+                prompt(self, Prompt::DeviceName, name);
+            }
             KeyCode::Char('s') if !self.spaces.is_empty() => {
                 self.space = (self.space + 1) % self.spaces.len();
                 self.selected = Some(0);
@@ -361,6 +463,31 @@ impl App {
             }
             _ if self.spaces.is_empty() => self.message = self.texts.get("tui.noSpace"),
             KeyCode::Char('/') => prompt(self, Prompt::Search, self.words.clone()),
+            KeyCode::Char('y') => {
+                let texts = self.texts.clone();
+                self.on_space(|w, s| {
+                    let report = w.sync(&s.id)?;
+                    let (received, sent) = (report.received.to_string(), report.sent.to_string());
+                    let mut message = texts.fill("sync.report", &[("received", &received), ("sent", &sent)]);
+                    if !report.added.is_empty() {
+                        message =
+                            format!("{message} – {}", texts.fill("sync.added", &[("names", &report.added.join(", "))]));
+                    }
+                    if report.waiting {
+                        message = texts.get("sync.waiting");
+                    }
+                    Ok(message)
+                });
+            }
+            KeyCode::Char('S') => prompt(self, Prompt::StartSync, String::new()),
+            KeyCode::Char('i') => prompt(self, Prompt::Invite, String::new()),
+            KeyCode::Char('X') => prompt(self, Prompt::RemoveMember, String::new()),
+            KeyCode::Char('M') => {
+                self.members = match self.members {
+                    Some(_) => None,
+                    None => Some(self.sharing()),
+                }
+            }
             KeyCode::Char('a') => prompt(self, Prompt::Add, String::new()),
             KeyCode::Char('b') => {
                 self.bin = !self.bin;
@@ -427,8 +554,67 @@ impl App {
         }
     }
 
+    /// The lines that describe the sync of the chosen space and its members.
+    fn sharing(&self) -> Vec<Line<'static>> {
+        let texts = &self.texts;
+        let Some(space) = self.spaces.get(self.space) else { return Vec::new() };
+        let bold = Style::default().add_modifier(Modifier::BOLD);
+        let mut lines = vec![Line::styled(texts.get("sync.title"), bold)];
+        let Some(relay) = &space.relay else {
+            lines.push(Line::from(texts.get("sync.notYet")));
+            return lines;
+        };
+        lines.push(Line::from(texts.fill("sync.via", &[("relay", relay)])));
+        if let Some(rights) = space.rights {
+            let key = match rights {
+                Rights::Read => "rights.read",
+                Rights::Write => "rights.write",
+                Rights::Manage => "rights.manage",
+            };
+            lines.push(Line::from(texts.get(key)));
+        }
+        if space.waiting {
+            lines.push(Line::from(texts.get("sync.waiting")));
+            return lines;
+        }
+        if let Some(problem) = space.synced.as_ref().and_then(|s| s.problem.as_ref()) {
+            lines.push(Line::from(texts.fill("sync.problem", &[("problem", problem)])));
+        }
+        lines.push(Line::default());
+        lines.push(Line::styled(texts.get("sync.members"), bold));
+        let (members, device) = {
+            let workspace = self.lock();
+            (workspace.members(&space.id), workspace.device().to_owned())
+        };
+        match members {
+            Ok(members) => {
+                for member in members {
+                    let name = match (&member.name, &member.device) {
+                        _ if member.role == aktujo_app::MemberRole::Recovery => texts.get("sync.code"),
+                        (Some(name), _) => name.clone(),
+                        (None, Some(device)) => device.as_str().to_owned(),
+                        (None, None) => "…".to_owned(),
+                    };
+                    let mine = member.device.as_ref().is_some_and(|d| d.as_str() == device);
+                    let me = if mine { format!(" ({})", texts.get("sync.thisDevice")) } else { String::new() };
+                    let rights = match member.rights {
+                        Rights::Read => "rights.read",
+                        Rights::Write => "rights.write",
+                        Rights::Manage => "rights.manage",
+                    };
+                    lines.push(Line::from(format!("{name}{me} – {}", texts.get(rights))));
+                }
+            }
+            Err(error) => lines.push(Line::from(error.to_string())),
+        }
+        lines
+    }
+
     /// The lines that describe the selected document.
     fn details(&self) -> Vec<Line<'static>> {
+        if let Some(lines) = &self.members {
+            return lines.clone();
+        }
         let texts = &self.texts;
         let (Some(space), Some(row)) = (self.spaces.get(self.space), self.selected.and_then(|i| self.rows.get(i)))
         else {
@@ -509,7 +695,13 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let mut spans = vec![Span::raw(" aktujo  ")];
     let mut x = tabs.x + 9;
     for (i, space) in app.spaces.iter().enumerate() {
-        let text = format!(" {} ", space.name.as_deref().unwrap_or("…"));
+        let marker = match (&space.relay, &space.synced) {
+            (None, _) => "",
+            _ if space.waiting => " …",
+            (Some(_), Some(synced)) if synced.problem.is_some() => " !",
+            (Some(_), _) => " ⇅",
+        };
+        let text = format!(" {}{marker} ", space.name.as_deref().unwrap_or("…"));
         let width = text.chars().count() as u16;
         app.tabs.push((Rect::new(x, tabs.y, width, 1), i));
         spans.push(if i == app.space { Span::styled(text, highlight) } else { Span::raw(text) });
@@ -572,8 +764,12 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 }
 
 /// Runs the terminal interface on a workspace until it is left, in the language of the environment.
-pub fn run(workspace: Arc<Mutex<Workspace>>, worker: Option<Arc<Worker>>) -> Result<(), TuiError> {
-    let mut app = App::new(workspace, worker, Texts::from_environment());
+pub fn run(
+    workspace: Arc<Mutex<Workspace>>,
+    worker: Option<Arc<Worker>>,
+    syncer: Option<Arc<Syncer>>,
+) -> Result<(), TuiError> {
+    let mut app = App::new(workspace, worker, syncer, Texts::from_environment());
     let mut terminal = ratatui::try_init()?;
     let mut mouse = false;
     let result = (|| -> Result<(), TuiError> {
@@ -642,7 +838,7 @@ mod tests {
         fs::write(folder.join("Stromrechnung.pdf"), b"%PDF-1.7 bill").unwrap();
 
         let workspace = Arc::new(Mutex::new(Workspace::in_memory("laptop").unwrap()));
-        let mut app = App::new(workspace.clone(), None, Texts::of("de"));
+        let mut app = App::new(workspace.clone(), None, None, Texts::of("de"));
         let mut terminal = Terminal::new(TestBackend::new(100, 20)).unwrap();
         // The first start asks for a space.
         assert_eq!(app.input.as_ref().map(|(p, _)| *p), Some(Prompt::NewSpace));
@@ -699,5 +895,48 @@ mod tests {
         app.mouse(click(area.x + 1, area.y));
         assert!(app.quit);
         let _ = fs::remove_dir_all(&folder);
+    }
+
+    /// A relay on a free port of this machine, in a folder of its own; stops with the test.
+    fn relay() -> String {
+        let folder = std::env::temp_dir().join(format!("aktujo-tui-relay-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&folder);
+        let relay = aktujo_relay::Relay::open(aktujo_crypt::Domain::AKTUJO, &folder).unwrap();
+        let (ready, address) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            tokio::runtime::Runtime::new().unwrap().block_on(async move {
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+                ready.send(listener.local_addr().unwrap()).unwrap();
+                aktujo_relay::serve_listener(relay, listener).await.unwrap();
+            });
+        });
+        format!("http://{}", address.recv().unwrap())
+    }
+
+    #[test]
+    fn a_space_is_synchronised_and_shared() {
+        let url = relay();
+        let workspace = Arc::new(Mutex::new(Workspace::in_memory("laptop").unwrap()));
+        let mut app = App::new(workspace.clone(), None, None, Texts::of("en"));
+        typed(&mut app, "Home");
+        app.key(KeyCode::Char('N').into());
+        typed(&mut app, "Laptop");
+        app.key(KeyCode::Char('S').into());
+        typed(&mut app, &url);
+        assert!(app.message.starts_with("Recovery code"), "{}", app.message);
+        app.key(KeyCode::Char('i').into());
+        typed(&mut app, "x");
+        assert_eq!(app.message, "Rights: r read, w write, m manage");
+        app.key(KeyCode::Char('i').into());
+        typed(&mut app, "r");
+        assert!(app.message.starts_with(&format!("Invitation: {url}#join=")), "{}", app.message);
+        app.key(KeyCode::Char('y').into());
+        assert_eq!(app.message, "0 received, 0 sent");
+        app.key(KeyCode::Char('M').into());
+        let shown: Vec<String> = app.details().iter().map(|l| l.to_string()).collect();
+        assert!(shown.contains(&"Laptop (this device) – May manage".to_owned()), "{shown:?}");
+        let mut terminal = Terminal::new(TestBackend::new(100, 20)).unwrap();
+        terminal.draw(|frame| draw(frame, &mut app)).unwrap();
+        assert!(screen(&terminal).contains("Home ⇅"), "{}", screen(&terminal));
     }
 }

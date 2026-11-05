@@ -5,7 +5,12 @@
 
 use std::net::SocketAddr;
 
-use aktujo_app::{AppError, NewFile, Rights, Workspace};
+use std::{
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
+
+use aktujo_app::{AppError, NewFile, Rights, Syncer, Workspace};
 use aktujo_crypt::Domain;
 use aktujo_relay::{Relay, serve_listener};
 
@@ -97,4 +102,44 @@ fn devices_and_people_share_a_space() {
     new_laptop.recover(&url, &space, &code, Some("New laptop")).unwrap();
     assert_eq!(titles(&new_laptop, &space), ["Lease", "Notice", "Receipt"]);
     assert_eq!(new_laptop.spaces().unwrap()[0].name.as_deref(), Some("Home"));
+}
+
+#[test]
+fn devices_have_names_and_synchronise_in_the_background() {
+    let url = relay("background");
+    let mut laptop = Workspace::in_memory("laptop").unwrap();
+    laptop.set_device_name(" Laptop ").unwrap();
+    assert_eq!(laptop.device_name().unwrap().as_deref(), Some("Laptop"));
+    assert!(laptop.set_device_name("  ").is_err());
+    let space = laptop.found_space("Home").unwrap();
+    assert_eq!(laptop.spaces().unwrap()[0].synced, None);
+    laptop.start_sync(&space, &url, None).unwrap();
+    let invitation = laptop.invite(&space, Rights::Write).unwrap();
+
+    let phone = Arc::new(Mutex::new(Workspace::in_memory("phone").unwrap()));
+    phone.lock().unwrap().set_device_name("Phone").unwrap();
+    phone.lock().unwrap().join(&invitation, None).unwrap();
+    laptop.sync(&space).unwrap();
+    let members = laptop.members(&space).unwrap();
+    assert!(members.iter().any(|m| m.name.as_deref() == Some("Laptop")));
+    assert!(members.iter().any(|m| m.name.as_deref() == Some("Phone")), "the phone's own name");
+    laptop.add_document(&space, pdf("Lease.pdf", b"%PDF-1.7 lease")).unwrap();
+    laptop.sync(&space).unwrap();
+    let synced = laptop.spaces().unwrap()[0].synced.clone().unwrap();
+    assert!(synced.problem.is_none() && synced.at > 0);
+
+    // The syncer brings the document to the phone on its own.
+    let syncer = Syncer::start(phone.clone(), None, Duration::from_secs(3600));
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while titles(&phone.lock().unwrap(), &space).is_empty() {
+        assert!(Instant::now() < deadline, "nothing arrived");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    drop(syncer);
+
+    // A relay that is gone is a problem of that space, kept – not an end.
+    let lost = laptop.found_space("Elsewhere").unwrap();
+    assert!(laptop.start_sync(&lost, "http://127.0.0.1:9", None).is_err());
+    let reports = laptop.sync_all().unwrap();
+    assert!(reports[&space].is_ok());
 }

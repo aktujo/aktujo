@@ -28,6 +28,11 @@ cargo run -- serve --memory              # to try it out: nothing is kept, no ke
 cargo run -- relay --data relay          # a relay to synchronise through, on http://127.0.0.1:8072
 ```
 
+A space can be synchronised between devices and shared with other people through a relay you run yourself
+(`aktujo relay`): end-to-end encrypted, the relay sees neither keys nor content. In the web app it is under
+*Sync and sharing*; joining with an invitation, naming the device and bringing a space back with its recovery code are
+in the settings.
+
 The documents live in a data folder – `aktujo` in the folder for application data of the user (on macOS
 `~/Library/Application Support/aktujo`, on Linux `~/.local/share/aktujo`, on Windows `%APPDATA%\aktujo`), or the one
 given with `--data`. It is encrypted; its key is kept in the key store of the operating system. The interfaces speak

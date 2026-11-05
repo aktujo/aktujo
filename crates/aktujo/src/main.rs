@@ -5,12 +5,16 @@
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 
-use aktujo_app::{Reader, SystemKeys, Worker, Workspace, default_folder};
+use aktujo_app::{Reader, Syncer, SystemKeys, Worker, Workspace, default_folder};
+
+/// How often synchronised spaces are synchronised, besides after every change.
+const SYNC_EVERY: Duration = Duration::from_secs(60);
 
 /// Your documents, kept safe – end to end.
 #[derive(Debug, Parser)]
@@ -33,10 +37,12 @@ struct Data {
 }
 
 impl Data {
-    /// The workspace, and reading in the background on it.
-    fn open(&self) -> anyhow::Result<(Arc<Mutex<Workspace>>, Arc<Worker>, bool)> {
+    /// The workspace, and reading and synchronising in the background on it.
+    fn open(&self) -> anyhow::Result<(Arc<Mutex<Workspace>>, aktujo_api::Background)> {
         let workspace = if self.memory {
-            Workspace::in_memory("this-device")?
+            // A device name of its own, as a data folder gets: two trials can then share a space.
+            let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.subsec_nanos();
+            Workspace::in_memory(&format!("memory-{:08x}", nanos ^ std::process::id()))?
         } else {
             let folder = match &self.data {
                 Some(folder) => folder.clone(),
@@ -50,7 +56,8 @@ impl Data {
         let reader = Reader::builtin()?;
         let ocr = reader.ocr();
         let worker = Arc::new(Worker::start(workspace.clone(), reader));
-        Ok((workspace, worker, ocr))
+        let syncer = Arc::new(Syncer::start(workspace.clone(), Some(worker.clone()), SYNC_EVERY));
+        Ok((workspace, aktujo_api::Background { worker: Some(worker), syncer: Some(syncer), ocr }))
     }
 }
 
@@ -86,13 +93,13 @@ enum Command {
 fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::Tui { data } => {
-            let (workspace, worker, _) = data.open()?;
-            aktujo_tui::run(workspace, Some(worker))?;
+            let (workspace, background) = data.open()?;
+            aktujo_tui::run(workspace, background.worker, background.syncer)?;
         }
         Command::Serve { port, data } => {
-            let (workspace, worker, ocr) = data.open()?;
+            let (workspace, background) = data.open()?;
             let ready = |address: std::net::SocketAddr| println!("aktujo at http://{address} – Ctrl-C ends");
-            tokio::runtime::Runtime::new()?.block_on(aktujo_api::serve(workspace, Some(worker), ocr, port, ready))?;
+            tokio::runtime::Runtime::new()?.block_on(aktujo_api::serve(workspace, background, port, ready))?;
         }
         Command::Relay { data, listen } => {
             let relay = aktujo_relay::Relay::open(aktujo_crypt::Domain::AKTUJO, &data)?;

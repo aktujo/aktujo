@@ -5,6 +5,7 @@
   import { setTheme, theme, type Theme } from "./lib/theme.svelte";
   import DocumentPanel from "./DocumentPanel.svelte";
   import Settings from "./Settings.svelte";
+  import SpacePanel from "./SpacePanel.svelte";
 
   const THEMES: Theme[] = ["auto", "light", "dark"];
 
@@ -33,8 +34,12 @@
   let readingProblem = $state<string | null>(null);
   let picker = $state<HTMLInputElement>();
   let settings = $state(false);
+  let sharing = $state(false);
+  let device = $state("");
 
   const current = $derived(spaces.find((s) => s.id === space) ?? null);
+  const readOnly = $derived(current?.rights === "read" || current?.waiting === true);
+  const synchronised = $derived(spaces.some((s) => s.relay));
   const busy = $derived(documents.some((d) => d.reading === "waiting" || d.reading === "reading"));
 
   async function loadSpaces() {
@@ -110,6 +115,7 @@
   function dropped(event: DragEvent) {
     event.preventDefault();
     dragging = false;
+    if (readOnly) return;
     if (event.dataTransfer?.files.length) add(event.dataTransfer.files);
   }
 
@@ -123,6 +129,7 @@
   async function loadStatus() {
     const { data } = await api.GET("/api/v1/status");
     ocr = data?.ocr ?? true;
+    device = data?.device ?? "";
     readingProblem = data?.reading_problem ?? null;
   }
 
@@ -139,6 +146,13 @@
       search();
       loadStatus();
     }, 2000);
+    return () => clearInterval(timer);
+  });
+
+  // What other devices sent arrives through the sync in the background: look again now and then.
+  $effect(() => {
+    if (!synchronised) return;
+    const timer = setInterval(refresh, 15000);
     return () => clearInterval(timer);
   });
 
@@ -220,7 +234,15 @@
 
 {#if settings}
   <main class="first">
-    <Settings onclose={() => (settings = false)} />
+    <Settings
+      onclose={() => (settings = false)}
+      onjoined={async (id) => {
+        settings = false;
+        space = id;
+        sharing = true;
+        await refresh();
+      }}
+    />
   </main>
 {:else if loaded && spaces.length === 0}
   <main class="first">
@@ -230,6 +252,7 @@
       <button type="submit">{t("space.found")}</button>
     </form>
     {#if error}<p class="error">{error}</p>{/if}
+    <p><button class="link" onclick={() => (settings = true)}>{t("settings.join")}</button></p>
   </main>
 {:else if loaded}
   <div class="layout">
@@ -239,11 +262,26 @@
         {#each spaces as s (s.id)}
           <li>
             <button class:active={s.id === space} onclick={() => (space = s.id)}>
-              {s.name ?? "…"} <span class="count">{s.documents}</span>
+              <span>
+                {s.name ?? "…"}
+                {#if s.sync_problem}<span class="sync-mark" title={t("sync.problem", { problem: s.sync_problem })}>!</span>
+                {:else if s.relay}<span class="sync-mark" title={t("sync.via", { relay: s.relay })}>⇅</span>{/if}
+              </span>
+              <span class="count">{s.documents}</span>
             </button>
           </li>
         {/each}
       </ul>
+      {#if current}
+        <button
+          class="link"
+          class:active-link={sharing}
+          onclick={() => {
+            sharing = !sharing;
+            chosen = null;
+          }}>{t("sync.title")}</button
+        >
+      {/if}
       <form class="new-space" onsubmit={foundSpace}>
         <input bind:value={newSpace} placeholder={t("space.new")} aria-label={t("space.new")} />
         <button type="submit" disabled={!newSpace.trim()}>+</button>
@@ -293,7 +331,7 @@
           placeholder={t("search.placeholder")}
           aria-label={t("search")}
         />
-        <button class="primary" onclick={() => picker?.click()} disabled={!space}>{t("doc.add")}</button>
+        <button class="primary" onclick={() => picker?.click()} disabled={!space || readOnly}>{t("doc.add")}</button>
         <input
           class="hidden"
           type="file"
@@ -306,15 +344,20 @@
         />
       </div>
       {#if !ocr}<p class="note">{t("reading.noOcr")}</p>{/if}
+      {#if current?.waiting}<p class="note">{t("sync.waiting")}</p>
+      {:else if readOnly}<p class="note">{t("sync.readOnly")}</p>{/if}
       {#if readingProblem}<p class="error">{t("reading.problem", { problem: readingProblem })}</p>{/if}
       {#if message}<p class="note">{message}</p>{/if}
       {#if error}<p class="error">{error}</p>{/if}
 
-      {#if chosen && current}
+      {#if sharing && current}
+        <SpacePanel space={current} {device} onclose={() => (sharing = false)} onchange={refresh} />
+      {:else if chosen && current}
         <DocumentPanel
           space={current.id}
           id={chosen}
           {kinds}
+          {readOnly}
           onclose={() => (chosen = null)}
           onchange={refresh}
         />

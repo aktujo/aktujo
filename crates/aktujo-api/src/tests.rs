@@ -10,7 +10,7 @@ use tower::ServiceExt;
 use super::*;
 
 fn server() -> Router {
-    router(Arc::new(Mutex::new(Workspace::in_memory("laptop").unwrap())), None, false)
+    router(Arc::new(Mutex::new(Workspace::in_memory("laptop").unwrap())), Background::default())
 }
 
 async fn send(router: &Router, request: Request<Body>) -> (StatusCode, HeaderMap, Vec<u8>) {
@@ -141,7 +141,68 @@ async fn other_hosts_and_other_sites_are_refused() {
 #[test]
 fn the_description_names_every_route() {
     let description = openapi();
-    for path in ["/api/v1/spaces", "/api/v1/search", "/api/v1/spaces/{space}/documents/{document}/fields/{key}"] {
+    for path in [
+        "/api/v1/spaces",
+        "/api/v1/search",
+        "/api/v1/join",
+        "/api/v1/spaces/{space}/members/{member}",
+        "/api/v1/spaces/{space}/documents/{document}/fields/{key}",
+    ] {
         assert!(description.contains(path), "{path}");
     }
+}
+
+/// A relay on a free port of this machine, in a folder of its own.
+async fn relay() -> String {
+    let folder = std::env::temp_dir().join(format!("aktujo-api-relay-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    let relay = aktujo_relay::Relay::open(aktujo_crypt::Domain::AKTUJO, &folder).unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(aktujo_relay::serve_listener(relay, listener));
+    format!("http://{address}")
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sharing_through_the_api() {
+    let url = relay().await;
+    let laptop = server();
+    let phone = router(Arc::new(Mutex::new(Workspace::in_memory("phone").unwrap())), Background::default());
+    assert_eq!(call(&laptop, "PUT", "/api/v1/device", Some(json!({"name": "Laptop"}))).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(call(&laptop, "GET", "/api/v1/status", None).await.1["device_name"], "Laptop");
+    call(&phone, "PUT", "/api/v1/device", Some(json!({"name": "Phone"}))).await;
+
+    let (_, space) = call(&laptop, "POST", "/api/v1/spaces", Some(json!({"name": "Home"}))).await;
+    let space = space["id"].as_str().unwrap().to_owned();
+    let (status, code) =
+        call(&laptop, "POST", &format!("/api/v1/spaces/{space}/sync/start"), Some(json!({"relay": url}))).await;
+    assert_eq!(status, StatusCode::OK, "{code}");
+    assert!(code["recovery_code"].as_str().unwrap().len() > 20);
+    let (_, spaces) = call(&laptop, "GET", "/api/v1/spaces", None).await;
+    assert_eq!((&spaces[0]["rights"], &spaces[0]["sync_problem"]), (&json!("manage"), &Value::Null));
+    assert!(spaces[0]["synced_at"].as_u64().is_some());
+
+    let (_, invitation) =
+        call(&laptop, "POST", &format!("/api/v1/spaces/{space}/invitations"), Some(json!({"rights": "write"}))).await;
+    let (status, joined) = call(&phone, "POST", "/api/v1/join", Some(invitation.clone())).await;
+    assert_eq!(status, StatusCode::OK, "{joined}");
+    assert_eq!(joined["waiting"], true);
+    let (_, report) = call(&laptop, "POST", &format!("/api/v1/spaces/{space}/sync"), None).await;
+    assert_eq!(report["added"], json!(["Phone"]));
+    let (_, report) = call(&phone, "POST", &format!("/api/v1/spaces/{space}/sync"), None).await;
+    assert_eq!(report["waiting"], false);
+    let (_, spaces) = call(&phone, "GET", "/api/v1/spaces", None).await;
+    assert_eq!((&spaces[0]["name"], &spaces[0]["rights"]), (&json!("Home"), &json!("write")));
+
+    let (_, members) = call(&laptop, "GET", &format!("/api/v1/spaces/{space}/members"), None).await;
+    let members = members.as_array().unwrap();
+    assert_eq!(members.len(), 3, "two devices and the recovery code");
+    let phone_id = members.iter().find(|m| m["name"] == "Phone").unwrap()["id"].as_str().unwrap().to_owned();
+    assert!(members.iter().any(|m| m["role"] == "recovery"));
+    let path = format!("/api/v1/spaces/{space}/members/{phone_id}");
+    assert_eq!(call(&laptop, "DELETE", &path, None).await.0, StatusCode::NO_CONTENT);
+    let (status, _) = call(&phone, "POST", &format!("/api/v1/spaces/{space}/sync"), None).await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY, "removed");
+    let (_, spaces) = call(&phone, "GET", "/api/v1/spaces", None).await;
+    assert!(spaces[0]["sync_problem"].as_str().unwrap().contains("removed"));
 }

@@ -37,3 +37,11 @@ Paths below are under `/api/v1`; `{space}` and `{document}` are identities, `D` 
 | POST | `D/labels` | adds a label: `{"label": "…"}` |
 | DELETE | `D/labels/{label}` | takes a label off |
 | POST | `D/trash`, `D/restore` | puts the document in the bin, takes it out |
+| PUT | `/device` | names this device for the other members: `{"name": "…"}` |
+| POST | `/spaces/{space}/sync/start` | starts to synchronise through a relay: `{"relay": "http://…:8072"}`; answers with the recovery code, shown only now |
+| POST | `/spaces/{space}/sync` | synchronises now |
+| POST | `/spaces/{space}/invitations` | an invitation for another device: `{"rights": "read" \| "write" \| "manage"}` |
+| POST | `/join` | joins with an invitation: `{"invitation": "…"}` |
+| POST | `/recover` | brings a space back: `{"relay", "space", "code"}` |
+| GET | `/spaces/{space}/members` | the members, as the relay lists them |
+| DELETE | `/spaces/{space}/members/{member}` | removes a member by its identity |

@@ -70,6 +70,8 @@ version = "0.1.0"
 dependencies = [
  "aktujo-app",
  "aktujo-core",
+ "aktujo-crypt",
+ "aktujo-relay",
  "axum",
  "http-body-util",
  "rust-embed",
@@ -255,9 +257,12 @@ name = "aktujo-tui"
 version = "0.1.0"
 dependencies = [
  "aktujo-app",
+ "aktujo-crypt",
+ "aktujo-relay",
  "ratatui",
  "serde_json",
  "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

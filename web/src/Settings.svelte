@@ -3,18 +3,58 @@
   import { api } from "./lib/api";
   import { choose, i18n, languages, t } from "./lib/i18n.svelte";
 
-  let { onclose }: { onclose: () => void } = $props();
+  let { onclose, onjoined }: { onclose: () => void; onjoined: (space: string) => void } = $props();
 
-  let status = $state<{ version: string; device: string; ocr: boolean } | null>(null);
+  let status = $state<{ version: string; device: string; ocr: boolean; device_name?: string | null } | null>(null);
+  let deviceName = $state("");
+  let saved = $state(false);
+  let invitation = $state("");
+  let relay = $state("");
+  let space = $state("");
+  let code = $state("");
+  let error = $state("");
+  let busy = $state(false);
+
+  async function load() {
+    const { data } = await api.GET("/api/v1/status");
+    status = data ?? null;
+    deviceName = data?.device_name ?? "";
+  }
+
+  async function saveName(event: SubmitEvent) {
+    event.preventDefault();
+    const { error: problem } = await api.PUT("/api/v1/device", { body: { name: deviceName } });
+    error = problem?.error ?? "";
+    saved = !problem;
+  }
+
+  async function join(event: SubmitEvent) {
+    event.preventDefault();
+    busy = true;
+    const { data, error: problem } = await api.POST("/api/v1/join", { body: { invitation } });
+    busy = false;
+    error = problem?.error ?? "";
+    if (data) onjoined(data.id);
+  }
+
+  async function recover(event: SubmitEvent) {
+    event.preventDefault();
+    busy = true;
+    const { data, error: problem } = await api.POST("/api/v1/recover", { body: { relay, space, code } });
+    busy = false;
+    error = problem?.error ?? "";
+    if (data) onjoined(data.id);
+  }
 
   $effect(() => {
-    api.GET("/api/v1/status").then(({ data }) => (status = data ?? null));
+    load();
   });
 </script>
 
 <article class="settings">
   <button class="link" onclick={onclose}>← {t("doc.back")}</button>
   <h1>{t("settings")}</h1>
+  {#if error}<p class="error">{error}</p>{/if}
 
   <h2>{t("language.choose")}</h2>
   <div class="choices" role="radiogroup" aria-label={t("language.choose")}>
@@ -25,6 +65,29 @@
       </label>
     {/each}
   </div>
+
+  <h2>{t("settings.deviceName")}</h2>
+  <form class="row" onsubmit={saveName}>
+    <input bind:value={deviceName} oninput={() => (saved = false)} aria-label={t("settings.deviceName")} />
+    <button type="submit" disabled={!deviceName.trim()}>{saved ? "✓" : t("doc.save")}</button>
+  </form>
+  <p class="note">{t("settings.deviceNameHint")}</p>
+
+  <h2>{t("settings.join")}</h2>
+  <p class="note">{t("settings.joinHint")}</p>
+  <form class="row" onsubmit={join}>
+    <input class="wide" bind:value={invitation} aria-label={t("sync.invitationField")} required />
+    <button type="submit" disabled={busy || !invitation.trim()}>{t("sync.join")}</button>
+  </form>
+
+  <h2>{t("settings.recover")}</h2>
+  <p class="note">{t("settings.recoverHint")}</p>
+  <form class="stack" onsubmit={recover}>
+    <input bind:value={relay} placeholder="http://192.168.1.10:8072" aria-label={t("sync.relay")} required />
+    <input bind:value={space} placeholder={t("settings.space")} aria-label={t("settings.space")} required />
+    <input bind:value={code} placeholder={t("sync.code")} aria-label={t("sync.code")} required />
+    <button type="submit" disabled={busy}>{t("sync.recover")}</button>
+  </form>
 
   {#if status}
     <h2>{t("settings.about")}</h2>

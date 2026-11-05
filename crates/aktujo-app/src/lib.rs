@@ -20,7 +20,7 @@ use std::{
 };
 
 use aktujo_blob::{BlobError, Blobs, MemoryBlobs};
-use aktujo_core::{DomainError, SPACE_KINDS, SpaceEvent, label, space_name, title, title_of_file};
+use aktujo_core::{DomainError, SPACE_KINDS, SpaceEvent, device_name, label, space_name, title, title_of_file};
 use aktujo_crypt::{Domain, RecoveryCode};
 use aktujo_doc::{DocumentEvent, Documents, Origin, Original, Skipped, ValueError, builtin};
 use aktujo_log::DeviceId;
@@ -34,9 +34,10 @@ mod models;
 mod reading;
 mod sealed;
 mod search;
+mod syncing;
 
 pub use aktujo_base::{Sha256Hash, SpaceId};
-pub use aktujo_crypt::{Member, Rights};
+pub use aktujo_crypt::{Member, MemberRole, Rights};
 pub use aktujo_doc::{Document, DocumentId, Kind, Reading, Value, Version};
 pub use aktujo_extract::{Extraction, Line, Method, Page};
 pub use aktujo_sync::SyncReport;
@@ -44,11 +45,14 @@ pub use keys::{KeyError, KeyStore, MemoryKeys, SystemKeys};
 pub use reading::{Job, ReadState, Reader, Worker, read_all};
 pub use sealed::SealedBlobs;
 pub use search::{Bin, Hit, Part, Search, date_of};
+pub use syncing::Syncer;
 
 /// The database of a data folder.
 const DATABASE: &str = "aktujo.sqlite";
 /// The description of a data folder: its device name and the name of its key.
 const FOLDER: &str = "aktujo.json";
+/// The device setting that holds the name people read for this device.
+const DEVICE_NAME: &str = "device.name";
 /// The folder of the originals in a data folder.
 const ORIGINALS: &str = "originals";
 
@@ -159,6 +163,17 @@ pub struct SpaceInfo {
     pub rights: Option<Rights>,
     /// Whether this device asked to join and waits to be added.
     pub waiting: bool,
+    /// How the last synchronisation since the program started went, if there was one.
+    pub synced: Option<Synced>,
+}
+
+/// How a synchronisation went.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Synced {
+    /// When it ended, in milliseconds since 1970.
+    pub at: u64,
+    /// Why it failed, if it did.
+    pub problem: Option<String>,
 }
 
 /// The state of one space, folded from its log.
@@ -176,6 +191,8 @@ pub struct Workspace {
     views: BTreeMap<SpaceId, View>,
     /// The document being read now, if any.
     reading: Option<(SpaceId, DocumentId)>,
+    /// How the last synchronisation of each space went.
+    synced: BTreeMap<SpaceId, Synced>,
 }
 
 impl Default for Workspace {
@@ -244,7 +261,7 @@ impl Workspace {
     }
 
     fn on(replica: Replica) -> Result<Self, AppError> {
-        let mut workspace = Workspace { replica, views: BTreeMap::new(), reading: None };
+        let mut workspace = Workspace { replica, views: BTreeMap::new(), reading: None, synced: BTreeMap::new() };
         search::prepare(&workspace)?;
         for space in workspace.replica.spaces()? {
             workspace.refresh(&space)?;
@@ -311,6 +328,7 @@ impl Workspace {
                 documents: view.documents.active().count(),
                 trashed: view.documents.trashed().count(),
                 waiting: relay.is_some() && rights.is_none(),
+                synced: self.synced.get(id).cloned(),
                 relay,
                 rights,
             });
@@ -503,11 +521,33 @@ impl Workspace {
 
     // Sync and sharing
 
-    /// Starts synchronising a space through a relay, as this device with a name people read. Returns the recovery
-    /// code: the person keeps it on paper – without it and without a device, the space is lost.
+    /// The name people read for this device, if it was given one.
+    pub fn device_name(&self) -> Result<Option<String>, AppError> {
+        Ok(self.replica.store().setting(None, DEVICE_NAME)?)
+    }
+
+    /// Gives this device a name people read – the other members of a space see it. It is used when this device
+    /// starts to synchronise a space, joins one or recovers one, not for spaces it is a member of already.
+    pub fn set_device_name(&mut self, name: &str) -> Result<(), AppError> {
+        let name = device_name(name)?;
+        Ok(self.replica.store().set_setting(None, DEVICE_NAME, &name)?)
+    }
+
+    /// The name given, or else this device's.
+    fn name_or_own(&self, name: Option<&str>) -> Result<Option<String>, AppError> {
+        Ok(match name {
+            Some(name) => Some(device_name(name)?),
+            None => self.device_name()?,
+        })
+    }
+
+    /// Starts synchronising a space through a relay, as this device with a name people read (by default its own).
+    /// Returns the recovery code: the person keeps it on paper – without it and without a device, the space is lost.
     pub fn start_sync(&mut self, space: &SpaceId, relay: &str, name: Option<&str>) -> Result<String, AppError> {
         self.view(space)?;
-        let code = self.replica.start_sync(space, relay, name)?;
+        let name = self.name_or_own(name)?;
+        let code = self.replica.start_sync(space, relay.trim(), name.as_deref())?;
+        self.note_synced(space, None);
         self.refresh(space)?;
         Ok(code.to_string())
     }
@@ -521,7 +561,8 @@ impl Workspace {
     /// Asks to join a space with an invitation; its documents arrive once a device that may manage it added this
     /// one, at a later synchronisation.
     pub fn join(&mut self, invitation: &str, name: Option<&str>) -> Result<SpaceId, AppError> {
-        let space = self.replica.join(invitation, name)?;
+        let name = self.name_or_own(name)?;
+        let space = self.replica.join(invitation.trim(), name.as_deref())?;
         self.refresh(&space)?;
         Ok(space)
     }
@@ -534,8 +575,10 @@ impl Workspace {
         code: &str,
         name: Option<&str>,
     ) -> Result<SyncReport, AppError> {
-        let code: RecoveryCode = code.parse().map_err(SyncError::from)?;
-        let report = self.replica.recover(relay, space, &code, name)?;
+        let name = self.name_or_own(name)?;
+        let code: RecoveryCode = code.trim().parse().map_err(SyncError::from)?;
+        let report = self.replica.recover(relay.trim(), space, &code, name.as_deref())?;
+        self.note_synced(space, None);
         self.refresh(space)?;
         Ok(report)
     }
@@ -552,19 +595,35 @@ impl Workspace {
         Ok(self.replica.remove_member(space, who)?)
     }
 
-    /// Synchronises a space with its relay.
-    pub fn sync(&mut self, space: &SpaceId) -> Result<SyncReport, AppError> {
-        self.view(space)?;
-        let report = self.replica.sync(space)?;
-        self.refresh(space)?;
-        Ok(report)
+    fn note_synced(&mut self, space: &SpaceId, problem: Option<String>) {
+        self.synced.insert(space.clone(), Synced { at: now_ms(), problem });
     }
 
-    /// Synchronises every space that is synchronised.
-    pub fn sync_all(&mut self) -> Result<BTreeMap<SpaceId, SyncReport>, AppError> {
-        let reports = self.replica.sync_all()?;
-        for space in reports.keys() {
-            self.refresh(space)?;
+    /// Synchronises a space with its relay; how it went is kept for [`Workspace::spaces`].
+    pub fn sync(&mut self, space: &SpaceId) -> Result<SyncReport, AppError> {
+        self.view(space)?;
+        match self.replica.sync(space) {
+            Ok(report) => {
+                self.note_synced(space, None);
+                self.refresh(space)?;
+                Ok(report)
+            }
+            Err(error) => {
+                self.note_synced(space, Some(error.to_string()));
+                Err(error.into())
+            }
+        }
+    }
+
+    /// Synchronises every space that is synchronised, each on its own: one that fails does not stop the others.
+    pub fn sync_all(&mut self) -> Result<BTreeMap<SpaceId, Result<SyncReport, AppError>>, AppError> {
+        let mut reports = BTreeMap::new();
+        let spaces: Vec<SpaceId> = self.views.keys().cloned().collect();
+        for space in spaces {
+            if self.replica.relay(&space)?.is_some() {
+                let report = self.sync(&space);
+                reports.insert(space, report);
+            }
         }
         Ok(reports)
     }

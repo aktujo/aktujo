@@ -284,6 +284,7 @@ ul {
 
 .spaces button {
   width: 100%;
+  gap: 0.5rem;
   text-align: left;
   display: flex;
   justify-content: space-between;
@@ -491,4 +492,45 @@ pre {
   .tagline {
     display: none;
   }
+}
+
+fieldset.plain {
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.sync-mark {
+  margin-left: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.active-link {
+  font-weight: 600;
+}
+
+.stack {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 32rem;
+}
+
+input.wide,
+.invitation textarea {
+  flex: 1;
+  min-width: 16rem;
+  width: 100%;
+  font: 0.85rem ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.invitation {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.6rem 0;
+}
+
+.code pre {
+  font-size: 1.1rem;
+  border-left: 4px solid var(--accent);
 }

@@ -25,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 use utoipa::OpenApi;
 
-use aktujo_app::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Worker, Workspace};
+use aktujo_app::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Syncer, Worker, Workspace};
 
 mod views;
 
@@ -58,7 +58,15 @@ pub const UPLOAD_MAX: usize = 256 * 1024 * 1024;
         add_label,
         remove_label,
         trash,
-        restore
+        restore,
+        set_device_name,
+        start_sync,
+        sync,
+        invite,
+        join,
+        recover,
+        members,
+        remove_member
     ),
     components(schemas(Problem))
 )]
@@ -101,16 +109,24 @@ fn not_found(what: &str) -> ApiError {
     ApiError(StatusCode::NOT_FOUND, format!("no {what}"))
 }
 
+/// What runs in the background beside the API.
+#[derive(Debug, Clone, Default)]
+pub struct Background {
+    /// Reading, woken when files are added.
+    pub worker: Option<Arc<Worker>>,
+    /// Synchronising, woken after every change.
+    pub syncer: Option<Arc<Syncer>>,
+    /// Whether the reader uses OCR.
+    pub ocr: bool,
+}
+
 /// The state of the server.
 #[derive(Clone)]
 struct Shared {
     workspace: Arc<Mutex<Workspace>>,
-    /// Reading in the background, if it runs.
-    worker: Option<Arc<Worker>>,
+    background: Background,
     /// For titles offered from what was read: the rules only, no models.
     titles: Arc<Reader>,
-    /// Whether the reader in the background uses OCR.
-    ocr: bool,
 }
 
 impl Shared {
@@ -119,10 +135,33 @@ impl Shared {
         self.workspace.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    /// Reads what was added and synchronises.
     fn wake(&self) {
-        if let Some(worker) = &self.worker {
+        if let Some(worker) = &self.background.worker {
             worker.wake();
         }
+        self.changed();
+    }
+
+    /// Synchronises what changed.
+    fn changed(&self) {
+        if let Some(syncer) = &self.background.syncer {
+            syncer.wake();
+        }
+    }
+
+    /// Runs a command that talks to a relay, off the threads that serve requests.
+    async fn blocking<T: Send + 'static>(
+        &self,
+        command: impl FnOnce(&mut Workspace) -> Result<T, AppError> + Send + 'static,
+    ) -> Result<T, ApiError> {
+        let shared = self.clone();
+        let answer = tokio::task::spawn_blocking(move || command(&mut shared.lock())).await;
+        let answer = answer.map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))??;
+        if let Some(worker) = &self.background.worker {
+            worker.wake();
+        }
+        Ok(answer)
     }
 }
 
@@ -146,11 +185,16 @@ fn document_view(workspace: &Workspace, shared: &Shared, space: &SpaceId, id: &D
 /// What this program is and can do.
 #[utoipa::path(get, path = "/api/v1/status", responses((status = 200, body = StatusView)))]
 async fn status(State(shared): State<Shared>) -> Json<StatusView> {
+    let (device, device_name) = {
+        let workspace = shared.lock();
+        (workspace.device().to_owned(), workspace.device_name().ok().flatten())
+    };
     Json(StatusView {
         version: env!("CARGO_PKG_VERSION").to_owned(),
-        device: shared.lock().device().to_owned(),
-        ocr: shared.ocr,
-        reading_problem: shared.worker.as_ref().and_then(|w| w.problem()),
+        device,
+        ocr: shared.background.ocr,
+        reading_problem: shared.background.worker.as_ref().and_then(|w| w.problem()),
+        device_name,
     })
 }
 
@@ -183,6 +227,7 @@ async fn rename_space(
     Json(new): Json<SpaceName>,
 ) -> Result<StatusCode, ApiError> {
     shared.lock().rename_space(&space(&id)?, &new.name)?;
+    shared.changed();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -369,6 +414,7 @@ fn change(
     let (space, id) = ids(&s, &d)?;
     let mut workspace = shared.lock();
     command(&mut workspace, &space, &id)?;
+    shared.changed();
     document_view(&workspace, shared, &space, &id)
 }
 
@@ -463,6 +509,99 @@ async fn restore(State(shared): State<Shared>, Path(path): Path<(String, String)
     answer
 }
 
+/// Gives this device a name people read – the other members of a space see it.
+#[utoipa::path(put, path = "/api/v1/device", request_body = DeviceName,
+    responses((status = 204), (status = 422, body = Problem)))]
+async fn set_device_name(State(shared): State<Shared>, Json(new): Json<DeviceName>) -> Result<StatusCode, ApiError> {
+    shared.lock().set_device_name(&new.name)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Starts synchronising a space through a relay; answers with its recovery code, which is shown only now.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/sync/start", request_body = StartSync,
+    params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = RecoveryCodeView), (status = 404, body = Problem), (status = 502, body = Problem)))]
+async fn start_sync(
+    State(shared): State<Shared>,
+    Path(id): Path<String>,
+    Json(start): Json<StartSync>,
+) -> Answer<RecoveryCodeView> {
+    let space = space(&id)?;
+    let code = shared.blocking(move |w| w.start_sync(&space, &start.relay, None)).await?;
+    Ok(Json(RecoveryCodeView { recovery_code: code }))
+}
+
+/// Synchronises a space now.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/sync", params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = SyncReportView), (status = 404, body = Problem), (status = 502, body = Problem)))]
+async fn sync(State(shared): State<Shared>, Path(id): Path<String>) -> Answer<SyncReportView> {
+    let space = space(&id)?;
+    Ok(Json(shared.blocking(move |w| w.sync(&space)).await?.into()))
+}
+
+/// An invitation for another device – the person's own or someone else's – with what it may do, good for a day.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/invitations", request_body = NewInvitation,
+    params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = InvitationView), (status = 404, body = Problem), (status = 502, body = Problem)))]
+async fn invite(
+    State(shared): State<Shared>,
+    Path(id): Path<String>,
+    Json(new): Json<NewInvitation>,
+) -> Answer<InvitationView> {
+    let space = space(&id)?;
+    let invitation = shared.lock().invite(&space, new.rights.into())?;
+    Ok(Json(InvitationView { invitation }))
+}
+
+/// Asks to join a space with an invitation; its documents arrive once a device that may manage it added this one.
+#[utoipa::path(post, path = "/api/v1/join", request_body = Join,
+    responses((status = 200, body = SpaceView), (status = 422, body = Problem), (status = 502, body = Problem)))]
+async fn join(State(shared): State<Shared>, Json(request): Json<Join>) -> Answer<SpaceView> {
+    let space = shared
+        .blocking(move |w| {
+            let id = w.join(&request.invitation, None)?;
+            w.spaces()?.into_iter().find(|s| s.id == id).ok_or_else(|| AppError::NotFound("the space".into()))
+        })
+        .await?;
+    Ok(Json(space.into()))
+}
+
+/// Brings a space back to this device with its recovery code, when no other device of it is left.
+#[utoipa::path(post, path = "/api/v1/recover", request_body = Recover,
+    responses((status = 200, body = SpaceView), (status = 404, body = Problem), (status = 502, body = Problem)))]
+async fn recover(State(shared): State<Shared>, Json(request): Json<Recover>) -> Answer<SpaceView> {
+    let id = space(request.space.trim())?;
+    let space = shared
+        .blocking(move |w| {
+            w.recover(&request.relay, &id, &request.code, None)?;
+            w.spaces()?.into_iter().find(|s| s.id == id).ok_or_else(|| AppError::NotFound("the space".into()))
+        })
+        .await?;
+    Ok(Json(space.into()))
+}
+
+/// The members of a synchronised space, as its relay lists them.
+#[utoipa::path(get, path = "/api/v1/spaces/{space}/members", params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = Vec<MemberView>), (status = 404, body = Problem), (status = 502, body = Problem)))]
+async fn members(State(shared): State<Shared>, Path(id): Path<String>) -> Answer<Vec<MemberView>> {
+    let space = space(&id)?;
+    let members = shared.blocking(move |w| w.members(&space)).await?;
+    Ok(Json(members.into_iter().map(MemberView::from).collect()))
+}
+
+/// Removes a member by its identity; it gets nothing written after.
+#[utoipa::path(delete, path = "/api/v1/spaces/{space}/members/{member}",
+    params(("space" = String, Path, description = "the space"), ("member" = String, Path, description = "the member's identity")),
+    responses((status = 204), (status = 404, body = Problem), (status = 502, body = Problem)))]
+async fn remove_member(
+    State(shared): State<Shared>,
+    Path((id, member)): Path<(String, String)>,
+) -> Result<StatusCode, ApiError> {
+    let space = space(&id)?;
+    shared.blocking(move |w| w.remove_member(&space, &member)).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(ApiDoc::openapi())
 }
@@ -537,10 +676,9 @@ async fn web_app(uri: axum::http::Uri) -> Response {
         .into_response()
 }
 
-/// The router: the API under `/api/v1`, and the web app around it. `worker` is woken when files are added; `ocr`
-/// says whether it reads with OCR.
-pub fn router(workspace: Arc<Mutex<Workspace>>, worker: Option<Arc<Worker>>, ocr: bool) -> Router {
-    let shared = Shared { workspace, worker, titles: Arc::new(Reader::text_layer()), ocr };
+/// The router: the API under `/api/v1`, and the web app around it, with what runs in the background.
+pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Router {
+    let shared = Shared { workspace, background, titles: Arc::new(Reader::text_layer()) };
     let document = "/spaces/{space}/documents/{document}";
     let api = Router::new()
         .route("/openapi.json", get(openapi_json))
@@ -562,6 +700,14 @@ pub fn router(workspace: Arc<Mutex<Workspace>>, worker: Option<Arc<Worker>>, ocr
         .route(&format!("{document}/labels/{{label}}"), axum::routing::delete(remove_label))
         .route(&format!("{document}/trash"), post(trash))
         .route(&format!("{document}/restore"), post(restore))
+        .route("/device", put(set_device_name))
+        .route("/spaces/{space}/sync/start", post(start_sync))
+        .route("/spaces/{space}/sync", post(sync))
+        .route("/spaces/{space}/invitations", post(invite))
+        .route("/spaces/{space}/members", get(members))
+        .route("/spaces/{space}/members/{member}", axum::routing::delete(remove_member))
+        .route("/join", post(join))
+        .route("/recover", post(recover))
         .fallback(|| async { ApiError(StatusCode::NOT_FOUND, "no such route of the API".into()) })
         .layer(DefaultBodyLimit::max(UPLOAD_MAX));
     Router::new().nest("/api/v1", api).fallback(web_app).layer(middleware::from_fn(guard)).with_state(shared)
@@ -570,14 +716,13 @@ pub fn router(workspace: Arc<Mutex<Workspace>>, worker: Option<Arc<Worker>>, ocr
 /// Serves a workspace on the device itself, at `port`, until interrupted; `ready` is told the address.
 pub async fn serve(
     workspace: Arc<Mutex<Workspace>>,
-    worker: Option<Arc<Worker>>,
-    ocr: bool,
+    background: Background,
     port: u16,
     ready: impl FnOnce(SocketAddr),
 ) -> std::io::Result<()> {
     let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).await?;
     ready(listener.local_addr()?);
-    axum::serve(listener, router(workspace, worker, ocr))
+    axum::serve(listener, router(workspace, background))
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
         })

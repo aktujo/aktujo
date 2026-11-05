@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/v1/device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Gives this device a name people read – the other members of a space see it. */
+        put: operations["set_device_name"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Asks to join a space with an invitation; its documents arrive once a device that may manage it added this one. */
+        post: operations["join"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/kinds": {
         parameters: {
             query?: never;
@@ -15,6 +49,23 @@ export interface paths {
         get: operations["kinds"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Brings a space back to this device with its recovery code, when no other device of it is left. */
+        post: operations["recover"];
         delete?: never;
         options?: never;
         head?: never;
@@ -281,6 +332,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{space}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** An invitation for another device – the person's own or someone else's – with what it may do, good for a day. */
+        post: operations["invite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{space}/labels": {
         parameters: {
             query?: never;
@@ -292,6 +360,74 @@ export interface paths {
         get: operations["labels"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The members of a synchronised space, as its relay lists them. */
+        get: operations["members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/members/{member}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes a member by its identity; it gets nothing written after. */
+        delete: operations["remove_member"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Synchronises a space now. */
+        post: operations["sync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/sync/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Starts synchronising a space through a relay; answers with its recovery code, which is shown only now. */
+        post: operations["start_sync"];
         delete?: never;
         options?: never;
         head?: never;
@@ -331,6 +467,11 @@ export interface components {
          * @enum {string}
          */
         BinView: "outside" | "inside" | "both";
+        /** @description The name people read for this device. */
+        DeviceName: {
+            /** @description Not empty, at most 100 characters. */
+            name: string;
+        };
         /** @description A document in a list. */
         DocumentSummary: {
             /**
@@ -393,6 +534,16 @@ export interface components {
             key: string;
             suggestion?: components["schemas"]["ValueView"] | null;
         };
+        /** @description An invitation: text to pass on, good for a day. */
+        InvitationView: {
+            /** @description The invitation – the relay's address with the space and a secret. */
+            invitation: string;
+        };
+        /** @description Joining a space. */
+        Join: {
+            /** @description The invitation as it was passed on. */
+            invitation: string;
+        };
         /** @description The kind a person confirms. */
         KindChange: {
             /** @description The identity of a kind ([`KindView`]), or none: the document has no kind. */
@@ -418,6 +569,24 @@ export interface components {
             documents: number;
             /** @description The label. */
             label: string;
+        };
+        /** @description A member of a space. */
+        MemberView: {
+            /** @description The device name it writes under; none for the recovery code. */
+            device?: string | null;
+            /** @description Its identity. */
+            id: string;
+            /** @description What people call it. */
+            name?: string | null;
+            /** @description What it may do. */
+            rights: components["schemas"]["RightsView"];
+            /** @description `device`, `backend` or `recovery`. */
+            role: string;
+        };
+        /** @description An invitation to make. */
+        NewInvitation: {
+            /** @description What the invited device may do. */
+            rights: components["schemas"]["RightsView"];
         };
         /** @description A page of the text that was read. */
         PageText: {
@@ -460,6 +629,25 @@ export interface components {
              */
             unread: number;
         };
+        /** @description Bringing a space back with its recovery code. */
+        Recover: {
+            /** @description The recovery code. */
+            code: string;
+            /** @description The address of the relay. */
+            relay: string;
+            /** @description The identity of the space. */
+            space: string;
+        };
+        /** @description The recovery code of a space: shown once, kept on paper. */
+        RecoveryCodeView: {
+            /** @description The code. */
+            recovery_code: string;
+        };
+        /**
+         * @description What may be done in a space.
+         * @enum {string}
+         */
+        RightsView: "read" | "write" | "manage";
         /** @description What to look for; every part may be left out. */
         SearchRequest: {
             /**
@@ -520,21 +708,46 @@ export interface components {
             relay?: string | null;
             /** @description What this device may do: `read`, `write` or `manage`; none for a space only on this device. */
             rights?: string | null;
+            /** @description Why it failed, if it did. */
+            sync_problem?: string | null;
+            /**
+             * Format: int64
+             * @description When the last synchronisation since the program started ended, in milliseconds since 1970.
+             */
+            synced_at?: number | null;
             /** @description Documents in the bin. */
             trashed: number;
             /** @description Whether this device asked to join and waits to be added. */
             waiting: boolean;
         };
+        /** @description Where to synchronise a space through. */
+        StartSync: {
+            /** @description The address of the relay, e.g. `http://192.168.1.10:8072`. */
+            relay: string;
+        };
         /** @description What this program is and can do. */
         StatusView: {
             /** @description The device name this data folder writes under. */
             device: string;
+            /** @description The name people read for this device, if it was given one. */
+            device_name?: string | null;
             /** @description Whether this build reads pages without a text layer (OCR); `false` in `aktujo-minimal`. */
             ocr: boolean;
             /** @description Why reading in the background stopped, if it did. */
             reading_problem?: string | null;
             /** @description The version of the program. */
             version: string;
+        };
+        /** @description What a synchronisation did. */
+        SyncReportView: {
+            /** @description Devices added by invitation, by name. */
+            added: string[];
+            /** @description Events and originals received. */
+            received: number;
+            /** @description Events and originals sent. */
+            sent: number;
+            /** @description Whether this device still waits to be added. */
+            waiting: boolean;
         };
         /** @description A new title. */
         TitleChange: {
@@ -604,6 +817,74 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    set_device_name: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceName"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    join: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Join"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceView"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     kinds: {
         parameters: {
             query?: never;
@@ -619,6 +900,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KindView"][];
+                };
+            };
+        };
+    };
+    recover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Recover"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1323,6 +1643,48 @@ export interface operations {
             };
         };
     };
+    invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewInvitation"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     labels: {
         parameters: {
             query?: never;
@@ -1344,6 +1706,162 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    members: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberView"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    remove_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the member's identity */
+                member: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    sync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncReportView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    start_sync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartSync"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCodeView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -32,6 +32,12 @@ pub enum DomainError {
     /// A name of a space longer than [`SPACE_NAME_MAX`].
     #[error("the name of the space is longer than {SPACE_NAME_MAX} characters")]
     LongSpaceName,
+    /// A name of a device with nothing in it.
+    #[error("the name of the device is empty")]
+    EmptyDeviceName,
+    /// A name of a device longer than [`SPACE_NAME_MAX`].
+    #[error("the name of the device is longer than {SPACE_NAME_MAX} characters")]
+    LongDeviceName,
 }
 
 /// Text trimmed, its runs of white space one space, and checked for length.
@@ -57,6 +63,11 @@ pub fn label(text: &str) -> Result<String, DomainError> {
 /// The name of a space as it is kept: trimmed, one space between words, and checked.
 pub fn space_name(text: &str) -> Result<String, DomainError> {
     checked(text, SPACE_NAME_MAX, DomainError::EmptySpaceName, DomainError::LongSpaceName)
+}
+
+/// The name people read for a device – shown to the other members of a space: checked like the name of a space.
+pub fn device_name(text: &str) -> Result<String, DomainError> {
+    checked(text, SPACE_NAME_MAX, DomainError::EmptyDeviceName, DomainError::LongDeviceName)
 }
 
 /// The title a file brings: its name without the folder and the extension.

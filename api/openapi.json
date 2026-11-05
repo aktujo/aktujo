@@ -10,6 +10,81 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/device": {
+      "put": {
+        "tags": [],
+        "summary": "Gives this device a name people read – the other members of a space see it.",
+        "operationId": "set_device_name",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceName"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join": {
+      "post": {
+        "tags": [],
+        "summary": "Asks to join a space with an invitation; its documents arrive once a device that may manage it added this one.",
+        "operationId": "join",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Join"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceView"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/kinds": {
       "get": {
         "tags": [],
@@ -24,6 +99,52 @@
                   "items": {
                     "$ref": "#/components/schemas/KindView"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recover": {
+      "post": {
+        "tags": [],
+        "summary": "Brings a space back to this device with its recovery code, when no other device of it is left.",
+        "operationId": "recover",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Recover"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1057,6 +1178,63 @@
         }
       }
     },
+    "/api/v1/spaces/{space}/invitations": {
+      "post": {
+        "tags": [],
+        "summary": "An invitation for another device – the person's own or someone else's – with what it may do, good for a day.",
+        "operationId": "invite",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewInvitation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{space}/labels": {
       "get": {
         "tags": [],
@@ -1087,6 +1265,208 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/members": {
+      "get": {
+        "tags": [],
+        "summary": "The members of a synchronised space, as its relay lists them.",
+        "operationId": "members",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/members/{member}": {
+      "delete": {
+        "tags": [],
+        "summary": "Removes a member by its identity; it gets nothing written after.",
+        "operationId": "remove_member",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "member",
+            "in": "path",
+            "description": "the member's identity",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/sync": {
+      "post": {
+        "tags": [],
+        "summary": "Synchronises a space now.",
+        "operationId": "sync",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncReportView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/sync/start": {
+      "post": {
+        "tags": [],
+        "summary": "Starts synchronising a space through a relay; answers with its recovery code, which is shown only now.",
+        "operationId": "start_sync",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSync"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodeView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1145,6 +1525,19 @@
           "inside",
           "both"
         ]
+      },
+      "DeviceName": {
+        "type": "object",
+        "description": "The name people read for this device.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Not empty, at most 100 characters."
+          }
+        }
       },
       "DocumentSummary": {
         "type": "object",
@@ -1342,6 +1735,32 @@
           }
         }
       },
+      "InvitationView": {
+        "type": "object",
+        "description": "An invitation: text to pass on, good for a day.",
+        "required": [
+          "invitation"
+        ],
+        "properties": {
+          "invitation": {
+            "type": "string",
+            "description": "The invitation – the relay's address with the space and a secret."
+          }
+        }
+      },
+      "Join": {
+        "type": "object",
+        "description": "Joining a space.",
+        "required": [
+          "invitation"
+        ],
+        "properties": {
+          "invitation": {
+            "type": "string",
+            "description": "The invitation as it was passed on."
+          }
+        }
+      },
       "KindChange": {
         "type": "object",
         "description": "The kind a person confirms.",
@@ -1410,6 +1829,56 @@
           "label": {
             "type": "string",
             "description": "The label."
+          }
+        }
+      },
+      "MemberView": {
+        "type": "object",
+        "description": "A member of a space.",
+        "required": [
+          "id",
+          "role",
+          "rights"
+        ],
+        "properties": {
+          "device": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The device name it writes under; none for the recovery code."
+          },
+          "id": {
+            "type": "string",
+            "description": "Its identity."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What people call it."
+          },
+          "rights": {
+            "$ref": "#/components/schemas/RightsView",
+            "description": "What it may do."
+          },
+          "role": {
+            "type": "string",
+            "description": "`device`, `backend` or `recovery`."
+          }
+        }
+      },
+      "NewInvitation": {
+        "type": "object",
+        "description": "An invitation to make.",
+        "required": [
+          "rights"
+        ],
+        "properties": {
+          "rights": {
+            "$ref": "#/components/schemas/RightsView",
+            "description": "What the invited device may do."
           }
         }
       },
@@ -1505,6 +1974,51 @@
             "minimum": 0
           }
         }
+      },
+      "Recover": {
+        "type": "object",
+        "description": "Bringing a space back with its recovery code.",
+        "required": [
+          "relay",
+          "space",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The recovery code."
+          },
+          "relay": {
+            "type": "string",
+            "description": "The address of the relay."
+          },
+          "space": {
+            "type": "string",
+            "description": "The identity of the space."
+          }
+        }
+      },
+      "RecoveryCodeView": {
+        "type": "object",
+        "description": "The recovery code of a space: shown once, kept on paper.",
+        "required": [
+          "recovery_code"
+        ],
+        "properties": {
+          "recovery_code": {
+            "type": "string",
+            "description": "The code."
+          }
+        }
+      },
+      "RightsView": {
+        "type": "string",
+        "description": "What may be done in a space.",
+        "enum": [
+          "read",
+          "write",
+          "manage"
+        ]
       },
       "SearchRequest": {
         "type": "object",
@@ -1624,6 +2138,22 @@
             ],
             "description": "What this device may do: `read`, `write` or `manage`; none for a space only on this device."
           },
+          "sync_problem": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it failed, if it did."
+          },
+          "synced_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the last synchronisation since the program started ended, in milliseconds since 1970.",
+            "minimum": 0
+          },
           "trashed": {
             "type": "integer",
             "description": "Documents in the bin.",
@@ -1632,6 +2162,19 @@
           "waiting": {
             "type": "boolean",
             "description": "Whether this device asked to join and waits to be added."
+          }
+        }
+      },
+      "StartSync": {
+        "type": "object",
+        "description": "Where to synchronise a space through.",
+        "required": [
+          "relay"
+        ],
+        "properties": {
+          "relay": {
+            "type": "string",
+            "description": "The address of the relay, e.g. `http://192.168.1.10:8072`."
           }
         }
       },
@@ -1648,6 +2191,13 @@
             "type": "string",
             "description": "The device name this data folder writes under."
           },
+          "device_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The name people read for this device, if it was given one."
+          },
           "ocr": {
             "type": "boolean",
             "description": "Whether this build reads pages without a text layer (OCR); `false` in `aktujo-minimal`."
@@ -1662,6 +2212,39 @@
           "version": {
             "type": "string",
             "description": "The version of the program."
+          }
+        }
+      },
+      "SyncReportView": {
+        "type": "object",
+        "description": "What a synchronisation did.",
+        "required": [
+          "received",
+          "sent",
+          "added",
+          "waiting"
+        ],
+        "properties": {
+          "added": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Devices added by invitation, by name."
+          },
+          "received": {
+            "type": "integer",
+            "description": "Events and originals received.",
+            "minimum": 0
+          },
+          "sent": {
+            "type": "integer",
+            "description": "Events and originals sent.",
+            "minimum": 0
+          },
+          "waiting": {
+            "type": "boolean",
+            "description": "Whether this device still waits to be added."
           }
         }
       },

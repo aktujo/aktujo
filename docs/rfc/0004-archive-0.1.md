@@ -134,6 +134,14 @@ Decided by the maintainer on 2026-11-05.
     (cargo install, Nix, Homebrew) later. OPEN: signing and notarising the binaries for macOS and Windows.
 12. **Sync and sharing are part of 0.1**: through a relay the person runs (`aktujo relay`); invitations with rights,
     members listed and removed, the recovery code – what `aktujo-sync` does today, offered in every interface.
+    Built so (2026-11-05): `serve` and `tui` synchronise every synchronised space in the background (`Syncer` in
+    `aktujo-app`) at once, every minute and after every change, each space on its own, and keep how it went; what
+    arrives is read where it needs to be. The device has a name people read, set once in the settings and used when
+    it starts a sync, joins or recovers. A device that may only read sees no control that changes something. The web
+    app offers joining also on the first start. OPEN: a synchronisation holds the workspace's lock while it talks to
+    the relay; a request to join from a device whose device name is taken in the space is passed over without a word
+    (`aktujo-sync`), so that device waits for ever – it should be told; the recovery code's member carries an English
+    name from `aktujo-sync` (the interfaces show it by its role).
 
 ## Done when
 
