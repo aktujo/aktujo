@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# pnpm's settings for the web app: exact versions when adding one, and none younger than 14 days (in minutes) – the
+# same rule as scripts/check-age.py for Cargo. A fix for a security advisory may be let through by name with
+# minimumReleaseAgeExclude.
+savePrefix: ""
+minimumReleaseAge: 20160

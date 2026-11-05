@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The aktujo documentation at aktujo.dev, built from this folder with Jekyll and the remote theme Just the Docs
+# by .github/workflows/pages.yml (GitHub Actions, not a branch). The files in assets/ are copies from aktujo/brand.
+title: aktujo
+description: Your documents, kept safe – end to end – documentation
+url: https://aktujo.dev
+lang: en
+
+remote_theme: just-the-docs/just-the-docs@v0.10.0
+plugins:
+  - jekyll-remote-theme
+
+color_scheme: aktujo
+logo: /assets/aktujo-lockup-on-dark.svg
+favicon_ico: /assets/favicon.ico
+search_enabled: true
+heading_anchors: true
+back_to_top: true
+back_to_top_text: Back to top
+
+aux_links:
+  aktujo.org: https://aktujo.org
+  GitHub: https://github.com/aktujo/aktujo
+aux_links_new_tab: true
+
+gh_edit_link: true
+gh_edit_link_text: Edit this page on GitHub
+gh_edit_repository: https://github.com/aktujo/aktujo
+gh_edit_branch: main
+gh_edit_source: docs
+gh_edit_view_mode: edit
+
+footer_content: "aktujo is free software under AGPL-3.0-or-later – a <a href=\"https://falkoss.org\">falkOSS</a> project. <a href=\"https://falkoss.org/impressum.html\">Imprint</a> · <a href=\"https://falkoss.org/datenschutz.html\">Privacy</a>"
+
+# Every page uses the theme's layout (GitHub Pages would default to it as well; a local build does not)
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default

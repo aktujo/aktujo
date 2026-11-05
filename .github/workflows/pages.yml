@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The documentation site aktujo.dev: docs/ built with Jekyll and published with GitHub Actions on every change of
+# docs/ on main; on a pull request only built. The workflow comes from falkoss/starterpack, pinned by commit.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/pages.yml"]
+  pull_request:
+    paths: ["docs/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One publication at a time; a newer one replaces one that waits.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  docs:
+    uses: falkoss/starterpack/.github/workflows/pages-jekyll.yml@8fba58423b0b95131b436cb2edcb91adad742d71
+    with:
+      source: docs
+      publish: ${{ github.event_name != 'pull_request' }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write

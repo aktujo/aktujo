@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "aktujo-blob"
+description = "Originals stored by their hash, in memory, in a folder or in S3 – part of the aktujo core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["content-addressed","storage","s3","sha256","aktujo"]
+categories = ["filesystem","database"]
+
+[dependencies]
+aktujo-base.workspace = true
+futures-util = { workspace = true, optional = true }
+object_store = { workspace = true, optional = true }
+thiserror.workspace = true
+tokio = { workspace = true, optional = true }
+
+[features]
+# Originals in any object store of the crate object_store (in memory, local files, and what its features add).
+object = ["dep:object_store", "dep:futures-util", "dep:tokio"]
+# Originals in S3 and S3-compatible storage (MinIO, Garage, Ceph).
+s3 = ["object", "object_store/aws"]
+
+[lints]
+workspace = true

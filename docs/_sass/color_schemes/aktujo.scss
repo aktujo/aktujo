@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Just the Docs' dark scheme in aktujo's colours (aktujo/brand: night, paper, the one accent)
+@import "./color_schemes/dark";
+
+$body-background-color: #0D1117;
+$sidebar-color: #12171E;
+$border-color: #1C232B;
+$body-text-color: #E6EDF3;
+$body-heading-color: #E6EDF3;
+$link-color: #F0857F;      // a light tint of the red: the red itself is too dark for text on night
+$btn-primary-color: #B3262B;
+$base-button-color: #12171E;
+$code-background-color: #12171E;
+$feedback-color: #12171E;

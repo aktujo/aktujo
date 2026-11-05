@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "aktujo-store"
+description = "Local storage of the aktujo core in SQLite: events, member records, settings"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["sqlite","event-log","local-first","storage","aktujo"]
+categories = ["database"]
+
+[dependencies]
+aktujo-base.workspace = true
+aktujo-crypt.workspace = true
+aktujo-log.workspace = true
+rusqlite.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

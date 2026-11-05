@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Format, lints and tests on Linux and macOS (required; add more targets where the core must run); the web app with
+# its types from api/openapi.json; api/openapi.json up to date; dependencies (cargo deny). The licence check (REUSE)
+# and a sign-off (DCO) on every commit of a pull request come from falkoss/starterpack, pinned by commit. Actions are
+# pinned by commit, with the version as a comment.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The web app first: the binary embeds its build.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Web app – install, types from api/openapi.json up to date, check, build
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm api
+          git diff --exit-code src/lib/api-types.ts
+          pnpm check
+          pnpm build
+      - name: Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets --all-features
+      - run: cargo test --locked --all-features
+      - name: api/openapi.json matches the code
+        run: |
+          cargo run --locked -q -p aktujo -- openapi > api/openapi.json
+          git diff --exit-code api/openapi.json
+
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+  licences:
+    uses: falkoss/starterpack/.github/workflows/reuse.yml@8fba58423b0b95131b436cb2edcb91adad742d71
+  sign-off:
+    uses: falkoss/starterpack/.github/workflows/dco.yml@8fba58423b0b95131b436cb2edcb91adad742d71

@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/aktujo/aktujo"
+homepage = "https://aktujo.dev"
+publish = false
+
+# The lowest version each crate needs; Cargo.lock holds the exact ones, each the newest that is at least 14 days old
+# (scripts/check-age.py). Ranges, not exact versions, so that programs building the core in can resolve them with
+# their own dependencies.
+[workspace.dependencies]
+aktujo-api = { path = "crates/aktujo-api" }
+aktujo-app = { path = "crates/aktujo-app" }
+aktujo-base = { path = "crates/aktujo-base", version = "0.1.0" }
+aktujo-blob = { path = "crates/aktujo-blob", version = "0.1.0" }
+aktujo-crypt = { path = "crates/aktujo-crypt", version = "0.1.0" }
+aktujo-log = { path = "crates/aktujo-log", version = "0.1.0" }
+aktujo-relay = { path = "crates/aktujo-relay", version = "0.1.0" }
+aktujo-core = { path = "crates/aktujo-core" }
+aktujo-store = { path = "crates/aktujo-store", version = "0.1.0" }
+aktujo-sync = { path = "crates/aktujo-sync", version = "0.1.0" }
+aktujo-tui = { path = "crates/aktujo-tui" }
+anyhow = "1.0.104"
+axum = "0.8.9"
+base64 = "0.23.1"
+chacha20poly1305 = "0.11.0"
+clap = { version = "4.6.7", features = ["derive"] }
+ed25519-dalek = "3.0.0"
+futures-util = { version = "0.3.34", default-features = false }
+getrandom = "0.4.3"
+hex = "0.4.3"
+hkdf = "0.13.0"
+hmac = "0.13.0"
+hpke = { version = "0.14.1", default-features = false, features = ["x25519", "chacha", "alloc", "getrandom"] }
+http-body-util = "0.1.5"
+object_store = { version = "0.14.2", default-features = false }
+ratatui = "0.30.2"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+rust-embed = { version = "8.13.0", features = ["mime-guess"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+thiserror = "2.0.21"
+tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "net", "signal"] }
+tower = { version = "0.5.3", features = ["util"] }
+ureq = "3.4.2"
+utoipa = { version = "6.0.0", features = ["axum_extras"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

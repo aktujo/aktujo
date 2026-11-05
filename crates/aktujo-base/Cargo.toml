@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "aktujo-base"
+description = "The base of the aktujo core: canonical JSON, hashes, identities of spaces"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["canonical-json","rfc8785","sha256","aktujo"]
+categories = ["encoding","cryptography"]
+
+[dependencies]
+base64.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,66 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The colours of the provisional brand (aktujo/brand); system fonts only – nothing is loaded from elsewhere. */
+:root {
+  --night: #0D1117;
+  --panel: #12171E;
+  --line: #1C232B;
+  --paper: #E6EDF3;
+  --ink: #14202B;
+  --accent: #836C46;
+  --bg: #ffffff;
+  --fg: var(--ink);
+  --border: #d0d7de;
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #C9A66B;
+    --bg: var(--night);
+    --fg: var(--paper);
+    --border: var(--line);
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+main {
+  max-width: 40rem;
+  margin: 3rem auto;
+  padding: 0 1rem;
+}
+
+a,
+button {
+  color: var(--accent);
+}
+
+input,
+button {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.error {
+  color: #d1242f;
+}

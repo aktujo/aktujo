@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Licence and copyright of files that cannot carry a header (REUSE specification 3.3). Source files name their own
+# licence in an SPDX header.
+version = 1
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the aktujo contributors"
+
+[[annotations]]
+# Generated or JSON files of the Rust core and web app, if there are any (bin/new-project --rust-app).
+path = ["**/*.md", "**/.gitignore", "Cargo.lock", "api/openapi.json", "web/package.json", "web/pnpm-lock.yaml",
+  "web/tsconfig.json", "web/src/lib/api-types.ts"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the aktujo contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Copies of the artwork from aktujo/brand – kept as they are, under its licence.
+[[annotations]]
+path = ["docs/assets/**", "web/public/favicon.svg"]
+precedence = "override"
+SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G."
+SPDX-License-Identifier = "CC-BY-ND-4.0"
+
+# The READMEs of the core crates, published with them under MIT.
+[[annotations]]
+path = ["crates/aktujo-base/README.md", "crates/aktujo-blob/README.md", "crates/aktujo-log/README.md",
+  "crates/aktujo-crypt/README.md", "crates/aktujo-store/README.md", "crates/aktujo-relay/README.md",
+  "crates/aktujo-sync/README.md"]
+precedence = "override"
+SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the aktujo contributors"
+SPDX-License-Identifier = "MIT"

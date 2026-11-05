@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "aktujo-crypt"
+description = "End-to-end encryption of a space: members, keys, the member list, envelopes – part of the aktujo core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["e2ee","hpke","ed25519","encryption","aktujo"]
+categories = ["cryptography"]
+
+[dependencies]
+aktujo-base.workspace = true
+aktujo-log.workspace = true
+chacha20poly1305.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+hkdf.workspace = true
+hmac.workspace = true
+hpke.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
