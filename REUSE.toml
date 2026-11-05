@@ -27,7 +27,8 @@ SPDX-License-Identifier = "CC-BY-ND-4.0"
 [[annotations]]
 path = ["crates/aktujo-base/README.md", "crates/aktujo-blob/README.md", "crates/aktujo-log/README.md",
   "crates/aktujo-crypt/README.md", "crates/aktujo-store/README.md", "crates/aktujo-relay/README.md",
-  "crates/aktujo-sync/README.md", "crates/aktujo-doc/README.md", "crates/aktujo-extract/README.md"]
+  "crates/aktujo-sync/README.md", "crates/aktujo-doc/README.md", "crates/aktujo-extract/README.md",
+  "crates/aktujo-rules/README.md"]
 precedence = "override"
 SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the aktujo contributors"
 SPDX-License-Identifier = "MIT"

@@ -41,7 +41,8 @@ the core: the core knows no documents. They depend on the core, never on the pro
 Everything read from a document – from its text layer, by OCR, by a rule, by an optional AI, by an import – is a
 **suggestion** with its source. Only a person **confirms** a value. A field keeps both: the confirmed value and,
 apart from it, the latest suggestion. A suggestion never replaces a confirmed value; confirming a value clears the
-suggestion. Later events of the same kind win, in the agreed order of the log.
+suggestion. Later events of the same kind win, in the agreed order of the log. The kind of a document is suggested
+and confirmed the same way ([0003](0003-recognition.md)).
 
 ## Reading text
 
@@ -59,8 +60,9 @@ suggestion. Later events of the same kind win, in the agreed order of the log.
 - In the spike PP-OCR read more exactly than Tesseract (umlauts, ß and € included; sheet music too) but took 2–5 s per
   A4 page against Tesseract's 0.5–0.9 s. The maintainer decided for pure Rust everywhere anyway, servers included
   (2026-11-05).
-- Not yet: e-invoices (XRechnung, ZUGFeRD), rules that turn lines into field suggestions per kind (`aktujo-rules`),
-  optional AI, full-text search. Each comes with its own RFC or as an amendment to this one.
+- Rules that turn lines into a kind and field suggestions are `aktujo-rules` ([0003](0003-recognition.md)). Not yet:
+  e-invoices (XRechnung, ZUGFeRD), optional AI, full-text search. Each comes with its own RFC or as an amendment to
+  this one.
 
 ## Origin
 

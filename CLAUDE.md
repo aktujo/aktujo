@@ -11,7 +11,7 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 (PostgreSQL, S3, an operator). The plan is in the whitepaper (`aktujo/whitepaper`).
 
 - **Licences:** the core (`aktujo-base`, `-blob`, `-log`, `-crypt`, `-store`, `-relay`, `-sync`) and the document crates
-  (`aktujo-doc`, `-extract`) MIT; the program (domain, app, API, TUI, command line, web) AGPL-3.0-or-later.
+  (`aktujo-doc`, `-extract`, `-rules`) MIT; the program (domain, app, API, TUI, command line, web) AGPL-3.0-or-later.
 - The core implements the mechanisms of the open protocol librotenado (events, encryption) in general form; it does
   not depend on the librotenado crate, and librotenado's specification never depends on aktujo.
 - The architecture is `docs/rfc/0001-architecture.md`; a decision that changes it gets a new document in `docs/rfc/`.
@@ -29,6 +29,7 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 | `crates/aktujo-sync` | core, MIT: a device's replica; sync through a relay (ureq), invitations, removal, recovery |
 | `crates/aktujo-doc` | documents, MIT: versions, kinds, fields suggested and confirmed, labels – as events; no I/O |
 | `crates/aktujo-extract` | documents, MIT: text with positions from PDFs and images; backends `pure` (hayro, PP-OCR on tract; default) and `external` (pdftotext, Tesseract) |
+| `crates/aktujo-rules` | documents, MIT: the kind and the fields from the text, as suggestions; general on purpose – programs specialise it (kinds and rules as data, trait `Recogniser`); six languages; no I/O |
 | `crates/aktujo-core` | the domain – types and rules, no I/O |
 | `crates/aktujo-app` | the workspace: every command and query; the **only** layer the interfaces use |
 | `crates/aktujo-api` | HTTP/JSON with axum, described in OpenAPI by utoipa; serves the embedded web app |

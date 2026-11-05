@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "aktujo-rules"
+description = "The kind and the fields of a document from its text, as suggestions – rules as data, for aktujo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["document", "invoice", "classification", "extraction", "aktujo"]
+categories = ["text-processing"]
+publish.workspace = true
+
+[dependencies]
+aktujo-doc.workspace = true
+aktujo-extract.workspace = true
+regex.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+aktujo-base.workspace = true
+aktujo-extract = { workspace = true, features = ["pure"] }
+aktujo-log.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

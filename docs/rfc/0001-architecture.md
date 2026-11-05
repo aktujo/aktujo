@@ -50,6 +50,7 @@ need. Until then nothing in them changes.
 | `aktujo-relay` | MIT | the relay as a library and a service: member lists and envelopes per space over HTTP | network |
 | `aktujo-sync` | MIT | a device's replica of its spaces: writing events and originals, synchronising through a relay, invitations, removing members, recovery | network |
 | `aktujo-doc`, `aktujo-extract` | MIT | documents and reading their text, on the core – [0002](0002-documents.md) | none / hayro, tract |
+| `aktujo-rules` | MIT | the kind and the fields of a document from its text, as suggestions; rules as data – [0003](0003-recognition.md) | none |
 | `aktujo-core` | AGPL | the domain of the archive | none |
 | `aktujo-app` | AGPL | the workspace: every command and query, the one layer the interfaces use | through the core |
 | `aktujo-api` | AGPL | HTTP and JSON, described in OpenAPI; serves the web app | network |

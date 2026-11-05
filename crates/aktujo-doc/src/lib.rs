@@ -238,13 +238,16 @@ pub enum DocumentEvent {
         /// The title.
         title: String,
     },
-    /// The kind, or none.
+    /// The kind, or none – suggested or confirmed, like a field.
     DocumentKind {
         /// The document.
         document: DocumentId,
         /// The identity of a kind, e.g. `invoice`.
         #[serde(rename = "document_kind")]
         kind: Option<String>,
+        /// Suggested or confirmed.
+        #[serde(flatten)]
+        origin: Origin,
     },
     /// A value for a field, suggested or confirmed.
     DocumentField {
@@ -360,6 +363,17 @@ pub struct Suggestion {
     pub at: Hlc,
 }
 
+/// A suggested kind and where it came from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KindSuggestion {
+    /// The identity of the kind.
+    pub kind: String,
+    /// Where it came from.
+    pub source: Source,
+    /// When it was suggested, and on which device.
+    pub at: Hlc,
+}
+
 /// A field of a document: what a person confirmed and, apart from it, the latest suggestion.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Field {
@@ -383,8 +397,10 @@ pub struct Document {
     pub id: DocumentId,
     /// The title.
     pub title: String,
-    /// The kind, if one is set.
+    /// The kind a person confirmed, if any.
     pub kind: Option<String>,
+    /// The latest suggested kind not yet confirmed.
+    pub kind_suggestion: Option<KindSuggestion>,
     /// The versions, the first one first.
     pub versions: Vec<Version>,
     /// The fields by their key.
@@ -480,6 +496,7 @@ impl Documents {
                     id: document,
                     title,
                     kind: None,
+                    kind_suggestion: None,
                     versions: vec![version],
                     fields: BTreeMap::new(),
                     labels: BTreeSet::new(),
@@ -500,7 +517,19 @@ impl Documents {
                 doc.versions.push(Version { original, added: at.clone() })
             }
             DocumentEvent::DocumentTitle { title, .. } => doc.title = title,
-            DocumentEvent::DocumentKind { kind, .. } => doc.kind = kind,
+            DocumentEvent::DocumentKind { kind, origin, .. } => {
+                match origin {
+                    Origin::Confirmed => {
+                        doc.kind = kind;
+                        doc.kind_suggestion = None;
+                    }
+                    Origin::Suggested { source } => {
+                        doc.kind_suggestion = kind
+                            .filter(|k| doc.kind.as_ref() != Some(k))
+                            .map(|kind| KindSuggestion { kind, source, at: at.clone() });
+                    }
+                }
+            }
             DocumentEvent::DocumentField { key, value, origin, .. } => {
                 let field = doc.fields.entry(key).or_default();
                 match origin {
@@ -606,7 +635,7 @@ mod tests {
             DocumentEvent::DocumentAdded { document: id.clone(), title: "t".into(), original: original(b"a") },
             DocumentEvent::DocumentVersion { document: id.clone(), original: original(b"b") },
             DocumentEvent::DocumentTitle { document: id.clone(), title: "t".into() },
-            DocumentEvent::DocumentKind { document: id.clone(), kind: None },
+            DocumentEvent::DocumentKind { document: id.clone(), kind: None, origin: Origin::Confirmed },
             field(&id, "k", Value::Flag(true), Origin::Confirmed),
             DocumentEvent::DocumentFieldCleared { document: id.clone(), key: "k".into() },
             DocumentEvent::DocumentLabel { document: id.clone(), label: "l".into() },
@@ -645,6 +674,36 @@ mod tests {
         let total = &documents.get(&id).unwrap().fields["total"];
         assert_eq!(total.value(), Some(&money("119.00")));
         assert_eq!(total.suggestion.as_ref().map(|s| (&s.value, &s.source)), Some((&money("9.00"), &rule)));
+    }
+
+    #[test]
+    fn a_kind_is_suggested_and_confirmed_like_a_field() {
+        let id = DocumentId::generate(1);
+        let mut log = Log::new();
+        let mut laptop = clock("laptop");
+        let added =
+            DocumentEvent::DocumentAdded { document: id.clone(), title: "Scan".into(), original: original(b"x") };
+        let kind = |kind: Option<&str>, origin: Origin| DocumentEvent::DocumentKind {
+            document: id.clone(),
+            kind: kind.map(Into::into),
+            origin,
+        };
+        let rule = Source::Rule { name: "kind".into() };
+        log.append(&mut laptop, 1, &added).unwrap();
+        log.append(&mut laptop, 2, &kind(Some("invoice"), Origin::Suggested { source: rule.clone() })).unwrap();
+        let (documents, _) = Documents::from_log(&log);
+        let doc = documents.get(&id).unwrap();
+        assert_eq!(doc.kind, None);
+        assert_eq!(doc.kind_suggestion.as_ref().map(|s| (s.kind.as_str(), &s.source)), Some(("invoice", &rule)));
+
+        log.append(&mut laptop, 3, &kind(Some("receipt"), Origin::Confirmed)).unwrap();
+        log.append(&mut laptop, 4, &kind(Some("receipt"), Origin::Suggested { source: rule.clone() })).unwrap();
+        let (documents, _) = Documents::from_log(&log);
+        let doc = documents.get(&id).unwrap();
+        assert_eq!((doc.kind.as_deref(), &doc.kind_suggestion), (Some("receipt"), &None));
+        let json = serde_json::to_value(kind(Some("invoice"), Origin::Suggested { source: rule })).unwrap();
+        assert_eq!(json["origin"], "suggested");
+        assert_eq!(json["source"], "rule");
     }
 
     #[test]

@@ -5,8 +5,8 @@ versions, each an original stored by its hash. Everything that happens to a docu
 space (`aktujo-log`); `Documents::from_log` folds them into the state every device agrees on.
 
 Kinds are data – a few come with the library (invoice, receipt, contract, notice, payslip, policy, letter). Every
-value read from a document is a suggestion with its source; only a person confirms one, and a suggestion never
-replaces a confirmed value. No I/O.
+value read from a document – a field, the kind – is a suggestion with its source; only a person confirms one, and a
+suggestion never replaces a confirmed value. No I/O.
 
 Part of [aktujo](https://github.com/aktujo/aktujo): a library others build in, on the aktujo core. The design is in
 [RFC 0002](https://github.com/aktujo/aktujo/blob/main/docs/rfc/0002-documents.md); the documentation is on
