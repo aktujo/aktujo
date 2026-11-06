@@ -32,6 +32,9 @@
   let error = $state("");
   let dragging = $state(false);
   let ocr = $state(true);
+  let canImprove = $state(false);
+  let selecting = $state(false);
+  let selected = $state<string[]>([]);
   let readingProblem = $state<string | null>(null);
   let picker = $state<HTMLInputElement>();
   let settings = $state(false);
@@ -131,6 +134,24 @@
     if (event.dataTransfer?.files.length) add(event.dataTransfer.files);
   }
 
+  /** Makes one document of the chosen ones, in the order of the list. */
+  async function combine() {
+    if (!space || selected.length < 2) return;
+    const documentsInOrder = documents.map((d) => d.id).filter((d) => selected.includes(d));
+    const { data, error: problem } = await api.POST("/api/v1/spaces/{space}/combine", {
+      params: { path: { space } },
+      body: { documents: documentsInOrder, improve: {} },
+    });
+    error = problem?.error ?? "";
+    if (data) {
+      selected = [];
+      selecting = false;
+      message = t("combine.done", { title: data.title });
+      await refresh();
+      chosen = data.id;
+    }
+  }
+
   function resetFilters() {
     kind = "";
     wanted = [];
@@ -141,6 +162,7 @@
   async function loadStatus() {
     const { data } = await api.GET("/api/v1/status");
     ocr = data?.ocr ?? true;
+    canImprove = data?.improve ?? false;
     device = data?.device ?? "";
     readingProblem = data?.reading_problem ?? null;
   }
@@ -382,18 +404,37 @@
           id={chosen}
           {kinds}
           {readOnly}
+          {canImprove}
           onclose={() => (chosen = null)}
           onchange={refresh}
         />
       {:else}
-        <p class="count">{t("doc.found", { n: documents.length })}</p>
+        <p class="row spread">
+          <span class="count">{t("doc.found", { n: documents.length })}</span>
+          {#if canImprove && !readOnly && documents.length > 1}
+            <span class="row">
+              {#if selecting}
+                <button class="primary small" onclick={combine} disabled={selected.length < 2}>
+                  {t("combine.do", { n: selected.length })}
+                </button>
+              {/if}
+              <button class="small" onclick={() => ((selecting = !selecting), (selected = []))}>
+                {selecting ? t("doc.cancel") : t("combine.choose")}
+              </button>
+            </span>
+          {/if}
+        </p>
+        {#if selecting}<p class="note">{t("combine.hint")}</p>{/if}
         {#if documents.length === 0}
           <p class="empty">{t("doc.none")}</p>
         {/if}
         <ul class="documents">
           {#each documents as d (d.id)}
-            <li>
-              <button class="document" onclick={() => (chosen = d.id)}>
+            <li class:selectable={selecting}>
+              {#if selecting}
+                <input type="checkbox" value={d.id} bind:group={selected} aria-label={t("combine.pick", { title: d.title })} />
+              {/if}
+              <button class="document" onclick={() => (selecting ? (selected = selected.includes(d.id) ? selected.filter((x) => x !== d.id) : [...selected, d.id]) : (chosen = d.id))}>
                 <span class="title">{d.title}</span>
                 <span class="meta">
                   {d.date}

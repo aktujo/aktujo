@@ -19,10 +19,15 @@ serde_json.workspace = true
 tokio.workspace = true
 utoipa.workspace = true
 
+[features]
+# Looking at pages and improving scans (aktujo-scan); not in aktujo-minimal.
+scan = ["aktujo-app/scan"]
+
 [dev-dependencies]
 aktujo-crypt.workspace = true
 aktujo-relay.workspace = true
 http-body-util.workspace = true
+image.workspace = true
 tower.workspace = true
 
 [lints]

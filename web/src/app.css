@@ -671,3 +671,83 @@ input.wide,
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* Improving: pages beside the preview. */
+.improve-grid {
+  display: grid;
+  grid-template-columns: minmax(14rem, 22rem) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 45rem) {
+  .improve-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.improve .pages {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.improve .pages li {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.improve .pages li.active {
+  border-color: var(--accent);
+}
+
+.thumb {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+  max-height: 10rem;
+}
+
+.thumb img {
+  max-width: 100%;
+  max-height: 10rem;
+  transition: transform 0.15s;
+}
+
+.preview img,
+.pages-shown img {
+  max-width: 100%;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.pages-shown {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.crop {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem 0.8rem;
+}
+
+.crop input {
+  width: 4.5rem;
+}
+
+.selectable {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.selectable .document {
+  flex: 1;
+}

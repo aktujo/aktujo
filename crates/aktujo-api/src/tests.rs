@@ -361,3 +361,69 @@ async fn watched_folders_through_the_api() {
     assert_eq!(call(&router, "DELETE", &query, None).await.1, json!([]));
     std::fs::remove_dir_all(&folder).unwrap();
 }
+
+#[cfg(feature = "scan")]
+#[tokio::test(flavor = "multi_thread")]
+async fn pages_are_shown_improved_and_combined() {
+    fn png(width: u32, height: u32) -> &'static [u8] {
+        let image = image::RgbImage::from_fn(width, height, |x, y| image::Rgb([(x * 3) as u8, (y * 3) as u8, 90]));
+        let mut bytes = Vec::new();
+        image.write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png).unwrap();
+        bytes.leak()
+    }
+    let router = server();
+    let (_, space) = call(&router, "POST", "/api/v1/spaces", Some(json!({"name": "Scans"}))).await;
+    let space = space["id"].as_str().unwrap().to_owned();
+    assert_eq!(call(&router, "GET", "/api/v1/status", None).await.1["improve"], true);
+    let add = |name: &'static str, bytes: &'static [u8]| {
+        let router = router.clone();
+        let space = space.clone();
+        async move {
+            let request = request("POST", &format!("/api/v1/spaces/{space}/documents?name={name}"))
+                .header(header::CONTENT_TYPE, "image/png")
+                .body(Body::from(bytes))
+                .unwrap();
+            let (_, _, body) = send(&router, request).await;
+            serde_json::from_slice::<Value>(&body).unwrap()["document"].as_str().unwrap().to_owned()
+        }
+    };
+    let first = add("one.png", png(60, 80)).await;
+    let second = add("two.png", png(80, 60)).await;
+    let document = format!("/api/v1/spaces/{space}/documents/{first}");
+
+    assert_eq!(call(&router, "GET", &format!("{document}/versions/1/pages"), None).await.1, json!({"pages": 1}));
+    let (status, headers, bytes) =
+        send(&router, request("GET", &format!("{document}/versions/1/pages/0?width=30")).body(Body::empty()).unwrap())
+            .await;
+    assert_eq!(
+        (status, &headers[header::CONTENT_TYPE]),
+        (StatusCode::OK, &"image/png".parse::<axum::http::HeaderValue>().unwrap())
+    );
+    assert_eq!(image::load_from_memory(&bytes).unwrap().width(), 30);
+    assert_eq!(
+        call(&router, "GET", &format!("{document}/versions/1/pages/1"), None).await.0,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+
+    let steps = json!({"turns": [1], "colour": "grey"});
+    let preview = request("POST", &format!("{document}/improve/preview?page=0&width=800"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(steps.to_string()))
+        .unwrap();
+    let (status, _, bytes) = send(&router, preview).await;
+    let shown = image::load_from_memory(&bytes).unwrap();
+    assert_eq!((status, shown.width(), shown.height()), (StatusCode::OK, 80, 60), "turned by a quarter");
+    let (status, view) = call(&router, "POST", &format!("{document}/improve"), Some(steps)).await;
+    assert_eq!((status, view["versions"].as_array().unwrap().len()), (StatusCode::OK, 2));
+    assert_eq!(view["versions"][1]["media_type"], "image/png");
+
+    let combine = json!({"documents": [first, second], "improve": {"colour": "black_white"}});
+    let (status, view) = call(&router, "POST", &format!("/api/v1/spaces/{space}/combine"), Some(combine)).await;
+    assert_eq!((status, &view["versions"][2]["media_type"]), (StatusCode::OK, &json!("application/pdf")));
+    assert_eq!(call(&router, "GET", &format!("{document}/versions/3/pages"), None).await.1, json!({"pages": 2}));
+    let one = json!({"documents": [first]});
+    assert_eq!(
+        call(&router, "POST", &format!("/api/v1/spaces/{space}/combine"), Some(one)).await.0,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+}

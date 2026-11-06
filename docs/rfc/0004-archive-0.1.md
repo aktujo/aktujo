@@ -89,6 +89,17 @@ Decided by the maintainer on 2026-11-05.
 5. **Improving writes a new version.** The tools for images are a crate of their own, `aktujo-scan` – MIT like the
    document crates, pure Rust, no I/O – so that apps and other programs can use them: rotate, crop, deskew, black and
    white, greyscale. Edges and perspective come after 0.1, when the camera of the mobile app needs them.
+   Built so (2026-11-06): `aktujo-scan` renders a PDF's pages (hayro) or decodes an image, and per page turns by
+   quarters, straightens by the skew of the text (moved here from `aktujo-extract`, which uses it for OCR), cuts a
+   share of each side away and makes it grey or black and white (by the light around each pixel, so that shadows of a
+   photo stay white); pages are chosen and ordered. One page from an image is written as an image again (PNG in grey,
+   JPEG in colour), anything else as a PDF of the pages' pictures – colour as JPEG, grey compressed, black and white
+   one bit a pixel – written by hand, without a PDF crate; the text layer is not kept, the new version is read again.
+   Several documents become one: their pages as a PDF, the newest version of the first, the others into the bin.
+   The pictures are made without the workspace's lock. Pages of every version can be looked at in the web app.
+   Web app: *Improve …* with a preview of each page; *Combine …* in the list. Terminal: `I` with letters (`d`
+   straighten, `g` grey, `s` black and white, `r` a quarter turn). API: `…/versions/{number}/pages[/{page}]`,
+   `…/improve/preview`, `…/improve`, `/spaces/{space}/combine` – only in the full build.
 6. **The OCR models are built in – with a minimal build beside it**: PP-OCRv3 detection (2.4 MB) and PP-OCRv5
    Latin recognition (7.9 MB with its dictionary), both Apache-2.0 ([spike](../spikes/ocr.md)).
    - The **apps** always carry them.
@@ -192,7 +203,7 @@ Decided by the maintainer on 2026-11-05.
 5. Sync and sharing in every interface; `aktujo relay`.
 6. Kinds as data, catalog sources and updates of templates ([0005](0005-pure-core.md); built 2026-11-06).
 7. Watched folders (built 2026-11-06).
-8. Improving (`aktujo-scan`).
+8. Improving (`aktujo-scan`; built 2026-11-06).
 9. Export.
 10. Windows in CI, binaries in the release, the release 0.1.0 of the program.
 

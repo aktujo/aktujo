@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "aktujo-scan"
+description = "Improving scanned pages and photos – rotate, crop, deskew, greyscale, black and white – and pages into a PDF, for aktujo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["scan", "deskew", "image", "pdf", "aktujo"]
+categories = ["multimedia::images"]
+publish.workspace = true
+
+[dependencies]
+hayro.workspace = true
+image.workspace = true
+miniz_oxide.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

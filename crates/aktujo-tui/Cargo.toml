@@ -21,5 +21,9 @@ aktujo-crypt.workspace = true
 aktujo-relay.workspace = true
 tokio.workspace = true
 
+[features]
+# Improving scans (aktujo-scan); not in aktujo-minimal.
+scan = ["aktujo-app/scan"]
+
 [lints]
 workspace = true

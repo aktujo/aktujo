@@ -47,7 +47,7 @@ pub enum TuiError {
 }
 
 /// The actions at the bottom, each with its key and the key of its text – clickable as well.
-const ACTIONS: [(char, &str); 25] = [
+const ACTIONS: [(char, &str); 26] = [
     ('/', "tui.search"),
     ('a', "tui.add"),
     ('t', "tui.title"),
@@ -64,6 +64,7 @@ const ACTIONS: [(char, &str); 25] = [
     ('K', "tui.importKinds"),
     ('C', "tui.catalog"),
     ('W', "tui.watch"),
+    ('I', "tui.improve"),
     ('y', "tui.sync"),
     ('S', "tui.startSync"),
     ('i', "tui.invite"),
@@ -97,6 +98,7 @@ enum Prompt {
     ImportKinds,
     TakeTemplate,
     Watch,
+    Improve,
 }
 
 impl Prompt {
@@ -117,6 +119,7 @@ impl Prompt {
             Prompt::ImportKinds => "tui.importKindsPrompt",
             Prompt::TakeTemplate => "tui.catalogPrompt",
             Prompt::Watch => "tui.watchPrompt",
+            Prompt::Improve => "tui.improvePrompt",
         }
     }
 }
@@ -449,6 +452,7 @@ impl App {
                     w.set_kind(&s.id, &d.id, Some(&kind.id))
                 });
             }
+            Prompt::Improve => self.improve(&text),
             Prompt::Watch => {
                 let texts = self.texts.clone();
                 self.on_space(|w, s| {
@@ -615,6 +619,7 @@ impl App {
                 prompt(self, Prompt::Title, title);
             }
             KeyCode::Char('l') => prompt(self, Prompt::Label, String::new()),
+            KeyCode::Char('I') => prompt(self, Prompt::Improve, String::new()),
             KeyCode::Char('c') => {
                 let kinds = self.spaces.get(self.space).and_then(|s| self.lock().kinds(&s.id).ok()).unwrap_or_default();
                 let language = self.texts.language().to_owned();
@@ -676,6 +681,42 @@ impl App {
     }
 
     /// The lines that describe the sync of the chosen space and its members.
+    /// Improves the newest version of the chosen document by letters: `d` straighten, `g` grey, `s` black and
+    /// white, each `r` a quarter turn of every page clockwise.
+    #[cfg(feature = "scan")]
+    fn improve(&mut self, letters: &str) {
+        let improve = aktujo_app::Improve {
+            deskew: letters.contains('d'),
+            colour: if letters.contains('s') {
+                aktujo_app::Colour::BlackWhite
+            } else if letters.contains('g') {
+                aktujo_app::Colour::Grey
+            } else {
+                aktujo_app::Colour::Keep
+            },
+            turns: vec![(letters.matches('r').count() % 4) as u8; 1000],
+            ..aktujo_app::Improve::default()
+        };
+        let texts = self.texts.clone();
+        self.message.clear();
+        self.on_document(|w, s, d| {
+            let file = w.version_file(&s.id, &d.id, None)?;
+            let written = aktujo_app::improved(&file, &improve)?;
+            w.add_improved(&s.id, &d.id, &file.name, &written)
+        });
+        if self.message.is_empty() {
+            self.message = texts.get("tui.improved");
+        }
+        if let Some(worker) = &self.worker {
+            worker.wake();
+        }
+    }
+
+    #[cfg(not(feature = "scan"))]
+    fn improve(&mut self, _: &str) {
+        self.message = self.texts.get("tui.noImprove");
+    }
+
     /// The templates of the sources that are on, numbered, with how each stands in the space.
     fn catalog(&mut self) -> Vec<Line<'static>> {
         let texts = self.texts.clone();

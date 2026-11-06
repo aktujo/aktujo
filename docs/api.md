@@ -33,6 +33,11 @@ Paths below are under `/api/v1`; `{space}` and `{document}` are identities, `D` 
 | POST | `/spaces/{space}/catalog/plan` | what taking a template over would do: `{"source", "template"}` → each kind `new`, `same`, `replace`, `merge` (with conflicts) or `gone` |
 | POST | `/spaces/{space}/catalog/take` | takes it over: `{"source", "template", "choices": {"<kind>": "take" \| "theirs" \| "keep" \| "remove"}}` |
 | GET, POST, PUT, DELETE | `/watches` | the watched folders of this device: `{"space", "folder", "after": "leave" \| "move"}` to add, with `"on"` to switch, `?space=…&folder=…` to stop; each with how the last look went |
+| GET | `D/versions/{number}/pages` | how many pages a version has – full build only, like the next four |
+| GET | `D/versions/{number}/pages/{page}?width=…` | a page as PNG |
+| POST | `D/improve/preview?page=…&width=…` | a page of what improving would make, as PNG: `{"pages", "turns", "deskew", "crop", "colour"}` |
+| POST | `D/improve` | improves the newest version into a new one (the same body) |
+| POST | `/spaces/{space}/combine` | `{"documents": […], "improve": {…}}` – their pages as the newest version of the first, the others into the bin |
 | POST | `/search` | finds documents: `{"words", "spaces", "kind", "labels", "from", "to", "bin", "limit"}`, every part optional |
 | POST | `/spaces/{space}/documents?name=…` | adds a file – its bytes as the body, its media type as `Content-Type` |
 | GET | `D` | a document with its fields, versions and suggestions |

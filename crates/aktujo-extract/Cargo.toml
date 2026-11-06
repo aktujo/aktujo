@@ -15,6 +15,7 @@ publish.workspace = true
 
 [dependencies]
 aktujo-base.workspace = true
+aktujo-scan = { workspace = true, optional = true }
 thiserror.workspace = true
 serde = { workspace = true, optional = true }
 hayro = { workspace = true, optional = true }
@@ -27,7 +28,7 @@ serde_json.workspace = true
 [features]
 default = ["pure"]
 # Pure Rust: hayro for the text layer and rendering, PaddleOCR's PP-OCR models on tract for OCR.
-pure = ["layer", "dep:image", "dep:tract-onnx"]
+pure = ["layer", "dep:aktujo-scan", "dep:image", "dep:tract-onnx"]
 # The text layer of PDFs with hayro, without OCR: no tract, no models.
 layer = ["dep:hayro"]
 # What was read as JSON.

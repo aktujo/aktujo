@@ -2,12 +2,14 @@
 <script lang="ts">
   import { api, fileUrl, shown, upload, type DocumentView, type Kind, type Value } from "./lib/api";
   import { byName, fieldName, kindName, nameOf, t } from "./lib/i18n.svelte";
+  import ImprovePanel from "./ImprovePanel.svelte";
 
   let {
     space,
     id,
     kinds,
     readOnly = false,
+    canImprove = false,
     onclose,
     onchange,
   }: {
@@ -15,6 +17,7 @@
     id: string;
     kinds: Kind[];
     readOnly?: boolean;
+    canImprove?: boolean;
     onclose: () => void;
     onchange: () => void;
   } = $props();
@@ -26,6 +29,26 @@
   let label = $state("");
   let editing = $state<{ key: string; text: string; currency: string } | null>(null);
   let picker = $state<HTMLInputElement>();
+  let improving = $state(false);
+  /** The version whose pages are shown, and how many it has. */
+  let pagesOf = $state<{ number: number; count: number } | null>(null);
+
+  async function showPages(number: number) {
+    if (pagesOf?.number === number) {
+      pagesOf = null;
+      return;
+    }
+    const { data, error: problem } = await api.GET(
+      "/api/v1/spaces/{space}/documents/{document}/versions/{number}/pages",
+      { params: { path: { space, document: id, number } } },
+    );
+    error = problem?.error ?? "";
+    pagesOf = data ? { number, count: data.pages } : null;
+  }
+
+  function pageUrl(number: number, page: number): string {
+    return `/api/v1/spaces/${encodeURIComponent(space)}/documents/${encodeURIComponent(id)}/versions/${number}/pages/${page}?width=900`;
+  }
 
   const path = $derived({ space, document: id });
   const kind = $derived(kinds.find((k) => k.id === document?.kind) ?? null);
@@ -147,7 +170,19 @@
   {#if error}<p class="error">{error}</p>{/if}
   <!-- On a device that may only read, every control that changes something is off. -->
   <fieldset class="plain" disabled={readOnly}>
-  {#if document}
+  {#if document && improving}
+    <ImprovePanel
+      {space}
+      {document}
+      onclose={() => (improving = false)}
+      ondone={(view) => {
+        document = view;
+        improving = false;
+        pagesOf = null;
+        onchange();
+      }}
+    />
+  {:else if document}
     {#if editingTitle !== null}
       <form
         class="row"
@@ -258,11 +293,26 @@
           <span>
             <a href={fileUrl(space, id, v.number)} target="_blank" rel="noopener noreferrer">{t("doc.open")}</a>
             <a href={fileUrl(space, id, v.number, true)}>{t("doc.download")}</a>
+            {#if canImprove}
+              <button class="link small" onclick={() => showPages(v.number)}>
+                {pagesOf?.number === v.number ? t("doc.hidePages") : t("doc.pages")}
+              </button>
+            {/if}
           </span>
         </li>
+        {#if pagesOf?.number === v.number}
+          <li class="pages-shown">
+            {#each Array.from({ length: pagesOf.count }, (_, i) => i) as page (page)}
+              <img src={pageUrl(v.number, page)} alt={t("improve.page", { n: page + 1 })} loading="lazy" />
+            {/each}
+          </li>
+        {/if}
       {/each}
     </ul>
-    <button onclick={() => picker?.click()}>{t("doc.addVersion")}</button>
+    <p class="row">
+      <button onclick={() => picker?.click()}>{t("doc.addVersion")}</button>
+      {#if canImprove}<button class="primary" onclick={() => (improving = true)}>{t("improve.open")}</button>{/if}
+    </p>
     <input
       class="hidden"
       type="file"

@@ -27,6 +27,8 @@ pub struct StatusView {
     pub device: String,
     /// Whether this build reads pages without a text layer (OCR); `false` in `aktujo-minimal`.
     pub ocr: bool,
+    /// Whether this build improves scans and shows pages; `false` in `aktujo-minimal`.
+    pub improve: bool,
     /// Why reading in the background stopped, if it did.
     pub reading_problem: Option<String>,
     /// The name people read for this device, if it was given one.

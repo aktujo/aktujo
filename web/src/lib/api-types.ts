@@ -187,6 +187,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{space}/combine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Makes one document of several: their pages as a PDF, improved as asked, the newest version of the first; the
+         *     others go into the bin.
+         */
+        post: operations["combine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{space}/documents": {
         parameters: {
             query?: never;
@@ -237,6 +257,40 @@ export interface paths {
         post?: never;
         /** Empties a field: its confirmed value and its suggestion. */
         delete: operations["clear_field"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/improve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Improves the newest version: the result is the document's newest version; the earlier one stays. */
+        post: operations["improve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/improve/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A page of what improving the newest version would make, as a PNG – nothing is written. */
+        post: operations["preview"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -387,6 +441,40 @@ export interface paths {
         };
         /** The file of a version, with its media type. */
         get: operations["original"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/versions/{number}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many pages a version has. */
+        get: operations["pages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/documents/{document}/versions/{number}/pages/{page}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A page of a version as a PNG – to look at it. */
+        get: operations["page"];
         put?: never;
         post?: never;
         delete?: never;
@@ -625,6 +713,21 @@ export interface components {
          * @enum {string}
          */
         ChoiceView: "take" | "theirs" | "keep" | "remove";
+        /**
+         * @description What becomes of the colours.
+         * @enum {string}
+         */
+        ColourView: "keep" | "grey" | "black_white";
+        /** @description Documents to make one of. */
+        Combine: {
+            /**
+             * @description The documents, in the order of their pages; the first gets the result as its newest version, the others go
+             *     into the bin.
+             */
+            documents: string[];
+            /** @description How the pages are improved, counted across all documents. */
+            improve?: components["schemas"]["ImproveView"];
+        };
         /** @description An item both changed differently: the space's version stays. */
         ConflictView: {
             /** @description What it is: `name`, `names.de`, `field.total`, `word.invoice`, `title`. */
@@ -633,6 +736,29 @@ export interface components {
             mine: Record<string, never>;
             /** @description The template's version; `null` where the template removed it. */
             theirs: Record<string, never>;
+        };
+        /** @description What is cut away from each side, as a share of the page (0 to 0.45 each). */
+        CropView: {
+            /**
+             * Format: float
+             * @description From the bottom.
+             */
+            bottom?: number;
+            /**
+             * Format: float
+             * @description From the left.
+             */
+            left?: number;
+            /**
+             * Format: float
+             * @description From the right.
+             */
+            right?: number;
+            /**
+             * Format: float
+             * @description From the top.
+             */
+            top?: number;
         };
         /** @description The name people read for this device. */
         DeviceName: {
@@ -744,6 +870,18 @@ export interface components {
             /** @description The kinds new or different from before. */
             changed: number;
         };
+        /** @description How pages are improved – in this order: chosen, turned, straightened, cropped, coloured. */
+        ImproveView: {
+            /** @description What becomes of the colours. */
+            colour?: components["schemas"]["ColourView"];
+            crop?: components["schemas"]["CropView"] | null;
+            /** @description Straighten each page by the skew of its text. */
+            deskew?: boolean;
+            /** @description The pages to keep, by their number from 0, in the order they are to be; none: all. */
+            pages?: number[] | null;
+            /** @description Quarter turns clockwise for each page, by its number from 0 (0 to 3). */
+            turns?: number[];
+        };
         /** @description An invitation: text to pass on, good for a day. */
         InvitationView: {
             /** @description The invitation – the relay's address with the space and a secret. */
@@ -850,6 +988,11 @@ export interface components {
             method: string;
             /** @description Its lines, from the top. */
             text: string;
+        };
+        /** @description How many pages a version has. */
+        PagesView: {
+            /** @description The number of pages. */
+            pages: number;
         };
         /** @description A part of an excerpt. */
         PartView: {
@@ -1040,6 +1183,8 @@ export interface components {
             device: string;
             /** @description The name people read for this device, if it was given one. */
             device_name?: string | null;
+            /** @description Whether this build improves scans and shows pages; `false` in `aktujo-minimal`. */
+            improve: boolean;
             /** @description Whether this build reads pages without a text layer (OCR); `false` in `aktujo-minimal`. */
             ocr: boolean;
             /** @description Why reading in the background stopped, if it did. */
@@ -1699,6 +1844,56 @@ export interface operations {
             };
         };
     };
+    combine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Combine"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     add_document: {
         parameters: {
             query: {
@@ -1873,6 +2068,107 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    improve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImproveView"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query?: {
+                /** @description The page of the result, from 0. */
+                page?: number;
+                /** @description At most this many pixels; 800 if not given. */
+                width?: number;
+            };
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImproveView"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": number[];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2261,6 +2557,95 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+                /** @description the version, the first 1 */
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagesView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    page: {
+        parameters: {
+            query?: {
+                /** @description At most this many pixels; 800 if not given. */
+                width?: number;
+            };
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+                /** @description the version, the first 1 */
+                number: number;
+                /** @description the page, the first 0 */
+                page: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": number[];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

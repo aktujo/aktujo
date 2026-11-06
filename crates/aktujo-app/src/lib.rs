@@ -34,6 +34,8 @@ use aktujo_sync::{Replica, SyncError, now_ms};
 use serde::{Deserialize, Serialize};
 
 mod catalog;
+#[cfg(feature = "scan")]
+mod improving;
 mod keys;
 #[cfg(feature = "ocr")]
 mod models;
@@ -53,6 +55,10 @@ pub use aktujo_sync::SyncReport;
 pub use catalog::{
     Catalog, Choice, DEFAULT_SOURCE, Entry, ListedKind, OFFICIAL_AUTHOR, Origin as TemplateOrigin, Plan, Planned,
     Source, SourceInfo, Standing, Step, Template, fetch_catalog, fetch_template, source_url, template_of_file,
+};
+#[cfg(feature = "scan")]
+pub use improving::{
+    Colour, Crop, Improve, ScanError, VersionFile, combined, improved, page_count, page_png, preview_png,
 };
 pub use keys::{KeyError, KeyStore, MemoryKeys, SystemKeys};
 pub use reading::{Job, ReadState, Reader, Worker, read_all};
@@ -103,6 +109,9 @@ pub enum AppError {
     /// A folder to watch that is not one of this device.
     #[error("{0}")]
     Watch(String),
+    /// A file that cannot be improved, or a page it does not have.
+    #[error("improving: {0}")]
+    Scan(String),
     /// The database of the data folder.
     #[error(transparent)]
     Database(#[from] aktujo_store::StoreError),

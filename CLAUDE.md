@@ -11,7 +11,7 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 (PostgreSQL, S3, an operator). The plan is in the whitepaper (`aktujo/whitepaper`).
 
 - **Licences:** the core (`aktujo-base`, `-blob`, `-log`, `-crypt`, `-store`, `-relay`, `-sync`) and the document crates
-  (`aktujo-doc`, `-extract`, `-rules`) MIT; the program (domain, app, API, TUI, command line, web) AGPL-3.0-or-later.
+  (`aktujo-doc`, `-extract`, `-rules`, `-scan`) MIT; the program (domain, app, API, TUI, command line, web) AGPL-3.0-or-later.
 - **Pure:** aktujo refers to no other program or protocol and has nothing built in for one trade – no kinds of
   document, no rules, no fields of their own. Kinds and rules are data of a space (`docs/rfc/0005-pure-core.md`);
   templates live in the repository `aktujo/catalog`, specialisations in the programs that build aktujo in.
@@ -31,8 +31,9 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 | `crates/aktujo-doc` | documents, MIT: versions, fields suggested and confirmed, labels, and kinds as data of a space (`kind_defined`, `kind_removed`) – as events; no I/O |
 | `crates/aktujo-extract` | documents, MIT: text with positions from PDFs and images; backends `pure` (hayro, PP-OCR on tract; default) and `external` (pdftotext, Tesseract); `layer` is `pure` without OCR; `serde` keeps what was read as JSON |
 | `crates/aktujo-rules` | documents, MIT: the kind and the fields from the text, as suggestions – the mechanism only: words, labels and ways come from the kinds; programs add code behind `Recogniser`; no I/O |
+| `crates/aktujo-scan` | documents, MIT: improving scans and photos – pages of a PDF or an image, turned, cropped, straightened, grey or black and white, written as an image or a PDF (written by hand, no PDF crate); no I/O; `aktujo-extract`'s `pure` straightens with it |
 | `crates/aktujo-core` | the domain – types and rules, no I/O |
-| `crates/aktujo-app` | the workspace: every command and query; the **only** layer the interfaces use – a data folder (SQLCipher database, originals sealed with XChaCha20-Poly1305, the key in the operating system's key store), spaces, documents, sync and sharing, reading and synchronising in the background (`Worker`, `Syncer`; event `document_read`), search (FTS5 beside the core's tables, filters); feature `ocr` builds the OCR models in (`build.rs`, from `target/ocr-models`); catalogs of templates (`catalog.rs`: sources, fetching, plan and apply with a three-way merge); watched folders (`Watcher`, `watching.rs`) |
+| `crates/aktujo-app` | the workspace: every command and query; the **only** layer the interfaces use – a data folder (SQLCipher database, originals sealed with XChaCha20-Poly1305, the key in the operating system's key store), spaces, documents, sync and sharing, reading and synchronising in the background (`Worker`, `Syncer`; event `document_read`), search (FTS5 beside the core's tables, filters); feature `ocr` builds the OCR models in (`build.rs`, from `target/ocr-models`) and turns on `scan` (improving, `improving.rs`); catalogs of templates (`catalog.rs`: sources, fetching, plan and apply with a three-way merge); watched folders (`Watcher`, `watching.rs`) |
 | `crates/aktujo-api` | HTTP/JSON with axum, described in OpenAPI by utoipa; serves the embedded web app; answers only `localhost` and changes only for its own pages |
 | `crates/aktujo-tui` | the terminal interface (ratatui) – keyboard and mouse; language from the environment |
 | `crates/aktujo` | the command line: `serve`, `tui` (both `--data`, `--memory`), `relay`, `openapi`, `templates`; feature `ocr` on by default – without it, `aktujo-minimal` |

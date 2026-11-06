@@ -600,6 +600,72 @@
         }
       }
     },
+    "/api/v1/spaces/{space}/combine": {
+      "post": {
+        "tags": [],
+        "summary": "Makes one document of several: their pages as a PDF, improved as asked, the newest version of the first; the\nothers go into the bin.",
+        "operationId": "combine",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Combine"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{space}/documents": {
       "post": {
         "tags": [],
@@ -865,6 +931,173 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/improve": {
+      "post": {
+        "tags": [],
+        "summary": "Improves the newest version: the result is the document's newest version; the earlier one stays.",
+        "operationId": "improve",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImproveView"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/improve/preview": {
+      "post": {
+        "tags": [],
+        "summary": "A page of what improving the newest version would make, as a PNG – nothing is written.",
+        "operationId": "preview",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "The page of the result, from 0.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "width",
+            "in": "query",
+            "description": "At most this many pixels; 800 if not given.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImproveView"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1461,6 +1694,164 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/versions/{number}/pages": {
+      "get": {
+        "tags": [],
+        "summary": "How many pages a version has.",
+        "operationId": "pages",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "description": "the version, the first 1",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagesView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/documents/{document}/versions/{number}/pages/{page}": {
+      "get": {
+        "tags": [],
+        "summary": "A page of a version as a PNG – to look at it.",
+        "operationId": "page",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "description": "the version, the first 1",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "description": "the page, the first 0",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "width",
+            "in": "query",
+            "description": "At most this many pixels; 800 if not given.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
             "content": {
               "application/json": {
                 "schema": {
@@ -2317,6 +2708,35 @@
           "remove"
         ]
       },
+      "ColourView": {
+        "type": "string",
+        "description": "What becomes of the colours.",
+        "enum": [
+          "keep",
+          "grey",
+          "black_white"
+        ]
+      },
+      "Combine": {
+        "type": "object",
+        "description": "Documents to make one of.",
+        "required": [
+          "documents"
+        ],
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The documents, in the order of their pages; the first gets the result as its newest version, the others go\ninto the bin."
+          },
+          "improve": {
+            "$ref": "#/components/schemas/ImproveView",
+            "description": "How the pages are improved, counted across all documents."
+          }
+        }
+      },
       "ConflictView": {
         "type": "object",
         "description": "An item both changed differently: the space's version stays.",
@@ -2337,6 +2757,32 @@
           "theirs": {
             "type": "object",
             "description": "The template's version; `null` where the template removed it."
+          }
+        }
+      },
+      "CropView": {
+        "type": "object",
+        "description": "What is cut away from each side, as a share of the page (0 to 0.45 each).",
+        "properties": {
+          "bottom": {
+            "type": "number",
+            "format": "float",
+            "description": "From the bottom."
+          },
+          "left": {
+            "type": "number",
+            "format": "float",
+            "description": "From the left."
+          },
+          "right": {
+            "type": "number",
+            "format": "float",
+            "description": "From the right."
+          },
+          "top": {
+            "type": "number",
+            "format": "float",
+            "description": "From the top."
           }
         }
       },
@@ -2707,6 +3153,51 @@
           }
         }
       },
+      "ImproveView": {
+        "type": "object",
+        "description": "How pages are improved – in this order: chosen, turned, straightened, cropped, coloured.",
+        "properties": {
+          "colour": {
+            "$ref": "#/components/schemas/ColourView",
+            "description": "What becomes of the colours."
+          },
+          "crop": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CropView",
+                "description": "What is cut away from each page."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deskew": {
+            "type": "boolean",
+            "description": "Straighten each page by the skew of its text."
+          },
+          "pages": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "The pages to keep, by their number from 0, in the order they are to be; none: all."
+          },
+          "turns": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "Quarter turns clockwise for each page, by its number from 0 (0 to 3)."
+          }
+        }
+      },
       "InvitationView": {
         "type": "object",
         "description": "An invitation: text to pass on, good for a day.",
@@ -2989,6 +3480,20 @@
           "text": {
             "type": "string",
             "description": "Its lines, from the top."
+          }
+        }
+      },
+      "PagesView": {
+        "type": "object",
+        "description": "How many pages a version has.",
+        "required": [
+          "pages"
+        ],
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "description": "The number of pages.",
+            "minimum": 0
           }
         }
       },
@@ -3445,7 +3950,8 @@
         "required": [
           "version",
           "device",
-          "ocr"
+          "ocr",
+          "improve"
         ],
         "properties": {
           "device": {
@@ -3458,6 +3964,10 @@
               "null"
             ],
             "description": "The name people read for this device, if it was given one."
+          },
+          "improve": {
+            "type": "boolean",
+            "description": "Whether this build improves scans and shows pages; `false` in `aktujo-minimal`."
           },
           "ocr": {
             "type": "boolean",

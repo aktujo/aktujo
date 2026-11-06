@@ -27,6 +27,8 @@ use utoipa::OpenApi;
 
 use aktujo_app::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Syncer, Watcher, Worker, Workspace};
 
+#[cfg(feature = "scan")]
+mod improving;
 mod views;
 
 pub use views::*;
@@ -89,7 +91,16 @@ pub struct ApiDoc;
 
 /// The description of the API in OpenAPI, as pretty JSON – what `api/openapi.json` holds.
 pub fn openapi() -> String {
-    ApiDoc::openapi().to_pretty_json().expect("the description in JSON")
+    description().to_pretty_json().expect("the description in JSON")
+}
+
+/// The description of the API of this build: improving only where it is built in.
+fn description() -> utoipa::openapi::OpenApi {
+    #[allow(unused_mut)]
+    let mut description = ApiDoc::openapi();
+    #[cfg(feature = "scan")]
+    description.merge(improving::ScanDoc::openapi());
+    description
 }
 
 /// An answer that went wrong: a status and what to say.
@@ -99,7 +110,7 @@ pub struct ApiError(StatusCode, String);
 impl From<AppError> for ApiError {
     fn from(error: AppError) -> Self {
         let status = match &error {
-            AppError::Invalid(_) | AppError::Value(_) | AppError::Kind(_) | AppError::Watch(_) => {
+            AppError::Invalid(_) | AppError::Value(_) | AppError::Kind(_) | AppError::Watch(_) | AppError::Scan(_) => {
                 StatusCode::UNPROCESSABLE_ENTITY
             }
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
@@ -244,6 +255,7 @@ async fn status(State(shared): State<Shared>) -> Json<StatusView> {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         device,
         ocr: shared.background.ocr,
+        improve: cfg!(feature = "scan"),
         reading_problem: shared.background.worker.as_ref().and_then(|w| w.problem()),
         device_name,
     })
@@ -959,7 +971,7 @@ async fn remove_member(
 }
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
-    Json(ApiDoc::openapi())
+    Json(description())
 }
 
 /// Whether a `Host` names this device.
@@ -1070,7 +1082,10 @@ pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Route
         .route("/spaces/{space}/members", get(members))
         .route("/spaces/{space}/members/{member}", axum::routing::delete(remove_member))
         .route("/join", post(join))
-        .route("/recover", post(recover))
+        .route("/recover", post(recover));
+    #[cfg(feature = "scan")]
+    let api = improving::routes(api);
+    let api = api
         .fallback(|| async { ApiError(StatusCode::NOT_FOUND, "no such route of the API".into()) })
         .layer(DefaultBodyLimit::max(UPLOAD_MAX));
     Router::new().nest("/api/v1", api).fallback(web_app).layer(middleware::from_fn(guard)).with_state(shared)
