@@ -269,5 +269,10 @@
   "tui.improve": "verbessern",
   "tui.improvePrompt": "Verbessern: d gerade richten, g Graustufen, s Schwarz-Weiß, r Vierteldrehung (rr halbe) – z. B. ds",
   "tui.improved": "Verbessert – eine neue Version",
-  "tui.noImprove": "Dieser Build verbessert keine Scans (aktujo-minimal)."
+  "tui.noImprove": "Dieser Build verbessert keine Scans (aktujo-minimal).",
+  "tui.export": "exportieren",
+  "tui.exportPrompt": "Ordner, in den dieser Space exportiert wird (darin entsteht ein eigener Ordner)",
+  "tui.exported": "{n} Dokumente nach {folder} exportiert",
+  "space.export": "Exportieren",
+  "space.exportHint": "Diesen Space als ZIP herunterladen: jedes Dokument mit seinen Versionen, dem gelesenen Text, dem Stand als JSON und den Ereignissen – ohne aktujo lesbar, nicht verschlüsselt."
 }

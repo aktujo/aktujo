@@ -32,6 +32,7 @@ Paths below are under `/api/v1`; `{space}` and `{document}` are identities, `D` 
 | GET | `/spaces/{space}/catalog` | the templates of the sources that are on, read now, each `new`, `taken` or with an `update` |
 | POST | `/spaces/{space}/catalog/plan` | what taking a template over would do: `{"source", "template"}` → each kind `new`, `same`, `replace`, `merge` (with conflicts) or `gone` |
 | POST | `/spaces/{space}/catalog/take` | takes it over: `{"source", "template", "choices": {"<kind>": "take" \| "theirs" \| "keep" \| "remove"}}` |
+| GET | `/spaces/{space}/export` | the space as a ZIP: `space.json`, every version, what was read, `events.jsonl` – not encrypted |
 | GET, POST, PUT, DELETE | `/watches` | the watched folders of this device: `{"space", "folder", "after": "leave" \| "move"}` to add, with `"on"` to switch, `?space=…&folder=…` to stop; each with how the last look went |
 | GET | `D/versions/{number}/pages` | how many pages a version has – full build only, like the next four |
 | GET | `D/versions/{number}/pages/{page}?width=…` | a page as PNG |

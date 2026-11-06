@@ -47,7 +47,7 @@ pub enum TuiError {
 }
 
 /// The actions at the bottom, each with its key and the key of its text – clickable as well.
-const ACTIONS: [(char, &str); 26] = [
+const ACTIONS: [(char, &str); 27] = [
     ('/', "tui.search"),
     ('a', "tui.add"),
     ('t', "tui.title"),
@@ -65,6 +65,7 @@ const ACTIONS: [(char, &str); 26] = [
     ('C', "tui.catalog"),
     ('W', "tui.watch"),
     ('I', "tui.improve"),
+    ('E', "tui.export"),
     ('y', "tui.sync"),
     ('S', "tui.startSync"),
     ('i', "tui.invite"),
@@ -99,6 +100,7 @@ enum Prompt {
     TakeTemplate,
     Watch,
     Improve,
+    Export,
 }
 
 impl Prompt {
@@ -120,6 +122,7 @@ impl Prompt {
             Prompt::TakeTemplate => "tui.catalogPrompt",
             Prompt::Watch => "tui.watchPrompt",
             Prompt::Improve => "tui.improvePrompt",
+            Prompt::Export => "tui.exportPrompt",
         }
     }
 }
@@ -453,6 +456,24 @@ impl App {
                 });
             }
             Prompt::Improve => self.improve(&text),
+            Prompt::Export => {
+                let Some(space) = self.spaces.get(self.space).cloned() else { return };
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_millis() as u64);
+                let folder =
+                    std::path::Path::new(text.trim()).join(aktujo_app::export_name(space.name.as_deref(), now));
+                let result = aktujo_app::Folder::create(&folder)
+                    .map_err(AppError::from)
+                    .and_then(|mut sink| aktujo_app::export(&self.workspace, &space.id, &mut sink));
+                self.message = match result {
+                    Ok(exported) => self.texts.fill(
+                        "tui.exported",
+                        &[("folder", &folder.display().to_string()), ("n", &exported.documents.to_string())],
+                    ),
+                    Err(error) => error.to_string(),
+                };
+            }
             Prompt::Watch => {
                 let texts = self.texts.clone();
                 self.on_space(|w, s| {
@@ -583,6 +604,7 @@ impl App {
             }
             KeyCode::Char('a') => prompt(self, Prompt::Add, String::new()),
             KeyCode::Char('K') => prompt(self, Prompt::ImportKinds, String::new()),
+            KeyCode::Char('E') => prompt(self, Prompt::Export, ".".into()),
             KeyCode::Char('W') => {
                 let space = self.spaces.get(self.space).map(|s| s.id.clone());
                 let watched: Vec<String> = self

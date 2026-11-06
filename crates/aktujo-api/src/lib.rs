@@ -58,6 +58,7 @@ pub const UPLOAD_MAX: usize = 256 * 1024 * 1024;
         catalog,
         plan_template,
         take_template,
+        export_space,
         watches,
         add_watch,
         switch_watch,
@@ -660,6 +661,97 @@ struct Download {
     download: bool,
 }
 
+/// A file name as RFC 5987 gives it in `Content-Disposition`, so that any character survives.
+fn encoded_name(name: &str) -> String {
+    name.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
+}
+
+/// Exports a space as a ZIP: `space.json` with every document's state, every version as it was added, what was read,
+/// and the events as they are – aktujo's own open form, readable without it. Nothing in it is encrypted.
+#[utoipa::path(get, path = "/api/v1/spaces/{space}/export", params(("space" = String, Path, description = "the space")),
+    responses((status = 200, content_type = "application/zip", body = Vec<u8>), (status = 404, body = Problem)))]
+async fn export_space(State(shared): State<Shared>, Path(s): Path<String>) -> Result<Response, ApiError> {
+    let space = space(&s)?;
+    let name = {
+        let workspace = shared.lock();
+        let info = workspace.spaces()?.into_iter().find(|i| i.id == space).ok_or_else(|| not_found("such space"))?;
+        aktujo_app::export_name(info.name.as_deref(), now_ms())
+    };
+    // Written to a file of its own first – a large space is not held in memory – then sent and removed.
+    let random: [u8; 8] = aktujo_base::random();
+    let path = std::env::temp_dir().join(format!("aktujo-export-{}.zip", hex_of(&random)));
+    let workspace = shared.workspace.clone();
+    let (prefix, target) = (name.clone(), path.clone());
+    let written = tokio::task::spawn_blocking(move || -> Result<std::fs::File, AppError> {
+        let file = std::fs::File::create(&target)?;
+        let mut zip = aktujo_app::Zip::new(std::io::BufWriter::new(file), &prefix);
+        let exported = aktujo_app::export(&workspace, &space, &mut zip);
+        let file = zip.into_inner().into_inner().map_err(|e| AppError::Folder(e.to_string()));
+        if exported.is_err() || file.is_err() {
+            let _ = std::fs::remove_file(&target);
+        }
+        exported?;
+        file?;
+        Ok(std::fs::File::open(&target)?)
+    })
+    .await
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))??;
+    // Read in parts off the threads that serve requests; the file is removed once it was read.
+    let stream = futures_util::stream::unfold(Some((written, path)), |state| async move {
+        let (mut file, path) = state?;
+        let read = tokio::task::spawn_blocking(move || {
+            use std::io::Read;
+            let mut buffer = vec![0; 1 << 20];
+            let n = file.read(&mut buffer)?;
+            buffer.truncate(n);
+            Ok::<_, std::io::Error>((buffer, file))
+        })
+        .await;
+        match read {
+            Ok(Ok((buffer, _))) if buffer.is_empty() => {
+                let _ = std::fs::remove_file(&path);
+                None
+            }
+            Ok(Ok((buffer, file))) => Some((Ok(Bytes::from(buffer)), Some((file, path)))),
+            Ok(Err(error)) => {
+                let _ = std::fs::remove_file(&path);
+                Some((Err(error), None))
+            }
+            Err(error) => {
+                let _ = std::fs::remove_file(&path);
+                Some((Err(std::io::Error::other(error)), None))
+            }
+        }
+    });
+    let disposition = format!("attachment; filename*=UTF-8''{}", encoded_name(&format!("{name}.zip")));
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/zip".to_owned()),
+            (header::CONTENT_DISPOSITION, disposition),
+            (header::CACHE_CONTROL, "private, no-store".to_owned()),
+        ],
+        axum::body::Body::from_stream(stream),
+    )
+        .into_response())
+}
+
+/// Milliseconds since 1970.
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+}
+
+fn hex_of(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// Media types shown in the browser; every other file is downloaded.
 const SHOWN: [&str; 5] = ["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif"];
 
@@ -687,18 +779,7 @@ async fn original(
     } else {
         "application/octet-stream".to_owned()
     };
-    // The name as RFC 5987 gives it, so that any character survives.
-    let name: String = original
-        .name
-        .bytes()
-        .map(|b| {
-            if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
-                (b as char).to_string()
-            } else {
-                format!("%{b:02X}")
-            }
-        })
-        .collect();
+    let name = encoded_name(&original.name);
     let disposition = format!("{}; filename*=UTF-8''{name}", if shown { "inline" } else { "attachment" });
     Ok((
         [
@@ -1060,6 +1141,7 @@ pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Route
         .route("/spaces/{space}/catalog", get(catalog))
         .route("/spaces/{space}/catalog/plan", post(plan_template))
         .route("/spaces/{space}/catalog/take", post(take_template))
+        .route("/spaces/{space}/export", get(export_space))
         .route("/watches", get(watches).post(add_watch).put(switch_watch).delete(remove_watch))
         .route("/spaces/{space}/kinds/{kind}", put(define_kind).delete(remove_kind))
         .route("/search", post(search))

@@ -69,10 +69,12 @@ name = "aktujo-api"
 version = "0.1.0"
 dependencies = [
  "aktujo-app",
+ "aktujo-base",
  "aktujo-core",
  "aktujo-crypt",
  "aktujo-relay",
  "axum",
+ "futures-util",
  "http-body-util",
  "image",
  "rust-embed",
@@ -100,6 +102,7 @@ dependencies = [
  "aktujo-store",
  "aktujo-sync",
  "chacha20poly1305",
+ "crc32fast",
  "hex",
  "hkdf",
  "image",

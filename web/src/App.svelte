@@ -325,6 +325,12 @@
             chosen = null;
           }}>{t("kinds.title")}</button
         >
+        <a
+          class="link-button"
+          href={`/api/v1/spaces/${encodeURIComponent(current.id)}/export`}
+          download
+          title={t("space.exportHint")}>{t("space.export")}</a
+        >
       {/if}
       <form class="new-space" onsubmit={foundSpace}>
         <input bind:value={newSpace} placeholder={t("space.new")} aria-label={t("space.new")} />

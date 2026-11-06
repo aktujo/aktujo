@@ -34,6 +34,7 @@ use aktujo_sync::{Replica, SyncError, now_ms};
 use serde::{Deserialize, Serialize};
 
 mod catalog;
+mod exporting;
 #[cfg(feature = "scan")]
 mod improving;
 mod keys;
@@ -56,6 +57,7 @@ pub use catalog::{
     Catalog, Choice, DEFAULT_SOURCE, Entry, ListedKind, OFFICIAL_AUTHOR, Origin as TemplateOrigin, Plan, Planned,
     Source, SourceInfo, Standing, Step, Template, fetch_catalog, fetch_template, source_url, template_of_file,
 };
+pub use exporting::{Exported, Folder, Sink, Zip, export, export_name};
 #[cfg(feature = "scan")]
 pub use improving::{
     Colour, Crop, Improve, ScanError, VersionFile, combined, improved, page_count, page_png, preview_png,

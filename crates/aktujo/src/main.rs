@@ -89,6 +89,46 @@ enum Templates {
     },
 }
 
+/// Exports one space or all, each into a folder or a ZIP of its own in `to`.
+fn export(space: Option<&str>, to: &std::path::Path, zip: bool, data: &Data) -> anyhow::Result<()> {
+    let workspace = Mutex::new(data.workspace()?);
+    let spaces = workspace.lock().map_err(|_| anyhow::anyhow!("the workspace"))?.spaces()?;
+    let chosen: Vec<_> = spaces
+        .into_iter()
+        .filter(|s| space.is_none_or(|wanted| s.id.as_str() == wanted || s.name.as_deref() == Some(wanted)))
+        .collect();
+    if chosen.is_empty() {
+        match space {
+            Some(wanted) => anyhow::bail!("no space {wanted:?}"),
+            None => anyhow::bail!("there is no space to export"),
+        }
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_millis() as u64;
+    for info in chosen {
+        let name = aktujo_app::export_name(info.name.as_deref(), now);
+        let exported = if zip {
+            let path = to.join(format!("{name}.zip"));
+            let file = std::fs::File::create_new(&path).with_context(|| format!("{}", path.display()))?;
+            let mut sink = aktujo_app::Zip::new(std::io::BufWriter::new(file), &name);
+            let exported = aktujo_app::export(&workspace, &info.id, &mut sink)?;
+            println!("{}", path.display());
+            exported
+        } else {
+            let path = to.join(&name);
+            let mut sink = aktujo_app::Folder::create(&path).with_context(|| format!("{}", path.display()))?;
+            let exported = aktujo_app::export(&workspace, &info.id, &mut sink)?;
+            println!("{}", path.display());
+            exported
+        };
+        print!("  {} documents, {} files", exported.documents, exported.files);
+        if exported.missing > 0 {
+            print!(", {} originals not on this device", exported.missing);
+        }
+        println!();
+    }
+    Ok(())
+}
+
 /// Lists the templates of a catalog – read now.
 fn list_templates(source: &str) -> anyhow::Result<()> {
     let catalog = aktujo_app::fetch_catalog(source)?;
@@ -152,6 +192,21 @@ enum Command {
     },
     /// Prints the API's description in OpenAPI – what api/openapi.json holds.
     Openapi,
+    /// Exports a space – or every space – in aktujo's own open form: the state of every document as JSON, every
+    /// version as it was added, what was read, and the events as they are. Nothing in it is encrypted.
+    Export {
+        /// The space, by its identity or name; every space if not given.
+        #[arg(long)]
+        space: Option<String>,
+        /// The folder the export goes into, as a folder of its own named after the space and the day.
+        #[arg(long, default_value = ".")]
+        to: PathBuf,
+        /// A ZIP instead of a folder.
+        #[arg(long)]
+        zip: bool,
+        #[command(flatten)]
+        data: Data,
+    },
     /// Lists the templates of kinds in a catalog, read now – or takes one over into a space.
     Templates {
         /// The catalog; by default the official one.
@@ -180,6 +235,7 @@ fn main() -> anyhow::Result<()> {
         }
         Command::Openapi => println!("{}", aktujo_api::openapi()),
         Command::Templates { source, take: None } => list_templates(&source)?,
+        Command::Export { space, to, zip, data } => export(space.as_deref(), &to, zip, &data)?,
         Command::Templates { take: Some(Templates::Take { id, space, source, data }), .. } => {
             take_template(&id, &space, &source, &data)?
         }

@@ -1863,6 +1863,49 @@
         }
       }
     },
+    "/api/v1/spaces/{space}/export": {
+      "get": {
+        "tags": [],
+        "summary": "Exports a space as a ZIP: `space.json` with every document's state, every version as it was added, what was read,\nand the events as they are – aktujo's own open form, readable without it. Nothing in it is encrypted.",
+        "operationId": "export_space",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{space}/invitations": {
       "post": {
         "tags": [],

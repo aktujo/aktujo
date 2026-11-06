@@ -483,6 +483,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{space}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Exports a space as a ZIP: `space.json` with every document's state, every version as it was added, what was read,
+         *     and the events as they are – aktujo's own open form, readable without it. Nothing in it is encrypted.
+         */
+        get: operations["export_space"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{space}/invitations": {
         parameters: {
             query?: never;
@@ -2646,6 +2666,36 @@ export interface operations {
                 };
             };
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    export_space: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": number[];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

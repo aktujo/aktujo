@@ -269,5 +269,10 @@
   "tui.improve": "improve",
   "tui.improvePrompt": "Improve: d straighten, g grey, s black and white, r a quarter turn (rr half) – e.g. ds",
   "tui.improved": "Improved – a new version",
-  "tui.noImprove": "This build does not improve scans (aktujo-minimal)."
+  "tui.noImprove": "This build does not improve scans (aktujo-minimal).",
+  "tui.export": "export",
+  "tui.exportPrompt": "Folder to export this space into (a folder of its own is made in it)",
+  "tui.exported": "{n} documents exported to {folder}",
+  "space.export": "Export",
+  "space.exportHint": "Download this space as a ZIP: every document with its versions, what was read, the state as JSON, the events – readable without aktujo, not encrypted."
 }

@@ -102,7 +102,7 @@ pub fn date_of(document: &Document) -> String {
 
 /// The day (UTC) of milliseconds since 1970, `YYYY-MM-DD` – after H. Hinnant, "chrono-Compatible Low-Level Date
 /// Algorithms", `civil_from_days`.
-fn day_of(ms: u64) -> String {
+pub(crate) fn day_of(ms: u64) -> String {
     let z = (ms / 86_400_000) as i64 + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);

@@ -134,7 +134,16 @@ Decided by the maintainer on 2026-11-05.
    (`SealedBlobs` in `aktujo-app`); the key stores are reached through `keyring`; one secret of 32 bytes per data
    folder, the keys of the database and of the originals derived from it with HKDF-SHA256. OPEN: the passphrase file
    where there is no key store; whether `SealedBlobs` moves into the core.
-8. **No import or export of other programs** in 0.1; aktujo's own export stays.
+8. **No import or export of other programs** in 0.1; aktujo's own export stays. Built so (2026-11-06): a space is
+   exported to a folder or as a ZIP of its own – `README.txt`; `space.json` (format 1) with the space, its kinds and
+   every document's state (title, kind, fields confirmed and suggested, labels, the bin, versions with their file and
+   SHA-256); `documents/0001 <title>/vN <file>` every version as it was added and `vN text.txt` what was read (pages
+   split by a form feed); `events.jsonl` the events as they are, in their order. No keys, no member list, nothing
+   encrypted – the README says so. The ZIP is written by hand (stored, no compression – documents are compressed
+   already), up to 4 GiB; a larger space goes to a folder. The workspace is locked to read the state, then once per
+   original. Web app: *Export* beside the space; terminal: `E`; command line: `aktujo export [--space …] [--to …]
+   [--zip]` (every space without `--space`); API: `GET /api/v1/spaces/{space}/export`. OPEN: ZIP64 for larger
+   spaces; reading an export back into aktujo.
 9. **English and German** in the interface. Built so (2026-11-05): the texts are data, `locales/<language>.json`,
    shared by the web app (the browser's language, or the one chosen) and the terminal interface (the environment's,
    `LC_ALL`, `LC_MESSAGES`, `LANG`). Names of kinds and fields are data of the kind, with names in other languages
@@ -204,7 +213,7 @@ Decided by the maintainer on 2026-11-05.
 6. Kinds as data, catalog sources and updates of templates ([0005](0005-pure-core.md); built 2026-11-06).
 7. Watched folders (built 2026-11-06).
 8. Improving (`aktujo-scan`; built 2026-11-06).
-9. Export.
+9. Export (built 2026-11-06).
 10. Windows in CI, binaries in the release, the release 0.1.0 of the program.
 
 ## Open points

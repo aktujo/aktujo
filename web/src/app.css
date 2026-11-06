@@ -260,6 +260,15 @@ button.active {
   color: var(--on-accent);
 }
 
+a.link-button {
+  display: block;
+  text-align: center;
+  color: var(--fg);
+  padding: 0.2rem;
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 3px;
+}
+
 button.link {
   border: none;
   background: none;

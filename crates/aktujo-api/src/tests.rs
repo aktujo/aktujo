@@ -427,3 +427,23 @@ async fn pages_are_shown_improved_and_combined() {
         StatusCode::UNPROCESSABLE_ENTITY
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_space_is_exported_as_a_zip() {
+    let router = server();
+    let (_, space) = call(&router, "POST", "/api/v1/spaces", Some(json!({"name": "Home"}))).await;
+    let space = space["id"].as_str().unwrap().to_owned();
+    upload(&router, &format!("/api/v1/spaces/{space}/documents?name=lease.pdf"), b"%PDF-1.7 lease").await;
+    let (status, headers, bytes) =
+        send(&router, request("GET", &format!("/api/v1/spaces/{space}/export")).body(Body::empty()).unwrap()).await;
+    assert_eq!(
+        (status, &headers[header::CONTENT_TYPE]),
+        (StatusCode::OK, &"application/zip".parse::<axum::http::HeaderValue>().unwrap())
+    );
+    let disposition = headers[header::CONTENT_DISPOSITION].to_str().unwrap();
+    assert!(disposition.starts_with("attachment; filename*=UTF-8''aktujo%20Home%20"), "{disposition}");
+    assert_eq!(&bytes[..4], b"PK\x03\x04");
+    let text = String::from_utf8_lossy(&bytes);
+    assert!(text.contains("/documents/0001 lease/v1 lease.pdf") && text.contains("%PDF-1.7 lease"));
+    assert_eq!(call(&router, "GET", "/api/v1/spaces/nothing/export", None).await.0, StatusCode::NOT_FOUND);
+}

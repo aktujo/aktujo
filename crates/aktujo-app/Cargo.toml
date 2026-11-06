@@ -22,6 +22,7 @@ aktujo-scan = { workspace = true, optional = true }
 aktujo-store = { workspace = true, features = ["sqlcipher"] }
 aktujo-sync.workspace = true
 chacha20poly1305.workspace = true
+crc32fast.workspace = true
 hex.workspace = true
 hkdf.workspace = true
 image = { workspace = true, optional = true }
