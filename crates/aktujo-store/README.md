@@ -9,8 +9,9 @@ beside the core's – views to search, for example – through `Store::connectio
 
 The trait `Backend` is what the core keeps; `Store` keeps it in SQLite, `PgStore` (feature `postgres`) in PostgreSQL –
 the same tables in a schema of their own (`aktujo` unless named), beside a program's tables in the same database.
-Several servers may share it. The client is synchronous; from async code call it in `spawn_blocking`. OPEN: TLS to
-the database.
+Several servers may share it. The client is synchronous; from async code call it in `spawn_blocking`. TLS by rustls
+as the URL's `sslmode` says; the server's certificate is always checked – against the system's roots, or a CA given
+(`connect_with_ca`).
 
 Part of the core of [aktujo](https://github.com/aktujo/aktujo) – libraries others build in. The design is in
 [RFC 0001](https://github.com/aktujo/aktujo/blob/main/docs/rfc/0001-architecture.md); the documentation is on

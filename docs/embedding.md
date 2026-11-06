@@ -60,6 +60,29 @@ blobs.remove(&hash)?;                              // when nothing refers to it 
 each call on a small runtime of its own, so it works from a plain thread and from inside tokio alike – in an async
 handler, call it in `tokio::task::spawn_blocking` as you would any blocking I/O.
 
+Long originals – recordings, whole books – are never held in memory:
+
+```rust
+let hash = blobs.put_reader(&mut upload)?;                 // any `Read`, written in parts of 8 MiB
+let mut reader = blobs.open(&hash)?.expect("stored");      // checked as it is read: fails at its end if damaged
+let part = blobs.open_range(&hash, 0..65_536)?;            // a byte range as a reader
+```
+
+A server keeps one `ObjectBlobs` and one area per organisation, sharing its connections and runtime, and answers
+from async code without blocking a thread:
+
+```rust
+let shared = ObjectBlobs::with_handle(store, "", tokio::runtime::Handle::current()); // or ObjectBlobs::new
+let music = shared.with_prefix(&organisation.to_string());
+
+let hash = music.put_async(body_bytes).await?;             // `Bytes`, not copied
+let (size, parts) = music.stream(&hash, Some(0..1_048_576)).await?.expect("stored");
+let body = axum::body::Body::from_stream(parts);           // parts of `Bytes`, read on the store's runtime
+```
+
+`get_async`, `size_async` and `remove_async` are there too. A stream of a whole original ends with an error if the
+bytes do not have their hash; a range cannot be checked.
+
 What refers to an original is your program's concern: the store keeps no count of references, so remove an original
 only when no row refers to its hash any more.
 
@@ -84,17 +107,26 @@ for line in &extraction.pages[0].lines {
   Tesseract where they are installed; `Options::languages` and `Options::layout` (Tesseract's page segmentation: `11`
   for sparse text such as the headers of sheet music) apply to it.
 - `Options::min_words`: a page of a PDF with fewer words than this is read by OCR instead; `0` never does.
+- `Options::region`: only a part of each page – the header of a part of sheet music. Lines outside it are left out,
+  `min_words` counts the words within it, and OCR reads only this part (`pure`, and `external` for PDFs, which renders
+  only the part with `pdftoppm`); the lines stay in fractions of the whole page.
 - `abilities()` tells what a backend can do on this machine.
 
-To read only a part of a page – the header of a part of sheet music – render it with `aktujo-scan`, cut it out and
-read the picture:
+```rust
+// Every page of a PDF of 400 pages: the text layer, and the top fifth of a scanned page by OCR.
+let header = Options { max_pages: 400, region: Some(Region::top(0.2)), ..Options::default() };
+let lines = extractor.extract(&pdf, "application/pdf", &header)?;
+```
+
+A picture already at hand – a page rendered, a photo – is read by `Pure::read_picture(&image, &options)`. To render
+many pages of one PDF, or a part of one, open it once:
 
 ```rust
-let page = aktujo_scan::page(&pdf, "application/pdf", 3, 200.0)?;      // the fourth page, at 200 dpi
-let (width, height) = page.image.dimensions();
-let header = image::imageops::crop_imm(&page.image, 0, 0, width, height / 4).to_image();
-let png = aktujo_scan::write(&[aktujo_scan::Page { image: header, dpi: page.dpi }], false)?;
-let lines = extractor.extract(&png.bytes, png.media_type, &Options::default())?;
+let document = aktujo_scan::Document::open(&pdf, "application/pdf")?;   // read once
+for index in 0..document.len() {
+    let top = document.region(index, aktujo_scan::Region::top(0.2), 250.0)?;   // a picture of the part
+    let read = pure.read_picture(&top.image, &Options::default())?;
+}
 ```
 
 ## Kinds, fields and your own rules
@@ -108,6 +140,13 @@ use aktujo_rules::{Chain, Recogniser, Rules};
 
 let kinds: Vec<aktujo_doc::Kind> = serde_json::from_str(KINDS_JSON)?;
 let recognition = Rules::default().recognise(&kinds, &extraction, None);
+```
+
+Where a value stands is a way too: `tallest` takes the line with the tallest letters on the first page (a title),
+`within` the first value in an `area` of it (the composer at the top right) – an area in thousandths of the page:
+
+```json
+{"key": "title", "name": "Title", "type": "text", "find": [{"way": "tallest", "area": {"left": 0, "top": 0, "right": 1000, "bottom": 300}}]}
 ```
 
 What words and labels cannot express – an instrument and its voice from "2. Trompete in B", a tax number with its
@@ -154,8 +193,10 @@ server.sync(&space)?;
 ```
 
 The client is synchronous: from an async handler, call it in `tokio::task::spawn_blocking`. Several servers may share
-the database – the schema is set up under a lock, and member records are appended under a lock per space. OPEN: TLS
-to the database; today the connection is without it, for a database in the same private network.
+the database – the schema is set up under a lock, and member records are appended under a lock per space. The
+connection uses TLS as the URL's `sslmode` says (`disable`, `prefer`, `require`); whenever it does, the server's
+certificate is checked – against the system's roots, or a CA of your cluster with `PgStore::connect_with_ca(url,
+schema, ca_pem)`. A server whose certificate no one trusts is refused, also under `prefer`.
 
 ## Versions
 

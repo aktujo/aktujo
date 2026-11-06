@@ -110,7 +110,10 @@ impl External {
             "pdftotext",
             Command::new("pdftotext").args(["-l", &options.max_pages.to_string(), "-bbox-layout"]).arg(&file).arg("-"),
         )?;
-        let mut pages = parse::pdftotext_bbox(&String::from_utf8_lossy(&xhtml));
+        let mut pages: Vec<Page> = parse::pdftotext_bbox(&String::from_utf8_lossy(&xhtml))
+            .into_iter()
+            .map(|page| page.within(options.region.as_ref()))
+            .collect();
         let ocr = self.abilities().ocr && self.wanted(options).is_some();
         for (index, page) in pages.iter_mut().enumerate() {
             if page.words() >= options.min_words {
@@ -119,15 +122,39 @@ impl External {
             if ocr {
                 let number = (index + 1).to_string();
                 let base = scratch.join(format!("page{number}"));
-                run(
-                    "pdftoppm",
-                    Command::new("pdftoppm")
-                        .args(["-f", &number, "-l", &number, "-singlefile", "-gray", "-png"])
-                        .args(["-r", &options.dpi.to_string()])
-                        .arg(&file)
-                        .arg(&base),
-                )?;
-                let read = self.ocr(&base.with_extension("png"), options)?;
+                let mut command = Command::new("pdftoppm");
+                command
+                    .args(["-f", &number, "-l", &number, "-singlefile", "-gray", "-png"])
+                    .args(["-r", &options.dpi.to_string()]);
+                // Only the region, in pixels of the page at this resolution.
+                let scale = options.dpi as f32 / 72.0;
+                let (width, height) = (page.width * scale, page.height * scale);
+                let cut =
+                    options.region.and_then(|r| r.within_page()).filter(|_| width > 0.0 && height > 0.0).map(|r| {
+                        let (x, y) = ((r.x0 * width).floor(), (r.y0 * height).floor());
+                        let (w, h) = (((r.x1 * width).ceil() - x).max(1.0), ((r.y1 * height).ceil() - y).max(1.0));
+                        (x, y, w, h)
+                    });
+                if let Some((x, y, w, h)) = cut {
+                    command.args([
+                        "-x",
+                        &x.to_string(),
+                        "-y",
+                        &y.to_string(),
+                        "-W",
+                        &w.to_string(),
+                        "-H",
+                        &h.to_string(),
+                    ]);
+                }
+                run("pdftoppm", command.arg(&file).arg(&base))?;
+                let mut read = self.ocr(&base.with_extension("png"), &Options { region: None, ..options.clone() })?;
+                if let Some((x, y, w, h)) = cut {
+                    for line in &mut read.lines {
+                        (line.x0, line.x1) = ((x + line.x0 * w) / width, (x + line.x1 * w) / width);
+                        (line.y0, line.y1) = ((y + line.y0 * h) / height, (y + line.y1 * h) / height);
+                    }
+                }
                 if read.words() > page.words() || options.min_words == usize::MAX {
                     page.lines = read.lines;
                     page.method = crate::Method::Ocr;
@@ -156,7 +183,7 @@ impl Extractor for External {
         }
         let image = scratch.0.join("in.image");
         std::fs::write(&image, bytes)?;
-        let mut page = self.ocr(&image, options)?;
+        let mut page = self.ocr(&image, options)?.within(options.region.as_ref());
         if page.words() == 0 {
             page.method = crate::Method::None;
         }
@@ -206,6 +233,27 @@ mod tests {
         let read = external.extract(&png, "image/png", &options).unwrap();
         assert_eq!(read.pages[0].method, Method::Ocr);
         assert_eq!(read.text(), "Invoice 42\nTotal 119.00 EUR");
+    }
+
+    #[test]
+    fn reads_only_a_region() {
+        let external = External::detect();
+        if !external.abilities().text_layer {
+            eprintln!("pdftotext is not installed: skipped");
+            return;
+        }
+        let header = Options { region: Some(crate::Region::top(0.1)), languages: "eng".into(), ..Options::default() };
+        assert_eq!(external.extract(&pdf(), "application/pdf", &header).unwrap().text(), "Invoice 42");
+        if !external.abilities().ocr || external.wanted(&header).is_none() {
+            eprintln!("pdftoppm or Tesseract (eng) is not installed: OCR of a region skipped");
+            return;
+        }
+        // Every page by OCR: only the region is rendered, the lines are on the whole page.
+        let ocr = Options { min_words: usize::MAX, ..header };
+        let read = external.extract(&pdf(), "application/pdf", &ocr).unwrap();
+        assert_eq!((read.pages[0].method, read.text().as_str()), (Method::Ocr, "Invoice 42"));
+        let line = &read.pages[0].lines[0];
+        assert!(line.x0 > 0.1 && line.x0 < 0.14 && line.y0 > 0.05 && line.y1 < 0.1, "{line:?}");
     }
 
     #[test]

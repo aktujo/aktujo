@@ -90,7 +90,7 @@ commit, the documentation is built, and the crates are published.
 
 ## Open points
 
-- OPEN: the backend kernoid of `aktujo-blob`; TLS from `aktujo-store` to PostgreSQL.
+- OPEN: the backend kernoid of `aktujo-blob`.
 - OPEN: originals larger than the relay's limit of a request (64 MiB) – sent in parts.
 - OPEN: direct sync between devices (`aktujo-p2p`), transport and reaching devices behind NAT.
 - OPEN: where a device keeps its seed – beside the data or in the key store of the operating system.

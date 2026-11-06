@@ -409,6 +409,30 @@ pub enum FindView {
         /// The phrases.
         phrases: Vec<String>,
     },
+    /// The line with the tallest letters on the first page – a title – within `area` if given.
+    Tallest {
+        /// Where on the page; none: anywhere.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        area: Option<AreaView>,
+    },
+    /// The first value of the field's type within `area` of the first page, lines from the top, then from the left.
+    Within {
+        /// Where on the page.
+        area: AreaView,
+    },
+}
+
+/// A part of a page in thousandths of its width and height (0 to 1000, y from the top).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct AreaView {
+    /// The left edge.
+    pub left: u16,
+    /// The top edge.
+    pub top: u16,
+    /// The right edge.
+    pub right: u16,
+    /// The bottom edge.
+    pub bottom: u16,
 }
 
 /// A word or phrase and how much it speaks for a kind.

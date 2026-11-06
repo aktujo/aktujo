@@ -56,29 +56,123 @@ fn is_pdf(media_type: &str) -> bool {
 
 /// How many pages a file has: a PDF its pages, an image one.
 pub fn page_count(bytes: &[u8], media_type: &str) -> Result<usize, ScanError> {
-    if is_pdf(media_type) { Ok(pdf_document(bytes)?.pages().len()) } else { decode(bytes, media_type).map(|_| 1) }
+    Ok(Document::open(bytes, media_type)?.len())
 }
 
-/// The page `index` (from 0) of a file: a PDF's page rendered at `dpi`, or the image.
+/// The page `index` (from 0) of a file: a PDF's page rendered at `dpi`, or the image. To look at many pages of one
+/// PDF, open it once as a [`Document`].
 pub fn page(bytes: &[u8], media_type: &str, index: usize, dpi: f32) -> Result<Page, ScanError> {
-    if is_pdf(media_type) {
-        let pdf = pdf_document(bytes)?;
-        let page = pdf.pages().get(index).ok_or(ScanError::NoPage(index))?;
-        Ok(render(page, dpi))
-    } else if index == 0 {
-        Ok(Page { image: decode(bytes, media_type)?, dpi: DPI })
-    } else {
-        Err(ScanError::NoPage(index))
-    }
+    Document::open(bytes, media_type)?.page(index, dpi)
 }
 
 /// Every page of a file: a PDF's pages rendered at `dpi`, or the image.
 pub fn pages(bytes: &[u8], media_type: &str, dpi: f32) -> Result<Vec<Page>, ScanError> {
-    if is_pdf(media_type) {
-        let pdf = pdf_document(bytes)?;
-        Ok(pdf.pages().iter().map(|page| render(page, dpi)).collect())
-    } else {
-        Ok(vec![Page { image: decode(bytes, media_type)?, dpi: DPI }])
+    let document = Document::open(bytes, media_type)?;
+    (0..document.len()).map(|index| document.page(index, dpi)).collect()
+}
+
+/// A file opened once – a PDF read, or an image decoded – to render many of its pages, or one part of a page, without
+/// reading it again for each.
+pub struct Document {
+    kind: Opened,
+}
+
+enum Opened {
+    Pdf(Box<hayro::hayro_syntax::Pdf>),
+    Image(RgbImage),
+}
+
+impl std::fmt::Debug for Document {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let kind = match self.kind {
+            Opened::Pdf(_) => "PDF",
+            Opened::Image(_) => "image",
+        };
+        f.debug_struct("Document").field("kind", &kind).field("pages", &self.len()).finish()
+    }
+}
+
+impl Document {
+    /// Opens a PDF or an image of one of [`IMAGE_TYPES`].
+    pub fn open(bytes: &[u8], media_type: &str) -> Result<Self, ScanError> {
+        let kind = if is_pdf(media_type) {
+            Opened::Pdf(Box::new(pdf_document(bytes)?))
+        } else {
+            Opened::Image(decode(bytes, media_type)?)
+        };
+        Ok(Document { kind })
+    }
+
+    /// How many pages it has: a PDF its pages, an image one.
+    pub fn len(&self) -> usize {
+        match &self.kind {
+            Opened::Pdf(pdf) => pdf.pages().len(),
+            Opened::Image(_) => 1,
+        }
+    }
+
+    /// Whether it has no pages – a PDF without any.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The page `index` (from 0): a PDF's page rendered at `dpi`, or the image.
+    pub fn page(&self, index: usize, dpi: f32) -> Result<Page, ScanError> {
+        match &self.kind {
+            Opened::Pdf(pdf) => {
+                let page = pdf.pages().get(index).ok_or(ScanError::NoPage(index))?;
+                Ok(render(page, dpi))
+            }
+            Opened::Image(image) if index == 0 => Ok(Page { image: image.clone(), dpi: DPI }),
+            Opened::Image(_) => Err(ScanError::NoPage(index)),
+        }
+    }
+
+    /// A part of the page `index` – `region`, in shares of the page – rendered at `dpi`: the top of a page of sheet
+    /// music, say. A PDF's page is rendered whole and cut (OPEN: rendering only the part).
+    pub fn region(&self, index: usize, region: Region, dpi: f32) -> Result<Page, ScanError> {
+        let page = self.page(index, dpi)?;
+        Ok(Page { image: region.cut(&page.image), dpi: page.dpi })
+    }
+}
+
+/// A part of a page, as shares of its width and height (0 to 1, y from the top).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Region {
+    /// The left edge.
+    pub x0: f32,
+    /// The top edge.
+    pub y0: f32,
+    /// The right edge.
+    pub x1: f32,
+    /// The bottom edge.
+    pub y1: f32,
+}
+
+impl Region {
+    /// The whole page.
+    pub const WHOLE: Region = Region { x0: 0.0, y0: 0.0, x1: 1.0, y1: 1.0 };
+
+    /// The top `share` of a page – its header.
+    pub fn top(share: f32) -> Region {
+        Region { y1: share, ..Region::WHOLE }
+    }
+
+    /// Whether a point (in shares) lies within it.
+    pub fn contains(&self, x: f32, y: f32) -> bool {
+        (self.x0..=self.x1).contains(&x) && (self.y0..=self.y1).contains(&y)
+    }
+
+    /// The part of a picture within it; at least one pixel.
+    pub fn cut(&self, image: &RgbImage) -> RgbImage {
+        let share = |v: f32| if v.is_finite() { v.clamp(0.0, 1.0) } else { 0.0 };
+        let (w, h) = (image.width() as f32, image.height() as f32);
+        let (x0, x1) = (share(self.x0.min(self.x1)) * w, share(self.x1.max(self.x0)) * w);
+        let (y0, y1) = (share(self.y0.min(self.y1)) * h, share(self.y1.max(self.y0)) * h);
+        let (left, top) = ((x0.floor() as u32).min(image.width() - 1), (y0.floor() as u32).min(image.height() - 1));
+        let width = ((x1.ceil() as u32).saturating_sub(left)).clamp(1, image.width() - left);
+        let height = ((y1.ceil() as u32).saturating_sub(top)).clamp(1, image.height() - top);
+        image::imageops::crop_imm(image, left, top, width, height).to_image()
     }
 }
 

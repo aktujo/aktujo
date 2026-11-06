@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 use super::*;
+use crate::Region;
 use crate::testing::{blank_pdf, pdf};
 
 /// The models of `aktujo-extract-det` and `aktujo-extract-latin`.
@@ -47,4 +48,32 @@ fn reads_a_rendered_and_a_skewed_page_by_ocr() {
         assert_eq!(read.pages[0].method, Method::Ocr, "{name}");
         assert_eq!(read.text(), "Invoice 42\nTotal 119.00 EUR", "{name}");
     }
+}
+
+#[test]
+fn only_a_region_of_the_page_is_read() {
+    // The text layer: "Invoice 42" stands in the top tenth, "Total" below it.
+    let header = Options { region: Some(Region::top(0.1)), ..Options::default() };
+    let read = Pure::new().extract(&pdf(), "application/pdf", &header).unwrap();
+    assert_eq!(read.text(), "Invoice 42");
+
+    // OCR of the region only – of a page rendered, and of a picture at hand – with the lines on the whole page.
+    let pure = with_models();
+    let rendered = aktujo_scan::render(&Pdf::new(pdf()).unwrap().pages()[0], 300.0).image;
+    let page = pure.read_picture(&rendered, &header).unwrap();
+    assert_eq!((page.method, page.text().as_str()), (Method::Ocr, "Invoice 42"));
+    let line = &page.lines[0];
+    assert!(line.x0 > 0.1 && line.x0 < 0.14 && line.y0 > 0.05 && line.y1 < 0.1, "{line:?}");
+    let lower = Options { region: Some(Region { x0: 0.0, y0: 0.1, x1: 1.0, y1: 0.2 }), ..Options::default() };
+    assert_eq!(pure.read_picture(&rendered, &lower).unwrap().text(), "Total 119.00 EUR");
+    let nothing = Options { region: Some(Region { x0: 0.5, y0: 0.5, x1: 0.5, y1: 0.9 }), ..Options::default() };
+    assert_eq!(pure.read_picture(&rendered, &nothing).unwrap().method, Method::None);
+
+    // A scanned page: the region read by OCR, as the text layer has nothing.
+    let scanned = Options { region: Some(Region::top(0.1)), min_words: 1, ..Options::default() };
+    let mut png = vec![];
+    image::DynamicImage::ImageRgb8(rendered)
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    assert_eq!(pure.extract(&png, "image/png", &scanned).unwrap().text(), "Invoice 42");
 }

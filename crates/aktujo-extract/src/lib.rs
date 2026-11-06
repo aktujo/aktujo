@@ -156,11 +156,72 @@ pub struct Options {
     /// Tesseract's page segmentation mode: 3 finds blocks of text (documents), 11 sparse text in any order (sheet
     /// music). Only for `external`.
     pub layout: u8,
+    /// Only this part of each page – the header of a page of sheet music, say: lines whose centre lies outside it are
+    /// left out, and `min_words` counts the words within it. `pure` reads only this part by OCR; `external` reads the
+    /// whole page and leaves the rest out (OPEN: rendering only the part). None: the whole page.
+    pub region: Option<Region>,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { max_pages: 50, dpi: 300, languages: "deu+eng".into(), min_confidence: 55.0, min_words: 3, layout: 3 }
+        Options {
+            max_pages: 50,
+            dpi: 300,
+            languages: "deu+eng".into(),
+            min_confidence: 55.0,
+            min_words: 3,
+            layout: 3,
+            region: None,
+        }
+    }
+}
+
+/// A part of a page, in fractions of it (0–1, y from the top), as the boxes of [`Line`]s are.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Region {
+    /// Left edge.
+    pub x0: f32,
+    /// Top edge.
+    pub y0: f32,
+    /// Right edge.
+    pub x1: f32,
+    /// Bottom edge.
+    pub y1: f32,
+}
+
+impl Region {
+    /// The whole page.
+    pub const WHOLE: Region = Region { x0: 0.0, y0: 0.0, x1: 1.0, y1: 1.0 };
+
+    /// The top `share` of a page.
+    pub fn top(share: f32) -> Region {
+        Region { y1: share, ..Region::WHOLE }
+    }
+
+    /// Whether the centre of a line lies within it.
+    pub fn holds(&self, line: &Line) -> bool {
+        let (x, y) = ((line.x0 + line.x1) / 2.0, (line.y0 + line.y1) / 2.0);
+        (self.x0..=self.x1).contains(&x) && (self.y0..=self.y1).contains(&y)
+    }
+
+    /// Its edges in order and within the page; none if nothing of the page is left.
+    #[cfg_attr(not(any(feature = "pure", feature = "external")), allow(dead_code))]
+    pub(crate) fn within_page(&self) -> Option<Region> {
+        let share = |v: f32| if v.is_finite() { v.clamp(0.0, 1.0) } else { 0.0 };
+        let (x0, x1) = (share(self.x0.min(self.x1)), share(self.x0.max(self.x1)));
+        let (y0, y1) = (share(self.y0.min(self.y1)), share(self.y0.max(self.y1)));
+        (x1 > x0 && y1 > y0).then_some(Region { x0, y0, x1, y1 })
+    }
+}
+
+impl Page {
+    /// The page with only the lines within `region` (all if none).
+    pub fn within(mut self, region: Option<&Region>) -> Page {
+        if let Some(region) = region {
+            self.lines.retain(|line| region.holds(line));
+        }
+        self
     }
 }
 

@@ -56,6 +56,50 @@ pub enum Find {
         /// The phrases, as words in any case.
         phrases: Vec<String>,
     },
+    /// The line with the tallest letters on the first page – a title – within `area` if given.
+    Tallest {
+        /// Where on the page; none: anywhere.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        area: Option<Area>,
+    },
+    /// The first value of the field's type within `area` of the first page – lines from the top, then from the left:
+    /// the composer at the top right of a page of sheet music, the part at its top left.
+    Within {
+        /// Where on the page.
+        area: Area,
+    },
+}
+
+/// A part of a page in thousandths of its width and height (0 to 1000, y from the top) – whole numbers, as events hold
+/// no floating-point numbers. A line belongs to it when its centre lies within.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Area {
+    /// The left edge.
+    pub left: u16,
+    /// The top edge.
+    pub top: u16,
+    /// The right edge.
+    pub right: u16,
+    /// The bottom edge.
+    pub bottom: u16,
+}
+
+impl Area {
+    /// The top `thousandths` of a page.
+    pub fn top(thousandths: u16) -> Area {
+        Area { left: 0, top: 0, right: 1000, bottom: thousandths }
+    }
+
+    /// Whether the point `x`, `y` (in fractions of the page) lies within it.
+    pub fn holds(&self, x: f32, y: f32) -> bool {
+        let share = |v: u16| v as f32 / 1000.0;
+        (share(self.left)..=share(self.right)).contains(&x) && (share(self.top)..=share(self.bottom)).contains(&y)
+    }
+
+    /// Whether it is a part of a page: within it, its edges in order.
+    pub fn is_valid(&self) -> bool {
+        self.left < self.right && self.top < self.bottom && self.right <= 1000 && self.bottom <= 1000
+    }
 }
 
 /// A word or phrase and how much it speaks for a kind.
@@ -144,6 +188,9 @@ pub enum KindError {
     /// A template whose base is another kind.
     #[error("the template's base is the kind {0:?}, not this one")]
     Base(String),
+    /// A way to find a field in an area that is not a part of a page.
+    #[error("the field {0:?} is looked for in an area that is not a part of a page (0 to 1000, edges in order)")]
+    Area(String),
 }
 
 fn identity(id: &str) -> Result<(), KindError> {
@@ -186,6 +233,14 @@ impl Kind {
             field.names.values().try_for_each(|n| name(n))?;
             if !keys.insert(field.key.as_str()) {
                 return Err(KindError::TwiceField(field.key.clone()));
+            }
+            let areas = field.find.iter().filter_map(|find| match find {
+                Find::Tallest { area } => *area,
+                Find::Within { area } => Some(*area),
+                _ => None,
+            });
+            if areas.into_iter().any(|area| !area.is_valid()) {
+                return Err(KindError::Area(field.key.clone()));
             }
         }
         match self.title.iter().flatten().find(|key| !keys.contains(key.as_str())) {

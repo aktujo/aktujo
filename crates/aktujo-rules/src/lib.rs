@@ -111,6 +111,8 @@ const FIRST: f32 = 0.35;
 const MARKED: f32 = 0.6;
 const TOPMOST: f32 = 0.3;
 const PRESENT: f32 = 0.6;
+const TALLEST: f32 = 0.5;
+const WITHIN: f32 = 0.5;
 /// A page read by OCR is less sure.
 const OCR: f32 = 0.9;
 /// Text values are cut at this many characters.
@@ -349,6 +351,25 @@ impl Reader<'_> {
             Find::Present { phrases } => self.lines().find_map(|(p, l, line)| {
                 phrases.iter().any(|ph| text::contains(&line.text, ph)).then_some((Value::Flag(true), PRESENT, p, l))
             }),
+            Find::Tallest { area } => {
+                let page = self.extraction.pages.first()?;
+                page.lines
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, line)| area.is_none_or(|a| centred_in(&a, line)))
+                    .filter_map(|(l, line)| self.value(&line.text, shape).map(|v| (v, line.height(), line.y0, l)))
+                    // The tallest; of equally tall ones, the topmost.
+                    .max_by(|a, b| a.1.total_cmp(&b.1).then(b.2.total_cmp(&a.2)))
+                    .map(|(v, _, _, l)| (v, TALLEST, 0, l))
+            }
+            Find::Within { area } => {
+                let page = self.extraction.pages.first()?;
+                page.lines
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, line)| centred_in(area, line))
+                    .find_map(|(l, line)| self.value(&line.text, shape).map(|v| (v, WITHIN, 0, l)))
+            }
         }
     }
 
@@ -430,6 +451,11 @@ impl Reader<'_> {
             })
             .and_then(|(i, l)| text::clean(&l.text).map(|t| (Value::Text(t), TOPMOST, 0, *i)))
     }
+}
+
+/// Whether the centre of a line lies within an area of its page.
+fn centred_in(area: &aktujo_doc::Area, line: &Line) -> bool {
+    area.holds((line.x0 + line.x1) / 2.0, (line.y0 + line.y1) / 2.0)
 }
 
 #[cfg(test)]

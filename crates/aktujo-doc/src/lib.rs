@@ -24,7 +24,7 @@ mod kinds;
 mod merge;
 
 pub use kinds::{
-    FieldDef, FieldType, Find, KIND_EVENTS, Kind, KindError, KindEvent, KindSkipped, Kinds, MAX_ID, MAX_NAME,
+    Area, FieldDef, FieldType, Find, KIND_EVENTS, Kind, KindError, KindEvent, KindSkipped, Kinds, MAX_ID, MAX_NAME,
     TemplateRef, Weighted,
 };
 pub use merge::{Conflict, Merged, merge};

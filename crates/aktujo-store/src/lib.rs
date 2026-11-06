@@ -36,6 +36,10 @@ pub enum StoreError {
     #[cfg(feature = "postgres")]
     #[error("PostgreSQL: {0}")]
     Postgres(#[from] postgres::Error),
+    /// TLS to PostgreSQL could not be set up – a CA given that is not one.
+    #[cfg(feature = "postgres")]
+    #[error("TLS: {0}")]
+    Tls(String),
     /// A name of a schema in PostgreSQL that is not a plain one.
     #[error("{0:?} is not a name of a schema: a–z, 0–9 and _, starting with a letter, at most 63")]
     Schema(String),

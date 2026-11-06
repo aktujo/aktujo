@@ -18,14 +18,16 @@ all-features = true
 
 [dependencies]
 aktujo-base.workspace = true
+bytes = { workspace = true, optional = true }
 futures-util = { workspace = true, optional = true }
 object_store = { workspace = true, optional = true }
+sha2.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 
 [features]
 # Originals in any object store of the crate object_store (in memory, local files, and what its features add).
-object = ["dep:object_store", "dep:futures-util", "dep:tokio"]
+object = ["dep:object_store", "dep:futures-util", "dep:tokio", "dep:bytes"]
 # Originals in S3 and S3-compatible storage (MinIO, Garage, Ceph).
 s3 = ["object", "object_store/aws"]
 

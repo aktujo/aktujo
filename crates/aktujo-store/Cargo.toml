@@ -17,14 +17,18 @@ aktujo-base.workspace = true
 aktujo-crypt.workspace = true
 aktujo-log.workspace = true
 postgres = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+rustls-native-certs = { workspace = true, optional = true }
+tokio-postgres-rustls = { workspace = true, optional = true }
 rusqlite.workspace = true
 thiserror.workspace = true
 
 [features]
 # The database encrypted as a whole: SQLCipher (BSD-3-Clause) with OpenSSL (Apache-2.0) built in, instead of SQLite.
 sqlcipher = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
-# The store in PostgreSQL for servers (`PgStore`), with the client `postgres` (MIT OR Apache-2.0).
-postgres = ["dep:postgres"]
+# The store in PostgreSQL for servers (`PgStore`), with the client `postgres` (MIT OR Apache-2.0), over TLS by rustls
+# with ring (`tokio-postgres-rustls`, MIT), the server checked against the roots of the system or a CA given.
+postgres = ["dep:postgres", "dep:rustls", "dep:rustls-native-certs", "dep:tokio-postgres-rustls"]
 
 [dev-dependencies]
 serde_json.workspace = true

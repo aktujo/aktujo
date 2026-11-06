@@ -5,6 +5,10 @@
 //! A store keeps bytes under the hash of those bytes and checks them on every read, so damaged or changed bytes are
 //! reported, never returned. Storing the same bytes again changes nothing. Whether the bytes are plain or an
 //! encrypted envelope is the caller's choice; the store only sees bytes.
+//!
+//! Long originals – recordings, films, scans of whole books – need not be held in memory: [`Blobs::put_reader`] stores
+//! what a reader gives, [`Blobs::open`] and [`Blobs::open_range`] give a reader back. A reader of a whole original
+//! checks it as it goes and fails at its end if the bytes do not have their hash.
 
 use std::{
     collections::BTreeMap,
@@ -16,12 +20,16 @@ use std::{
 };
 
 pub use aktujo_base::Sha256Hash;
+use sha2::{Digest, Sha256};
 
 #[cfg(feature = "object")]
 mod object;
 
+/// The bytes type of [`ObjectBlobs`]' async calls.
 #[cfg(feature = "object")]
-pub use object::{ObjectBlobs, S3Config};
+pub use bytes::Bytes;
+#[cfg(feature = "object")]
+pub use object::{ByteStream, ObjectBlobs, S3Config};
 #[cfg(feature = "object")]
 pub use object_store;
 
@@ -68,6 +76,79 @@ pub trait Blobs: Send + Sync {
     fn get_range(&self, hash: &Sha256Hash, range: Range<u64>) -> Result<Option<Vec<u8>>, BlobError> {
         Ok(self.get(hash)?.map(|bytes| cut(&bytes, range).to_vec()))
     }
+
+    /// Stores what `reader` gives under its hash and returns it – without holding it all in memory, where the store
+    /// can (a folder, an object store). Storing the same bytes again changes nothing.
+    fn put_reader(&self, reader: &mut dyn Read) -> Result<Sha256Hash, BlobError> {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes)?;
+        self.put(&bytes)
+    }
+
+    /// The bytes stored under `hash` as a reader, checked as they are read: at their end, a read fails (an error of
+    /// the kind `InvalidData`) if they do not have the hash. None if there are none.
+    fn open(&self, hash: &Sha256Hash) -> Result<Option<Box<dyn Read + Send>>, BlobError> {
+        Ok(self.get(hash)?.map(|bytes| Box::new(io::Cursor::new(bytes)) as Box<dyn Read + Send>))
+    }
+
+    /// The bytes in `range` of what is stored under `hash` as a reader, cut to its end and unchecked, like
+    /// [`Blobs::get_range`]. None if there are none.
+    fn open_range(&self, hash: &Sha256Hash, range: Range<u64>) -> Result<Option<Box<dyn Read + Send>>, BlobError> {
+        Ok(self.get_range(hash, range)?.map(|bytes| Box::new(io::Cursor::new(bytes)) as Box<dyn Read + Send>))
+    }
+}
+
+/// A reader that checks what it reads against a hash and fails at the end if it differs.
+pub(crate) struct Checked<R> {
+    inner: R,
+    hasher: Option<Sha256>,
+    hash: Sha256Hash,
+}
+
+impl<R> Checked<R> {
+    pub(crate) fn new(inner: R, hash: Sha256Hash) -> Self {
+        Checked { inner, hasher: Some(Sha256::new()), hash }
+    }
+}
+
+impl<R: Read> Read for Checked<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buffer)?;
+        if n > 0 {
+            if let Some(hasher) = &mut self.hasher {
+                hasher.update(&buffer[..n]);
+            }
+        } else if !buffer.is_empty()
+            && let Some(hasher) = self.hasher.take()
+            && Sha256Hash(hasher.finalize().into()) != self.hash
+        {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, BlobError::Damaged(self.hash)));
+        }
+        Ok(n)
+    }
+}
+
+/// Reads `reader` to its end in parts of up to `part` bytes, handing each to `each`; returns the hash of it all.
+pub(crate) fn in_parts(
+    reader: &mut dyn Read,
+    part: usize,
+    mut each: impl FnMut(Vec<u8>) -> Result<(), BlobError>,
+) -> Result<Sha256Hash, BlobError> {
+    let mut hasher = Sha256::new();
+    loop {
+        let mut buffer = Vec::with_capacity(part);
+        reader.take(part as u64).read_to_end(&mut buffer)?;
+        if buffer.is_empty() {
+            break;
+        }
+        hasher.update(&buffer);
+        let full = buffer.len() == part;
+        each(buffer)?;
+        if !full {
+            break;
+        }
+    }
+    Ok(Sha256Hash(hasher.finalize().into()))
 }
 
 /// The part of `bytes` in `range`, cut to their end; empty if the range starts after it or is reversed.
@@ -203,6 +284,44 @@ impl Blobs for FolderBlobs {
     }
 
     fn get_range(&self, hash: &Sha256Hash, range: Range<u64>) -> Result<Option<Vec<u8>>, BlobError> {
+        let Some(mut reader) = self.open_range(hash, range)? else { return Ok(None) };
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes)?;
+        Ok(Some(bytes))
+    }
+
+    fn put_reader(&self, reader: &mut dyn Read) -> Result<Sha256Hash, BlobError> {
+        // Written beside the store's folders, then renamed into place once the hash is known.
+        let partial = self.root.join(format!("incoming-{}", hex_suffix()));
+        let mut file = fs::File::create(&partial)?;
+        let written = in_parts(reader, 1 << 20, |part| Ok(io::Write::write_all(&mut file, &part)?));
+        let hash = match written.and_then(|hash| Ok((hash, file.sync_all()?))) {
+            Ok((hash, ())) => hash,
+            Err(error) => {
+                let _ = fs::remove_file(&partial);
+                return Err(error);
+            }
+        };
+        drop(file);
+        let path = self.path(&hash);
+        if path.exists() {
+            fs::remove_file(&partial)?;
+        } else {
+            fs::create_dir_all(path.parent().expect("a file in a folder"))?;
+            fs::rename(&partial, &path)?;
+        }
+        Ok(hash)
+    }
+
+    fn open(&self, hash: &Sha256Hash) -> Result<Option<Box<dyn Read + Send>>, BlobError> {
+        match fs::File::open(self.path(hash)) {
+            Ok(file) => Ok(Some(Box::new(Checked::new(io::BufReader::new(file), *hash)))),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    fn open_range(&self, hash: &Sha256Hash, range: Range<u64>) -> Result<Option<Box<dyn Read + Send>>, BlobError> {
         let mut file = match fs::File::open(self.path(hash)) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -212,9 +331,7 @@ impl Blobs for FolderBlobs {
         let start = range.start.min(len);
         let end = range.end.clamp(start, len);
         file.seek(SeekFrom::Start(start))?;
-        let mut bytes = Vec::with_capacity((end - start) as usize);
-        file.take(end - start).read_to_end(&mut bytes)?;
-        Ok(Some(bytes))
+        Ok(Some(Box::new(file.take(end - start))))
     }
 }
 
@@ -228,7 +345,7 @@ fn remove_file(path: &Path) -> Result<bool, BlobError> {
 }
 
 /// A random suffix for a file being written, so that two writers never share one.
-fn hex_suffix() -> String {
+pub(crate) fn hex_suffix() -> String {
     let bytes: [u8; 8] = aktujo_base::random();
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -275,6 +392,20 @@ pub(crate) mod tests {
         assert_eq!(store.get_range(&hash, 50..60).unwrap().as_deref(), Some(&b""[..]));
         assert_eq!(store.get_range(&other, 0..1).unwrap(), None);
 
+        // Streaming: stored from a reader in parts, read back as a reader, checked.
+        let long: Vec<u8> = (0..3_000_000u32).map(|i| (i % 251) as u8).collect();
+        let streamed = store.put_reader(&mut &long[..]).unwrap();
+        assert_eq!(streamed, Sha256Hash::of(&long));
+        assert_eq!(store.put_reader(&mut &long[..]).unwrap(), streamed, "again: nothing changes");
+        let mut back = Vec::new();
+        store.open(&streamed).unwrap().unwrap().read_to_end(&mut back).unwrap();
+        assert!(back == long, "read back as it was");
+        let mut part = Vec::new();
+        store.open_range(&streamed, 1_000_000..1_000_010).unwrap().unwrap().read_to_end(&mut part).unwrap();
+        assert_eq!(part, long[1_000_000..1_000_010]);
+        assert!(store.open(&other).unwrap().is_none() && store.open_range(&other, 0..1).unwrap().is_none());
+        assert!(store.remove(&streamed).unwrap());
+
         assert!(store.remove(&empty).unwrap());
         assert!(!store.remove(&empty).unwrap());
         assert!(!store.contains(&empty).unwrap());
@@ -302,5 +433,8 @@ pub(crate) mod tests {
         let hash = store.put(b"original").unwrap();
         fs::write(store.path(&hash), b"changed").unwrap();
         assert!(matches!(store.get(&hash), Err(BlobError::Damaged(h)) if h == hash));
+        let mut read = Vec::new();
+        let error = store.open(&hash).unwrap().unwrap().read_to_end(&mut read).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData, "a reader fails at the end");
     }
 }

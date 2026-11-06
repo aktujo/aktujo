@@ -47,6 +47,11 @@ The ways to find a value, each with a confidence that the value is right:
 | `first` | the first value of the field's type on the first page – for a date without a label | 0.35 |
 | `sender` | the name in the letterhead or the sender line: a line near the top (or in the footer) with one of the markers the field names (a legal form, a word of an authority …); else the topmost line of words | 0.6 / 0.3 |
 | `present` | yes, if one of the phrases occurs – for flags | 0.6 |
+| `tallest` | the line with the tallest letters on the first page, within an `area` if given – a title | 0.5 |
+| `within` | the first value of the field's type within an `area` of the first page – the composer at the top right | 0.5 |
+
+An `area` is a part of the page in thousandths of its width and height (`left`, `top`, `right`, `bottom`, 0 to 1000,
+y from the top) – whole numbers, as events hold no floating-point numbers; a line belongs to it when its centre does.
 
 Values are read by their field's type and written as `aktujo-doc` wants them:
 

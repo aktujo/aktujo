@@ -757,6 +757,29 @@ export interface components {
          * @enum {string}
          */
         AfterView: "leave" | "move";
+        /** @description A part of a page in thousandths of its width and height (0 to 1000, y from the top). */
+        AreaView: {
+            /**
+             * Format: int32
+             * @description The bottom edge.
+             */
+            bottom: number;
+            /**
+             * Format: int32
+             * @description The left edge.
+             */
+            left: number;
+            /**
+             * Format: int32
+             * @description The right edge.
+             */
+            right: number;
+            /**
+             * Format: int32
+             * @description The top edge.
+             */
+            top: number;
+        };
         /**
          * @description Where in the bin to look.
          * @enum {string}
@@ -929,6 +952,15 @@ export interface components {
             phrases: string[];
             /** @enum {string} */
             way: "present";
+        } | {
+            area?: components["schemas"]["AreaView"] | null;
+            /** @enum {string} */
+            way: "tallest";
+        } | {
+            /** @description Where on the page. */
+            area: components["schemas"]["AreaView"];
+            /** @enum {string} */
+            way: "within";
         };
         /** @description How many kinds an import changed. */
         Imported: {

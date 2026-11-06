@@ -35,7 +35,7 @@ A kind (`aktujo_doc::Kind`) has
   language if the kind has one;
 - **fields**, in the order they are shown: a key (like an identity), a name and names, a type (`text`, `date`,
   `money`, `number`, `flag`), and how to find it in a text – `code` (only the first word with a digit) and `find`,
-  the ways tried in order (`label`, `largest`, `first`, `sender`, `present`; [0003](0003-recognition.md));
+  the ways tried in order (`label`, `largest`, `first`, `sender`, `present`, `tallest`, `within`; [0003](0003-recognition.md));
 - **words** that speak for it, each with a whole weight; without words a kind is never suggested, only chosen;
 - a **title**: the fields a suggested title is made of after the kind's name, in groups – the first with a value of
   each group.

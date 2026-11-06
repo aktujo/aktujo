@@ -352,3 +352,35 @@ fn merging_keeps_the_surer_kind_and_values() {
     let values: Vec<(&str, &Value)> = merged.fields.iter().map(|f| (f.key.as_str(), &f.value)).collect();
     assert_eq!(values, [("issuer", &text("B")), ("number", &text("2"))]);
 }
+
+#[test]
+fn fields_are_found_by_where_they_stand() {
+    // A part of sheet music: the title in large letters, the composer at the top right, the part at the top left.
+    let kind: Kind = serde_json::from_value(serde_json::json!({
+        "id": "part", "name": "Part",
+        "fields": [
+            {"key": "title", "name": "Title", "type": "text", "find": [{"way": "tallest", "area": {"left": 0, "top": 0, "right": 1000, "bottom": 300}}]},
+            {"key": "composer", "name": "Composer", "type": "text", "find": [{"way": "within", "area": {"left": 600, "top": 0, "right": 1000, "bottom": 200}}]},
+            {"key": "voice", "name": "Part", "type": "text", "find": [{"way": "within", "area": {"left": 0, "top": 0, "right": 400, "bottom": 200}}]},
+            {"key": "tallest", "name": "Anywhere", "type": "text", "find": [{"way": "tallest"}]}
+        ]
+    }))
+    .unwrap();
+    kind.check().unwrap();
+    let mut sheet = page(
+        &[("2. Trompete in B", 0.05, 0.06), ("Musik: J. Muster", 0.7, 0.06), ("Allegro", 0.1, 0.25)],
+        Method::TextLayer,
+    );
+    sheet.lines.push(Line { text: "Festmarsch".into(), x0: 0.35, y0: 0.1, x1: 0.65, y1: 0.16 });
+    sheet.lines.push(Line { text: "Fine".into(), x0: 0.8, y0: 0.9, x1: 0.9, y1: 0.98 });
+    let extraction = Extraction { pages: vec![sheet] };
+    let recognition = Rules::default().recognise(std::slice::from_ref(&kind), &extraction, Some("part"));
+    assert_eq!(value(&recognition, "title"), Some(&text("Festmarsch")));
+    assert_eq!(value(&recognition, "composer"), Some(&text("Musik: J. Muster")));
+    assert_eq!(value(&recognition, "voice"), Some(&text("2. Trompete in B")));
+    assert_eq!(value(&recognition, "tallest"), Some(&text("Fine")), "without an area, the tallest anywhere");
+
+    let mut wrong = kind;
+    wrong.fields[1].find = vec![Find::Within { area: aktujo_doc::Area { left: 700, top: 0, right: 600, bottom: 200 } }];
+    assert!(matches!(wrong.check(), Err(aktujo_doc::KindError::Area(key)) if key == "composer"));
+}

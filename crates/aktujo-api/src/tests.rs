@@ -473,3 +473,19 @@ async fn a_space_is_exported_as_a_zip() {
     let not_a_zip = request("POST", "/api/v1/space-import").body(Body::from("no zip")).unwrap();
     assert_eq!(send(&router, not_a_zip).await.0, StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+#[test]
+fn every_way_to_find_a_field_passes_the_api() {
+    let kind: aktujo_sdk::Kind = serde_json::from_value(json!({
+        "id": "part", "name": "Part",
+        "fields": [{"key": "title", "name": "Title", "type": "text", "find": [
+            {"way": "label", "labels": ["title"]}, {"way": "largest", "labels": ["sum"]}, {"way": "first"},
+            {"way": "sender", "markers": ["gmbh"]}, {"way": "present", "phrases": ["paid"]},
+            {"way": "tallest"}, {"way": "tallest", "area": {"left": 0, "top": 0, "right": 1000, "bottom": 300}},
+            {"way": "within", "area": {"left": 600, "top": 0, "right": 1000, "bottom": 200}}
+        ]}]
+    }))
+    .unwrap();
+    let view = crate::views::KindView::from(kind.clone());
+    assert_eq!(aktujo_sdk::Kind::from(view), kind);
+}

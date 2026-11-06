@@ -76,6 +76,19 @@ fn pages_are_chosen_and_written_as_an_image_or_a_pdf() {
     assert_eq!(page_count(&pdf.bytes, "application/pdf").unwrap(), 2);
     let back = page(&pdf.bytes, "application/pdf", 1, 100.0).unwrap();
     assert_eq!(back.image.dimensions(), (300, 400), "300 × 400 pixels at 100 dpi are 216 × 288 points");
+    // Opened once, many pages and a part of one.
+    let document = Document::open(&pdf.bytes, "application/pdf").unwrap();
+    assert_eq!((document.len(), document.is_empty()), (2, false));
+    assert_eq!(document.page(1, 100.0).unwrap(), back);
+    assert!(matches!(document.page(2, 100.0), Err(ScanError::NoPage(2))));
+    let header = document.region(1, Region::top(0.25), 100.0).unwrap();
+    assert_eq!(header.image.dimensions(), (300, 100));
+    let image = Document::open(&png(&paper()), "image/png").unwrap();
+    let corner = image.region(0, Region { x0: 0.0, y0: 0.0, x1: 0.05, y1: 0.05 }, DPI).unwrap();
+    assert_eq!((corner.image.dimensions(), corner.image.get_pixel(0, 0)), ((15, 20), &Rgb([200, 30, 30])));
+    let odd = Region { x0: 2.0, y0: f32::NAN, x1: -1.0, y1: 0.5 };
+    assert!(odd.cut(&paper().image).width() >= 1, "at least a pixel");
+    assert!(Region::WHOLE.contains(0.5, 1.0) && !Region::top(0.2).contains(0.5, 0.3));
     // A black and white page is stored with one bit a pixel.
     let small = write(&bw, true).unwrap();
     assert!(small.bytes.len() < 4_000, "{}", small.bytes.len());

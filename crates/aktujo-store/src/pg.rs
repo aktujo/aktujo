@@ -5,20 +5,52 @@
 //! The client is synchronous, like the trait. It runs a small runtime of its own; from within an async runtime, call
 //! it in `tokio::task::spawn_blocking` as any blocking I/O. Several servers may share one database: the schema is set
 //! up under a lock, and member records are appended under a lock per space, so that two servers never store two
-//! different records at the same place. OPEN: TLS to the database – today a connection without it (`NoTls`), for
-//! a database in the same private network.
+//! different records at the same place.
+//!
+//! The connection is encrypted with TLS as the URL's `sslmode` says: `disable` never, `prefer` (the default) if the
+//! server offers it, `require` always. Whenever it is, the server's certificate is checked – against the roots of the
+//! system, and a CA of the program's own ([`PgStore::connect_with_ca`]) for a database with a certificate of its
+//! cluster. Stricter than libpq, whose `prefer` and `require` check nothing: a server with a certificate no one
+//! trusts is refused, also under `prefer` – give its CA, or `sslmode=disable` within a private network.
 
 use std::{collections::BTreeSet, sync::Mutex};
 
 use aktujo_base::{Sha256Hash, SpaceId, to_root};
 use aktujo_crypt::{Domain, MemberRecord};
 use aktujo_log::Log;
-use postgres::{Client, NoTls, Transaction};
+use postgres::{Client, Transaction};
+use tokio_postgres_rustls::MakeRustlsConnect;
 
 use crate::{Backend, SCHEMA_VERSION, StoreError, parse};
 
 /// The schema used unless another is named.
 pub const DEFAULT_SCHEMA: &str = "aktujo";
+
+/// TLS by rustls with ring: the roots of the system, and the CA certificates in `ca_pem` if given.
+fn tls(ca_pem: Option<&[u8]>) -> Result<MakeRustlsConnect, StoreError> {
+    use rustls::pki_types::{CertificateDer, pem::PemObject};
+    let mut roots = rustls::RootCertStore::empty();
+    // Certificates of the system that cannot be read are left out, as browsers do.
+    roots.add_parsable_certificates(rustls_native_certs::load_native_certs().certs);
+    if let Some(pem) = ca_pem {
+        let mut given = 0;
+        for certificate in CertificateDer::pem_slice_iter(pem) {
+            let certificate = certificate.map_err(|e| StoreError::Tls(format!("the CA: {e}")))?;
+            roots.add(certificate).map_err(|e| StoreError::Tls(format!("the CA: {e}")))?;
+            given += 1;
+        }
+        if given == 0 {
+            return Err(StoreError::Tls("the CA: no certificate in it".into()));
+        }
+    }
+    let config =
+        rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()
+            .map_err(|e| StoreError::Tls(e.to_string()))?
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+    Ok(MakeRustlsConnect::new(config))
+}
 
 /// A name of a schema written into SQL as it is: so it must be a plain one.
 fn check_schema(schema: &str) -> Result<(), StoreError> {
@@ -50,7 +82,14 @@ impl PgStore {
     /// Like [`PgStore::connect`], with the tables in the schema `schema` – one per organisation, for example.
     pub fn connect_in(url: &str, schema: &str) -> Result<Self, StoreError> {
         check_schema(schema)?;
-        Self::with_client(Client::connect(url, NoTls)?, schema)
+        Self::with_client(Client::connect(url, tls(None)?)?, schema)
+    }
+
+    /// Like [`PgStore::connect_in`], trusting the CA certificates in `ca_pem` (PEM) besides the system's – a
+    /// cluster's own. Add `sslmode=require` to the URL so that the connection is never without TLS.
+    pub fn connect_with_ca(url: &str, schema: &str, ca_pem: &[u8]) -> Result<Self, StoreError> {
+        check_schema(schema)?;
+        Self::with_client(Client::connect(url, tls(Some(ca_pem))?)?, schema)
     }
 
     /// The store on a client connected already, with the tables in the schema `schema`.
@@ -272,6 +311,8 @@ impl Backend for PgStore {
 mod tests {
     use aktujo_crypt::{Member, MemberKeys, MemberList, Rights};
 
+    use postgres::NoTls;
+
     use super::*;
     use crate::tests::{events_and_settings, members, originals};
 
@@ -363,5 +404,31 @@ mod tests {
             .execute(&format!("UPDATE {}.schema_version SET version = 99", scratch.schema), &[])
             .unwrap();
         assert!(matches!(PgStore::connect_in(&scratch.url, &scratch.schema), Err(StoreError::Version(99))));
+    }
+
+    #[test]
+    fn a_ca_that_is_none_is_refused() {
+        assert!(matches!(tls(Some(b"not a certificate")), Err(StoreError::Tls(_))));
+        assert!(tls(None).is_ok());
+    }
+
+    /// Against a database with TLS: `AKTUJO_TEST_POSTGRES_TLS` (a URL with `sslmode=require`) and
+    /// `AKTUJO_TEST_POSTGRES_CA` (the file of the CA of its certificate, PEM); without them, nothing is done.
+    #[test]
+    fn over_tls_the_server_is_checked() {
+        let (Ok(url), Ok(ca)) = (std::env::var("AKTUJO_TEST_POSTGRES_TLS"), std::env::var("AKTUJO_TEST_POSTGRES_CA"))
+        else {
+            return;
+        };
+        let ca = std::fs::read(ca).unwrap();
+        let schema = format!("test_tls_{}", std::process::id());
+        let store = PgStore::connect_with_ca(&url, &schema, &ca).unwrap();
+        store.set_setting(None, "over", "tls").unwrap();
+        let encrypted: bool =
+            store.client().query_one("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()", &[]).unwrap().get(0);
+        assert!(encrypted, "the connection is encrypted");
+        // The CA is not one of the system's: without it, the server is not trusted.
+        assert!(matches!(PgStore::connect_in(&url, &schema), Err(StoreError::Postgres(_))));
+        store.client().batch_execute(&format!("DROP SCHEMA {schema} CASCADE")).unwrap();
     }
 }

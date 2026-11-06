@@ -66,7 +66,8 @@ jobs:
         run: |
           sudo systemctl start postgresql.service
           sudo -u postgres psql -c "CREATE USER aktujo PASSWORD 'aktujo'" -c "CREATE DATABASE aktujo_test OWNER aktujo"
-          echo "AKTUJO_TEST_POSTGRES=postgres://aktujo:aktujo@localhost/aktujo_test" >> "$GITHUB_ENV"
+          # The runner's server has TLS with a certificate of its own, trusted by nothing: plain for these tests.
+          echo "AKTUJO_TEST_POSTGRES=postgres://aktujo:aktujo@localhost/aktujo_test?sslmode=disable" >> "$GITHUB_ENV"
       - run: cargo test --locked --all-features
       - name: aktujo-minimal – without scanning and OCR
         run: |

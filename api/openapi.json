@@ -2840,6 +2840,42 @@
           "move"
         ]
       },
+      "AreaView": {
+        "type": "object",
+        "description": "A part of a page in thousandths of its width and height (0 to 1000, y from the top).",
+        "required": [
+          "left",
+          "top",
+          "right",
+          "bottom"
+        ],
+        "properties": {
+          "bottom": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The bottom edge.",
+            "minimum": 0
+          },
+          "left": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The left edge.",
+            "minimum": 0
+          },
+          "right": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The right edge.",
+            "minimum": 0
+          },
+          "top": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The top edge.",
+            "minimum": 0
+          }
+        }
+      },
       "BinView": {
         "type": "string",
         "description": "Where in the bin to look.",
@@ -3324,6 +3360,52 @@
                 "type": "string",
                 "enum": [
                   "present"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The line with the tallest letters on the first page – a title – within `area` if given.",
+            "required": [
+              "way"
+            ],
+            "properties": {
+              "area": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/AreaView",
+                    "description": "Where on the page; none: anywhere."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "way": {
+                "type": "string",
+                "enum": [
+                  "tallest"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The first value of the field's type within `area` of the first page, lines from the top, then from the left.",
+            "required": [
+              "area",
+              "way"
+            ],
+            "properties": {
+              "area": {
+                "$ref": "#/components/schemas/AreaView",
+                "description": "Where on the page."
+              },
+              "way": {
+                "type": "string",
+                "enum": [
+                  "within"
                 ]
               }
             }
