@@ -102,13 +102,20 @@ sources; the default source can be switched off; templates taken over can be upd
   `template` – the source's address, the template's ID (`aktujo.paperwork`), the SHA-256 of its `template.json`, and
   `base`, the kind as the template defines it. A person's change writes `kind_defined` without `template`; the space
   keeps the last `template` of the kind, so it still knows where the kind came from and what the template said.
-  Removing the kind forgets it. A template imported as a file records nothing (OPEN: whether it records its SHA-256).
+  Removing the kind forgets it.
+- **A template imported as a file** remembers the same, without a source and an ID (maintainer, 2026-11-06): the
+  SHA-256 of the file and `base`. When the catalog view is opened later and a source names a template with that
+  SHA-256, the kind is linked to it – its source and ID are written with the next `kind_defined` – and updates come
+  as for one taken from the catalog; `base` keeps a person's own changes apart in the three-way merge. A file changed by
+  hand matches no catalog; its kinds work as any other, without updates. A list of kinds (not a template) and kinds
+  exported from a space remember nothing new: an export keeps the `template` its kinds have.
 
 ## Updating a template
 
 - **Found when asked.** When a person opens the catalog view, aktujo compares, for every kind of the space that came
-  from a template of a source that is on, the SHA-256 it remembers with the one in `catalog.json`. A difference is an
-  update; the view lists the templates with updates for this space. Nothing is looked up otherwise.
+  from a template of a source that is on, the SHA-256 it remembers with the one in `catalog.json`; a kind from a file
+  without a source is first matched by its SHA-256 among all templates of the sources that are on. A difference is
+  an update; the view lists the templates with updates for this space. Nothing is looked up otherwise.
 - **Shown before it is taken**, kind by kind:
   - *Not changed here* (the kind is its `base`): the template's new definition replaces it.
   - *Changed here*: a three-way merge of `base`, this space's kind and the template's new kind, item by item – the
