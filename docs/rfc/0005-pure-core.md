@@ -87,7 +87,7 @@ sources; the default source can be switched off; templates taken over can be upd
   take over go into the space and sync as always.
 - **Only when asked.** aktujo reads a source when a person opens the catalog view or asks for it on the command line
   – never at start, never in the background, no counting of downloads. What it read is kept for that view only.
-- **The program reads, not the browser.** `aktujo-app` fetches over HTTPS (the HTTP client the sync already uses);
+- **The program reads, not the browser.** `aktujo-sdk` fetches over HTTPS (the HTTP client the sync already uses);
   the API and the terminal show what it found. So the web app keeps talking to its own server only, and the terminal
   can do the same.
 - **Checked before it is shown.** `catalog.json` must have a `format` aktujo knows (a newer one: the source is shown
@@ -134,7 +134,7 @@ Built so (2026-11-06):
 | Where | What |
 |---|---|
 | `aktujo-doc` | `TemplateRef` in `kind_defined` (`template`: `source`, `id`, `sha256`, `base`), kept by `Kinds::template`; `merge(base, mine, theirs)` with `Conflict`s |
-| `aktujo-app` | `sources()`, `add_source`, `set_source`, `remove_source` (not the official catalog; setting `catalog.sources`); `fetch_catalog`, `fetch_template` (without the workspace; a repository on GitHub read from `raw.githubusercontent.com`, HTTP only on this device); `standing` (new, taken, update); `plan` (new, same, replace, merge, gone) and `apply` with a `Choice` per kind (take, theirs, keep, remove); `import_file` for a file as it is |
+| `aktujo-sdk` | `sources()`, `add_source`, `set_source`, `remove_source` (not the official catalog; setting `catalog.sources`); `fetch_catalog`, `fetch_template` (without the workspace; a repository on GitHub read from `raw.githubusercontent.com`, HTTP only on this device); `standing` (new, taken, update); `plan` (new, same, replace, merge, gone) and `apply` with a `Choice` per kind (take, theirs, keep, remove); `import_file` for a file as it is |
 | API | `GET/POST/PUT/DELETE /api/v1/sources`; `GET /api/v1/spaces/{space}/catalog` (every source that is on, read now, with each template's standing); `POST /api/v1/spaces/{space}/catalog/plan` and `…/catalog/take` (`{"source", "template", "choices"}`; the template is read and planned anew when taken); `POST /api/v1/spaces/{space}/kind-import` takes the file's bytes as they are |
 | Web app | *Settings → Sources of templates* (a switch each, the official catalog too); *Kinds → From a catalog …*: templates of all sources that are on, by tag, updates first, with the preview – a choice per kind, conflicts with both versions – then *Take over* |
 | Terminal | `C`: the templates of the sources that are on, numbered, with their standing; the number takes one over as proposed |

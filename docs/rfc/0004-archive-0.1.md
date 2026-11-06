@@ -14,7 +14,7 @@ Version 0.1 of the program aktujo is the archive of **one person, on their devic
 version, keep and find documents – step 3 of the roadmap in the whitepaper – and, brought forward from step 4,
 **sync** between devices through a relay and **sharing** a space with other people (maintainer, 2026-11-05). It is
 built on what is there: the core (0001), the document crates `aktujo-doc` and `aktujo-extract` (0002) and
-`aktujo-rules` (0003). What the program has today – `aktujo-app`, the API, the web app and the terminal interface – is
+`aktujo-rules` (0003). What the program has today – `aktujo-sdk`, the API, the web app and the terminal interface – is
 the skeleton from the starter pack (a list of items in memory); 0.1 replaces it with the archive.
 
 The audit log as a report, the mobile app, servers for organisations, workflows and signatures are later steps of the
@@ -42,7 +42,7 @@ roadmap and not part of 0.1 – but nothing in 0.1 may stand in their way. Impor
 - `aktujo tui` – the same archive in the terminal.
 - The command line also gets the steps that are useful in scripts: `add`, `export`, `search` (OPEN: which, and the
   names).
-- Both interfaces go through `aktujo-app` (0001); the web app only through the API.
+- Both interfaces go through `aktujo-sdk` (0001); the web app only through the API.
 - The interface speaks **English and German**; its texts are data, so that more languages can follow.
 - Where the data lives: one folder per user – `aktujo` in the folder for application data (`$XDG_DATA_HOME` or
   `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows), or the one given with
@@ -83,7 +83,7 @@ Decided by the maintainer on 2026-11-05.
    reading, or, for a reader with OCR, while its reading was made without OCR and left pages unread or failed – so
    nothing is lost when the program stops, and what `aktujo-minimal` read is read again by the full build where that
    helps. Only the newest version of documents outside the bin is read, in spaces this device may write in. The
-   reading itself runs outside the workspace's lock, on a thread of its own (`Worker` in `aktujo-app`). A better
+   reading itself runs outside the workspace's lock, on a thread of its own (`Worker` in `aktujo-sdk`). A better
    title from the kind's name and the fields of its title is offered while the title is still the file's, not
    written.
 5. **Improving writes a new version.** The tools for images are a crate of their own, `aktujo-scan` – MIT like the
@@ -117,7 +117,7 @@ Decided by the maintainer on 2026-11-05.
      change and the other way round; a version improved or read by OCR in the full build stays readable in the
      minimal one.
    - Neither build makes a connection for the models. They stay data for the crates (0002: never part of
-     `aktujo-extract`). Built so (2026-11-05): the feature `ocr` of `aktujo` and `aktujo-app` (on by default) builds
+     `aktujo-extract`). Built so (2026-11-05): the feature `ocr` of `aktujo` and `aktujo-sdk` (on by default) builds
      them in; `build.rs` takes them from `AKTUJO_OCR_MODELS` or `target/ocr-models`, where
      `scripts/get-ocr-models.sh` puts them, checks their hashes and stops if they are missing – the build itself
      makes no connection. Without `ocr`, `aktujo-extract` is built with the feature `layer`: text layers only,
@@ -131,7 +131,7 @@ Decided by the maintainer on 2026-11-05.
    an open point of 0001 for the program. SQLCipher is C with OpenSSL built in, beside SQLite, which is C already; it
    is in `aktujo-minimal` too. Built so (2026-11-05): SQLCipher is the feature `sqlcipher` of `aktujo-store`, so the
    core stays usable without it; the originals are sealed with XChaCha20-Poly1305 in their folder, bound to their hash
-   (`SealedBlobs` in `aktujo-app`); the key stores are reached through `keyring`; one secret of 32 bytes per data
+   (`SealedBlobs` in `aktujo-sdk`); the key stores are reached through `keyring`; one secret of 32 bytes per data
    folder, the keys of the database and of the originals derived from it with HKDF-SHA256. Where there is no key
    store, the secret is kept in a file of its own (`--key-file`, `AKTUJO_KEY_FILE`; `FileKeys`, 2026-11-06) – for a
    server or a container, a secret mounted into it. OPEN: that file protected by a passphrase; whether `SealedBlobs`
@@ -157,7 +157,7 @@ Decided by the maintainer on 2026-11-05.
    ([0005](0005-pure-core.md)); the title offered takes the kind's name in the interface's language.
 10. **Watched folders** are part of 0.1: a folder is given per space; new files are taken in, then left where they
     are or moved to a folder beside it. Built so (2026-11-06): watched folders belong to the device (a setting of the
-    workspace), any number per space; `Watcher` in `aktujo-app` looks at them every 5 s while `serve` or `tui` runs –
+    workspace), any number per space; `Watcher` in `aktujo-sdk` looks at them every 5 s while `serve` or `tui` runs –
     no file events of the operating system, the same everywhere and on network shares. A file is taken once it stayed
     the same between two looks (a scanner still writing is waited for); only PDF, PNG, JPEG and TIFF, at the top level
     or – if asked for a folder (2026-11-06) – in its subfolders too, down to eight levels and without `added`; hidden
@@ -180,7 +180,7 @@ Decided by the maintainer on 2026-11-05.
 12. **Sync and sharing are part of 0.1**: through a relay the person runs (`aktujo relay`); invitations with rights,
     members listed and removed, the recovery code – what `aktujo-sync` does today, offered in every interface.
     Built so (2026-11-05): `serve` and `tui` synchronise every synchronised space in the background (`Syncer` in
-    `aktujo-app`) at once, every minute and after every change, each space on its own, and keep how it went; what
+    `aktujo-sdk`) at once, every minute and after every change, each space on its own, and keep how it went; what
     arrives is read where it needs to be. The device has a name people read, set once in the settings and used when
     it starts a sync, joins or recovers. A device that may only read sees no control that changes something. The web
     app offers joining also on the first start. OPEN: a synchronisation holds the workspace's lock while it talks to
@@ -216,7 +216,7 @@ Decided by the maintainer on 2026-11-05.
 
 ## Order of the work
 
-1. `aktujo-app`: the workspace on `aktujo-sync` with several spaces, encrypted at rest, the key in the key store;
+1. `aktujo-sdk`: the workspace on `aktujo-sync` with several spaces, encrypted at rest, the key in the key store;
    documents added, labels, kinds, fields, versions, the bin – tested without an interface.
 2. Reading in the background with `aktujo-extract` and `aktujo-rules`, the models built in; the text stored by
    hash.

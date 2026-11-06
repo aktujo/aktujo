@@ -55,9 +55,9 @@ name = "aktujo"
 version = "0.2.0"
 dependencies = [
  "aktujo-api",
- "aktujo-app",
  "aktujo-crypt",
  "aktujo-relay",
+ "aktujo-sdk",
  "aktujo-tui",
  "anyhow",
  "clap",
@@ -68,11 +68,11 @@ dependencies = [
 name = "aktujo-api"
 version = "0.2.0"
 dependencies = [
- "aktujo-app",
  "aktujo-base",
  "aktujo-core",
  "aktujo-crypt",
  "aktujo-relay",
+ "aktujo-sdk",
  "axum",
  "futures-util",
  "http-body-util",
@@ -83,37 +83,6 @@ dependencies = [
  "tokio",
  "tower",
  "utoipa",
-]
-
-[[package]]
-name = "aktujo-app"
-version = "0.2.0"
-dependencies = [
- "aktujo-base",
- "aktujo-blob",
- "aktujo-core",
- "aktujo-crypt",
- "aktujo-doc",
- "aktujo-extract",
- "aktujo-log",
- "aktujo-relay",
- "aktujo-rules",
- "aktujo-scan",
- "aktujo-store",
- "aktujo-sync",
- "chacha20poly1305",
- "crc32fast",
- "hex",
- "hkdf",
- "image",
- "keyring",
- "miniz_oxide 0.8.9",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "thiserror 2.0.21",
- "tokio",
- "ureq",
 ]
 
 [[package]]
@@ -244,6 +213,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "aktujo-sdk"
+version = "0.2.0"
+dependencies = [
+ "aktujo-base",
+ "aktujo-blob",
+ "aktujo-core",
+ "aktujo-crypt",
+ "aktujo-doc",
+ "aktujo-extract",
+ "aktujo-log",
+ "aktujo-relay",
+ "aktujo-rules",
+ "aktujo-scan",
+ "aktujo-store",
+ "aktujo-sync",
+ "chacha20poly1305",
+ "crc32fast",
+ "hex",
+ "hkdf",
+ "image",
+ "keyring",
+ "miniz_oxide 0.8.9",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "tokio",
+ "ureq",
+]
+
+[[package]]
 name = "aktujo-store"
 version = "0.2.0"
 dependencies = [
@@ -277,9 +277,9 @@ dependencies = [
 name = "aktujo-tui"
 version = "0.2.0"
 dependencies = [
- "aktujo-app",
  "aktujo-crypt",
  "aktujo-relay",
+ "aktujo-sdk",
  "ratatui",
  "serde",
  "serde_json",

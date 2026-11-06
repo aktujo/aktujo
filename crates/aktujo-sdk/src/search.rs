@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Finding documents (`docs/rfc/0004-archive-0.1.md`, decisions 2 and 3): a full-text index in SQLite FTS5 over the
 //! title, the labels, the kind and the field values and the text read from the newest version – and filters by space,
 //! kind, label, date and the bin over the state in memory.

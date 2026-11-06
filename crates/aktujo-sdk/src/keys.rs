@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Where the key of a data folder is kept, and the keys derived from it (`docs/rfc/0004-archive-0.1.md`, decision 7).
 //!
 //! A data folder has one secret of 32 random bytes, kept outside the folder – in the key store of the operating

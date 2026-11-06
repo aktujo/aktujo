@@ -16,10 +16,10 @@ cargo run -q -- openapi > api/openapi.json && (cd web && pnpm api)   # after cha
 (cd web && pnpm check)
 cargo deny check
 scripts/check-age.py                                                  # after changing Cargo.lock
-cargo test -p aktujo-app && cargo build -p aktujo --no-default-features   # aktujo-minimal, without OCR
+cargo test -p aktujo-sdk && cargo build -p aktujo --no-default-features   # aktujo-minimal, without OCR
 ```
 
-The feature `ocr` of `aktujo-app` (on by default in `aktujo`) builds the OCR models into the program; `build.rs` takes
+The feature `ocr` of `aktujo-sdk` (on by default in `aktujo`) builds the OCR models into the program; `build.rs` takes
 them from `AKTUJO_OCR_MODELS` or `target/ocr-models` and stops if they are missing or not the expected ones.
 
 The texts of the web app and the terminal interface are in `locales/`, one JSON file per language; a new text gets a
@@ -28,7 +28,7 @@ copied, never drawn or edited here. To try the program without touching the key 
 
 ## Rules
 
-- **One core, many interfaces:** the terminal interface, the API and the command line work through `aktujo-app`
+- **One core, many interfaces:** the terminal interface, the API and the command line work through `aktujo-sdk`
   only; the web app and the apps use the API.
 - **Dependencies:** exact versions in the lock files, each the newest that is at least 14 days old –
   `scripts/check-age.py` for `Cargo.lock`, `minimumReleaseAge` in `web/pnpm-workspace.yaml` for pnpm; a fix for a

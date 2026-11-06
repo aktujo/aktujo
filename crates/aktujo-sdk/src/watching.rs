@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Watched folders (`docs/rfc/0004-archive-0.1.md`, decision 10): a folder of this device given for a space – a
 //! scanner's, a download folder – whose new files are taken in on their own, as if uploaded. They belong to the
 //! device, not to the space: another device of the space has folders of its own.

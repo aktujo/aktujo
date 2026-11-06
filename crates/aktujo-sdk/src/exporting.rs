@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Exporting a space (`docs/rfc/0004-archive-0.1.md`, "Export"): everything, at any time, in aktujo's own open form –
 //! readable without aktujo:
 //!

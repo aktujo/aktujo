@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! The workspace of aktujo: every command and query. The terminal interface, the API and the command line work
 //! through it only – never with the store or the domain on their own.
 //!
@@ -754,7 +754,7 @@ pub(crate) mod tests {
 
     impl Scratch {
         pub(crate) fn new(name: &str) -> Self {
-            let path = std::env::temp_dir().join(format!("aktujo-app-{name}-{}", std::process::id()));
+            let path = std::env::temp_dir().join(format!("aktujo-sdk-{name}-{}", std::process::id()));
             let _ = fs::remove_dir_all(&path);
             Scratch(path)
         }

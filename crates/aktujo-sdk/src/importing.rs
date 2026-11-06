@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Reading an export back in (`exporting.rs`) – from a folder or a ZIP – as a new space.
 //!
 //! What comes back is the state, not the history: the kinds (with the templates they came from), every document with

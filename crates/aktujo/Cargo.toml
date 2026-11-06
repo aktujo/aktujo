@@ -13,7 +13,7 @@ publish.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 aktujo-api.workspace = true
-aktujo-app.workspace = true
+aktujo-sdk.workspace = true
 aktujo-crypt.workspace = true
 aktujo-relay.workspace = true
 aktujo-tui.workspace = true
@@ -22,7 +22,7 @@ tokio.workspace = true
 [features]
 default = ["ocr"]
 # Scanning and OCR, the models built in; without the default features the program is aktujo-minimal.
-ocr = ["aktujo-app/ocr", "aktujo-api/scan", "aktujo-tui/scan"]
+ocr = ["aktujo-sdk/ocr", "aktujo-api/scan", "aktujo-tui/scan"]
 
 [lints]
 workspace = true

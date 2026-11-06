@@ -1,13 +1,16 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT
 [package]
-name = "aktujo-app"
-description = "The workspace of aktujo: every command and query, the one layer the interfaces use"
+name = "aktujo-sdk"
+description = "The workspace of aktujo – a person's archive on a device: spaces, documents, kinds, reading, search, sync, export – the one layer every interface and app uses"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license = "MIT"
 repository.workspace = true
-publish.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["document","archive","local-first","end-to-end","aktujo"]
+categories = ["filesystem","database"]
 
 [dependencies]
 aktujo-base.workspace = true

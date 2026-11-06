@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Originals in a folder, encrypted at rest (`docs/rfc/0004-archive-0.1.md`, decision 7).
 //!
 //! Each original is kept under the hash of its plain bytes, as in `aktujo-blob`'s folder, but as a random nonce of

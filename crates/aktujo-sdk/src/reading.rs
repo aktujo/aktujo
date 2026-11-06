@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Reading in the background (`docs/rfc/0004-archive-0.1.md`, decisions 3, 4 and 6): the text of each document's
 //! newest version is read with `aktujo-extract`, kept as an original of its own by hash – the positioned lines as JSON
 //! – and linked to the version by a `document_read` event; then `aktujo-rules` suggests the kind and the fields.

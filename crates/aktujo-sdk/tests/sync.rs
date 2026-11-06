@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! The archive on several devices, end to end: a person's laptop and phone and someone invited to read, through a
 //! relay – documents arrive, rights hold, a removed member gets nothing after, and the space comes back with its
 //! recovery code.
@@ -10,13 +10,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use aktujo_app::{AppError, NewFile, Rights, Syncer, Workspace};
 use aktujo_crypt::Domain;
 use aktujo_relay::{Relay, serve_listener};
+use aktujo_sdk::{AppError, NewFile, Rights, Syncer, Workspace};
 
 /// A relay on a free port of this machine, in a folder of its own; stops with the test.
 fn relay(name: &str) -> String {
-    let folder = std::env::temp_dir().join(format!("aktujo-app-relay-{name}-{}", std::process::id()));
+    let folder = std::env::temp_dir().join(format!("aktujo-sdk-relay-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&folder);
     let relay = Relay::open(Domain::AKTUJO, &folder).unwrap();
     let (ready, address) = std::sync::mpsc::channel::<SocketAddr>();
@@ -35,7 +35,7 @@ fn pdf<'a>(name: &'a str, bytes: &'a [u8]) -> NewFile<'a> {
     NewFile { name, media_type: "application/pdf", bytes }
 }
 
-fn titles(workspace: &Workspace, space: &aktujo_app::SpaceId) -> Vec<String> {
+fn titles(workspace: &Workspace, space: &aktujo_sdk::SpaceId) -> Vec<String> {
     let mut titles: Vec<String> = workspace.documents(space).unwrap().iter().map(|d| d.title.clone()).collect();
     titles.sort();
     titles

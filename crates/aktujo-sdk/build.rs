@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! With the feature `ocr`, the OCR models are built into the program (`docs/rfc/0004-archive-0.1.md`, decision 6):
 //! they are taken from the folder in `AKTUJO_OCR_MODELS`, else from `target/ocr-models` of the workspace, where
 //! `scripts/get-ocr-models.sh` puts them, and checked by their hashes. The build makes no connection.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The open API of aktujo: HTTP and JSON under `/api/v1`, described in OpenAPI (`api/openapi.json`), and the web
-//! app around it, embedded into the binary. Like every interface, it works through the workspace of `aktujo-app`
+//! app around it, embedded into the binary. Like every interface, it works through the workspace of `aktujo-sdk`
 //! only.
 //!
 //! It listens on the device itself and answers only requests addressed to it there: the `Host` must be `localhost`,
@@ -25,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 use utoipa::OpenApi;
 
-use aktujo_app::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Syncer, Watcher, Worker, Workspace};
+use aktujo_sdk::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Syncer, Watcher, Worker, Workspace};
 
 #[cfg(feature = "scan")]
 mod improving;
@@ -409,10 +409,10 @@ async fn import_space(
     }
     let workspace = shared.workspace.clone();
     let target = path.clone();
-    let imported = tokio::task::spawn_blocking(move || -> Result<aktujo_app::Imported, AppError> {
+    let imported = tokio::task::spawn_blocking(move || -> Result<aktujo_sdk::Imported, AppError> {
         let file = std::fs::File::open(&target)?;
-        let mut files = aktujo_app::ZipFiles::open(std::io::BufReader::new(file)).map_err(aktujo_app::import_error)?;
-        aktujo_app::import(&workspace, &mut files, name.name.as_deref())
+        let mut files = aktujo_sdk::ZipFiles::open(std::io::BufReader::new(file)).map_err(aktujo_sdk::import_error)?;
+        aktujo_sdk::import(&workspace, &mut files, name.name.as_deref())
     })
     .await
     .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
@@ -466,14 +466,14 @@ fn blocking_failed(error: tokio::task::JoinError) -> ApiError {
     responses((status = 200, body = CatalogView), (status = 404, body = Problem)))]
 async fn catalog(State(shared): State<Shared>, Path(s): Path<String>) -> Answer<CatalogView> {
     let space = space(&s)?;
-    let sources: Vec<aktujo_app::Source> = {
+    let sources: Vec<aktujo_sdk::Source> = {
         let workspace = shared.lock();
         workspace.kinds(&space)?;
         workspace.sources()?.into_iter().filter(|s| s.on).collect()
     };
     // Read without the workspace: a slow source holds nothing.
     let fetched = tokio::task::spawn_blocking(move || {
-        sources.into_iter().map(|s| (aktujo_app::fetch_catalog(&s.url), s)).collect::<Vec<_>>()
+        sources.into_iter().map(|s| (aktujo_sdk::fetch_catalog(&s.url), s)).collect::<Vec<_>>()
     })
     .await
     .map_err(blocking_failed)?;
@@ -490,13 +490,13 @@ async fn catalog(State(shared): State<Shared>, Path(s): Path<String>) -> Answer<
             Ok(catalog) => {
                 for entry in catalog.templates {
                     let standing = match workspace.standing(&space, &source.url, &entry)? {
-                        aktujo_app::Standing::New => StandingView::New,
-                        aktujo_app::Standing::Taken => StandingView::Taken,
-                        aktujo_app::Standing::Update => StandingView::Update,
+                        aktujo_sdk::Standing::New => StandingView::New,
+                        aktujo_sdk::Standing::Taken => StandingView::Taken,
+                        aktujo_sdk::Standing::Update => StandingView::Update,
                     };
                     view.templates.push(TemplateListing {
                         source: source.url.clone(),
-                        official: source.is_default() && entry.author == aktujo_app::OFFICIAL_AUTHOR,
+                        official: source.is_default() && entry.author == aktujo_sdk::OFFICIAL_AUTHOR,
                         kinds: entry
                             .kinds
                             .into_iter()
@@ -526,29 +526,29 @@ async fn catalog(State(shared): State<Shared>, Path(s): Path<String>) -> Answer<
 }
 
 /// A template of a source that is on, read now and checked.
-async fn fetched(shared: &Shared, source: &str, id: &str) -> Result<aktujo_app::Template, ApiError> {
-    let url = aktujo_app::source_url(source)?;
+async fn fetched(shared: &Shared, source: &str, id: &str) -> Result<aktujo_sdk::Template, ApiError> {
+    let url = aktujo_sdk::source_url(source)?;
     if !shared.lock().sources()?.iter().any(|s| s.url == url && s.on) {
         return Err(not_found("such source switched on"));
     }
     let id = id.to_owned();
     let template = tokio::task::spawn_blocking(move || {
-        let catalog = aktujo_app::fetch_catalog(&url)?;
+        let catalog = aktujo_sdk::fetch_catalog(&url)?;
         let entry = catalog
             .templates
             .iter()
             .find(|t| t.id == id)
             .ok_or_else(|| AppError::NotFound(format!("no template {id} in {url}")))?;
-        aktujo_app::fetch_template(&url, entry)
+        aktujo_sdk::fetch_template(&url, entry)
     })
     .await
     .map_err(blocking_failed)??;
     Ok(template)
 }
 
-fn origin(choice: &TemplateChoice) -> Result<aktujo_app::TemplateOrigin, ApiError> {
-    Ok(aktujo_app::TemplateOrigin {
-        source: Some(aktujo_app::source_url(&choice.source)?),
+fn origin(choice: &TemplateChoice) -> Result<aktujo_sdk::TemplateOrigin, ApiError> {
+    Ok(aktujo_sdk::TemplateOrigin {
+        source: Some(aktujo_sdk::source_url(&choice.source)?),
         id: Some(choice.template.clone()),
     })
 }
@@ -739,7 +739,7 @@ async fn export_space(State(shared): State<Shared>, Path(s): Path<String>) -> Re
     let name = {
         let workspace = shared.lock();
         let info = workspace.spaces()?.into_iter().find(|i| i.id == space).ok_or_else(|| not_found("such space"))?;
-        aktujo_app::export_name(info.name.as_deref(), now_ms())
+        aktujo_sdk::export_name(info.name.as_deref(), now_ms())
     };
     // Written to a file of its own first – a large space is not held in memory – then sent and removed.
     let random: [u8; 8] = aktujo_base::random();
@@ -748,8 +748,8 @@ async fn export_space(State(shared): State<Shared>, Path(s): Path<String>) -> Re
     let (prefix, target) = (name.clone(), path.clone());
     let written = tokio::task::spawn_blocking(move || -> Result<std::fs::File, AppError> {
         let file = std::fs::File::create(&target)?;
-        let mut zip = aktujo_app::Zip::new(std::io::BufWriter::new(file), &prefix);
-        let exported = aktujo_app::export(&workspace, &space, &mut zip);
+        let mut zip = aktujo_sdk::Zip::new(std::io::BufWriter::new(file), &prefix);
+        let exported = aktujo_sdk::export(&workspace, &space, &mut zip);
         let file = zip.into_inner().into_inner().map_err(|e| AppError::Folder(e.to_string()));
         if exported.is_err() || file.is_err() {
             let _ = std::fs::remove_file(&target);

@@ -10,7 +10,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-aktujo-app.workspace = true
+aktujo-sdk.workspace = true
 aktujo-base.workspace = true
 aktujo-core.workspace = true
 axum.workspace = true
@@ -23,7 +23,7 @@ utoipa.workspace = true
 
 [features]
 # Looking at pages and improving scans (aktujo-scan); not in aktujo-minimal.
-scan = ["aktujo-app/scan"]
+scan = ["aktujo-sdk/scan"]
 
 [dev-dependencies]
 aktujo-crypt.workspace = true

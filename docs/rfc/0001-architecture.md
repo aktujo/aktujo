@@ -42,8 +42,9 @@ Programs that build the core in move onto it only once it covers everything they
 | `aktujo-sync` | MIT | a device's replica of its spaces: writing events and originals, synchronising through a relay, invitations, removing members, recovery | network |
 | `aktujo-doc`, `aktujo-extract` | MIT | documents and reading their text, on the core – [0002](0002-documents.md) | none / hayro, tract |
 | `aktujo-rules` | MIT | the kind and the fields of a document from its text, as suggestions; rules as data – [0003](0003-recognition.md) | none |
-| `aktujo-core` | AGPL | the domain of the archive | none |
-| `aktujo-app` | AGPL | the workspace: every command and query, the one layer the interfaces use | through the core |
+| `aktujo-scan` | MIT | improving scans and photos, pages into a PDF | none |
+| `aktujo-core` | MIT ([0006](0006-apps-and-sdk.md)) | the domain of the archive | none |
+| `aktujo-sdk` | MIT ([0006](0006-apps-and-sdk.md); was `aktujo-app`, AGPL) | the workspace: every command and query, the one layer the interfaces and the apps use | through the core |
 | `aktujo-api` | AGPL | HTTP and JSON, described in OpenAPI; serves the web app | network |
 | `aktujo-tui` | AGPL | the terminal interface | terminal |
 | `aktujo` | AGPL | the command line | – |

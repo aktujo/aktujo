@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use aktujo_app::{
+use aktujo_sdk::{
     Bin, Document, Hit, Kind, Part, ReadState, Reading, Search as SearchQuery, SpaceInfo, Value, Version, date_of,
 };
 
@@ -511,8 +511,8 @@ pub struct SpaceImported {
     pub skipped: Vec<String>,
 }
 
-impl From<aktujo_app::Imported> for SpaceImported {
-    fn from(imported: aktujo_app::Imported) -> Self {
+impl From<aktujo_sdk::Imported> for SpaceImported {
+    fn from(imported: aktujo_sdk::Imported) -> Self {
         SpaceImported {
             space: imported.space.to_string(),
             kinds: imported.kinds,
@@ -534,8 +534,8 @@ pub struct SourceView {
     pub default: bool,
 }
 
-impl From<aktujo_app::Source> for SourceView {
-    fn from(source: aktujo_app::Source) -> Self {
+impl From<aktujo_sdk::Source> for SourceView {
+    fn from(source: aktujo_sdk::Source) -> Self {
         SourceView { default: source.is_default(), url: source.url, on: source.on }
     }
 }
@@ -663,13 +663,13 @@ pub enum ChoiceView {
     Remove,
 }
 
-impl From<ChoiceView> for aktujo_app::Choice {
+impl From<ChoiceView> for aktujo_sdk::Choice {
     fn from(choice: ChoiceView) -> Self {
         match choice {
-            ChoiceView::Take => aktujo_app::Choice::Take,
-            ChoiceView::Theirs => aktujo_app::Choice::Theirs,
-            ChoiceView::Keep => aktujo_app::Choice::Keep,
-            ChoiceView::Remove => aktujo_app::Choice::Remove,
+            ChoiceView::Take => aktujo_sdk::Choice::Take,
+            ChoiceView::Theirs => aktujo_sdk::Choice::Theirs,
+            ChoiceView::Keep => aktujo_sdk::Choice::Keep,
+            ChoiceView::Remove => aktujo_sdk::Choice::Remove,
         }
     }
 }
@@ -720,16 +720,16 @@ pub struct PlannedView {
     pub conflicts: Vec<ConflictView>,
 }
 
-impl From<aktujo_app::Planned> for PlannedView {
-    fn from(planned: aktujo_app::Planned) -> Self {
+impl From<aktujo_sdk::Planned> for PlannedView {
+    fn from(planned: aktujo_sdk::Planned) -> Self {
         PlannedView {
             id: planned.id,
             step: match planned.step {
-                aktujo_app::Step::New => StepView::New,
-                aktujo_app::Step::Same => StepView::Same,
-                aktujo_app::Step::Replace => StepView::Replace,
-                aktujo_app::Step::Merge => StepView::Merge,
-                aktujo_app::Step::Gone => StepView::Gone,
+                aktujo_sdk::Step::New => StepView::New,
+                aktujo_sdk::Step::Same => StepView::Same,
+                aktujo_sdk::Step::Replace => StepView::Replace,
+                aktujo_sdk::Step::Merge => StepView::Merge,
+                aktujo_sdk::Step::Gone => StepView::Gone,
             },
             mine: planned.mine.map(KindView::from),
             theirs: planned.theirs.map(KindView::from),
@@ -765,11 +765,11 @@ pub enum AfterView {
     Move,
 }
 
-impl From<AfterView> for aktujo_app::After {
+impl From<AfterView> for aktujo_sdk::After {
     fn from(after: AfterView) -> Self {
         match after {
-            AfterView::Leave => aktujo_app::After::Leave,
-            AfterView::Move => aktujo_app::After::Move,
+            AfterView::Leave => aktujo_sdk::After::Leave,
+            AfterView::Move => aktujo_sdk::After::Move,
         }
     }
 }
@@ -797,13 +797,13 @@ pub struct WatchView {
 
 impl WatchView {
     /// A watched folder and how the last look at it went.
-    pub fn of(watch: aktujo_app::Watch, watched: Option<aktujo_app::Watched>) -> Self {
+    pub fn of(watch: aktujo_sdk::Watch, watched: Option<aktujo_sdk::Watched>) -> Self {
         WatchView {
             space: watch.space.to_string(),
             folder: watch.folder.to_string_lossy().into_owned(),
             after: match watch.after {
-                aktujo_app::After::Leave => AfterView::Leave,
-                aktujo_app::After::Move => AfterView::Move,
+                aktujo_sdk::After::Leave => AfterView::Leave,
+                aktujo_sdk::After::Move => AfterView::Move,
             },
             on: watch.on,
             subfolders: watch.subfolders,
@@ -954,8 +954,8 @@ pub struct SyncReportView {
     pub waiting: bool,
 }
 
-impl From<aktujo_app::SyncReport> for SyncReportView {
-    fn from(report: aktujo_app::SyncReport) -> Self {
+impl From<aktujo_sdk::SyncReport> for SyncReportView {
+    fn from(report: aktujo_sdk::SyncReport) -> Self {
         SyncReportView { received: report.received, sent: report.sent, added: report.added, waiting: report.waiting }
     }
 }
@@ -972,22 +972,22 @@ pub enum RightsView {
     Manage,
 }
 
-impl From<RightsView> for aktujo_app::Rights {
+impl From<RightsView> for aktujo_sdk::Rights {
     fn from(rights: RightsView) -> Self {
         match rights {
-            RightsView::Read => aktujo_app::Rights::Read,
-            RightsView::Write => aktujo_app::Rights::Write,
-            RightsView::Manage => aktujo_app::Rights::Manage,
+            RightsView::Read => aktujo_sdk::Rights::Read,
+            RightsView::Write => aktujo_sdk::Rights::Write,
+            RightsView::Manage => aktujo_sdk::Rights::Manage,
         }
     }
 }
 
-impl From<aktujo_app::Rights> for RightsView {
-    fn from(rights: aktujo_app::Rights) -> Self {
+impl From<aktujo_sdk::Rights> for RightsView {
+    fn from(rights: aktujo_sdk::Rights) -> Self {
         match rights {
-            aktujo_app::Rights::Read => RightsView::Read,
-            aktujo_app::Rights::Write => RightsView::Write,
-            aktujo_app::Rights::Manage => RightsView::Manage,
+            aktujo_sdk::Rights::Read => RightsView::Read,
+            aktujo_sdk::Rights::Write => RightsView::Write,
+            aktujo_sdk::Rights::Manage => RightsView::Manage,
         }
     }
 }
@@ -1039,8 +1039,8 @@ pub struct MemberView {
     pub rights: RightsView,
 }
 
-impl From<aktujo_app::Member> for MemberView {
-    fn from(member: aktujo_app::Member) -> Self {
+impl From<aktujo_sdk::Member> for MemberView {
+    fn from(member: aktujo_sdk::Member) -> Self {
         MemberView {
             id: member.id.to_string(),
             name: member.name,

@@ -1,13 +1,16 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT
 [package]
 name = "aktujo-core"
-description = "The domain of aktujo: its types and rules, without I/O"
+description = "The domain of aktujo: names, titles and labels of spaces and documents, without I/O"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license = "MIT"
 repository.workspace = true
-publish.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["document","archive","aktujo"]
+categories = ["data-structures"]
 
 [dependencies]
 serde.workspace = true

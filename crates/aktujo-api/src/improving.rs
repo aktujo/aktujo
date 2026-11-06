@@ -12,7 +12,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, OpenApi, ToSchema};
 
-use aktujo_app::{DocumentId, Improve, VersionFile};
+use aktujo_sdk::{DocumentId, Improve, VersionFile};
 
 use crate::{ApiError, DocumentView, Language, Problem, Shared, document_view, ids, space};
 
@@ -130,7 +130,7 @@ pub struct Combine {
 
 /// Runs picture work off the threads that serve requests.
 async fn work<T: Send + 'static>(
-    job: impl FnOnce() -> Result<T, aktujo_app::AppError> + Send + 'static,
+    job: impl FnOnce() -> Result<T, aktujo_sdk::AppError> + Send + 'static,
 ) -> Result<T, ApiError> {
     tokio::task::spawn_blocking(job)
         .await
@@ -157,7 +157,7 @@ async fn pages(
     Path((s, d, number)): Path<(String, String, usize)>,
 ) -> Result<Json<PagesView>, ApiError> {
     let file = file_of(&shared, &s, &d, Some(number))?;
-    Ok(Json(PagesView { pages: work(move || aktujo_app::page_count(&file)).await? }))
+    Ok(Json(PagesView { pages: work(move || aktujo_sdk::page_count(&file)).await? }))
 }
 
 /// A page of a version as a PNG – to look at it.
@@ -171,7 +171,7 @@ async fn page(
     Query(width): Query<Width>,
 ) -> Result<Response, ApiError> {
     let file = file_of(&shared, &s, &d, Some(number))?;
-    Ok(png(work(move || aktujo_app::page_png(&file, page, width.width)).await?))
+    Ok(png(work(move || aktujo_sdk::page_png(&file, page, width.width)).await?))
 }
 
 /// A page of what improving the newest version would make, as a PNG – nothing is written.
@@ -186,7 +186,7 @@ async fn preview(
 ) -> Result<Response, ApiError> {
     let file = file_of(&shared, &s, &d, None)?;
     let improve: Improve = view.into();
-    Ok(png(work(move || aktujo_app::preview_png(&file, &improve, query.page, query.width)).await?))
+    Ok(png(work(move || aktujo_sdk::preview_png(&file, &improve, query.page, query.width)).await?))
 }
 
 /// Improves the newest version: the result is the document's newest version; the earlier one stays.
@@ -203,7 +203,7 @@ async fn improve(
     let file = file_of(&shared, &s, &d, None)?;
     let name = file.name.clone();
     let improve: Improve = view.into();
-    let written = work(move || aktujo_app::improved(&file, &improve)).await?;
+    let written = work(move || aktujo_sdk::improved(&file, &improve)).await?;
     let mut workspace = shared.lock();
     workspace.add_improved(&space, &id, &name, &written)?;
     shared.wake();
@@ -236,7 +236,7 @@ async fn combine(
     };
     let name = files[0].name.clone();
     let improve: Improve = request.improve.into();
-    let written = work(move || aktujo_app::combined(&files, &improve)).await?;
+    let written = work(move || aktujo_sdk::combined(&files, &improve)).await?;
     let mut workspace = shared.lock();
     workspace.add_combined(&space, &documents, &name, &written)?;
     shared.wake();

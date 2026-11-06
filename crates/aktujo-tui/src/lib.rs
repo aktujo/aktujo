@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The terminal interface of aktujo: the archive with the keyboard, and with the mouse – a click does what the key or
 //! the row under it does, the wheel moves like the arrow keys; `m` hands the mouse back to the terminal (to select
-//! text). It works through the workspace of `aktujo-app` only, like every other interface, and speaks the language
+//! text). It works through the workspace of `aktujo-sdk` only, like every other interface, and speaks the language
 //! of the environment where it has its texts (`locales/`), English otherwise.
 
 use std::{
@@ -26,7 +26,7 @@ use ratatui::{
     widgets::{Block, List, ListItem, ListState, Paragraph, Wrap},
 };
 
-use aktujo_app::{
+use aktujo_sdk::{
     After, AppError, Bin, Document, DocumentId, Entry, FieldDef, FieldType, Kind, NewFile, ReadState, Reader, Rights,
     Search, SpaceInfo, Standing, Syncer, TemplateOrigin, Value, Watcher, Weighted, Worker, Workspace, date_of, kind_id,
 };
@@ -69,7 +69,7 @@ fn type_name(field_type: FieldType) -> &'static str {
 /// ```
 fn edit_kinds(
     workspace: &mut Workspace,
-    space: &aktujo_app::SpaceId,
+    space: &aktujo_sdk::SpaceId,
     line: &str,
     texts: &Texts,
 ) -> Result<String, AppError> {
@@ -550,10 +550,10 @@ impl App {
                     .duration_since(std::time::UNIX_EPOCH)
                     .map_or(0, |d| d.as_millis() as u64);
                 let folder =
-                    std::path::Path::new(text.trim()).join(aktujo_app::export_name(space.name.as_deref(), now));
-                let result = aktujo_app::Folder::create(&folder)
+                    std::path::Path::new(text.trim()).join(aktujo_sdk::export_name(space.name.as_deref(), now));
+                let result = aktujo_sdk::Folder::create(&folder)
                     .map_err(AppError::from)
-                    .and_then(|mut sink| aktujo_app::export(&self.workspace, &space.id, &mut sink));
+                    .and_then(|mut sink| aktujo_sdk::export(&self.workspace, &space.id, &mut sink));
                 self.message = match result {
                     Ok(exported) => self.texts.fill(
                         "tui.exported",
@@ -591,7 +591,7 @@ impl App {
                     return;
                 };
                 let texts = self.texts.clone();
-                let template = aktujo_app::fetch_template(&source, &entry);
+                let template = aktujo_sdk::fetch_template(&source, &entry);
                 self.on_space(|w, s| {
                     let origin = TemplateOrigin { source: Some(source.clone()), id: Some(entry.id.clone()) };
                     let plan = w.plan(&s.id, origin, &template?)?;
@@ -811,23 +811,23 @@ impl App {
     /// white, each `r` a quarter turn of every page clockwise.
     #[cfg(feature = "scan")]
     fn improve(&mut self, letters: &str) {
-        let improve = aktujo_app::Improve {
+        let improve = aktujo_sdk::Improve {
             deskew: letters.contains('d'),
             colour: if letters.contains('s') {
-                aktujo_app::Colour::BlackWhite
+                aktujo_sdk::Colour::BlackWhite
             } else if letters.contains('g') {
-                aktujo_app::Colour::Grey
+                aktujo_sdk::Colour::Grey
             } else {
-                aktujo_app::Colour::Keep
+                aktujo_sdk::Colour::Keep
             },
             turns: vec![(letters.matches('r').count() % 4) as u8; 1000],
-            ..aktujo_app::Improve::default()
+            ..aktujo_sdk::Improve::default()
         };
         let texts = self.texts.clone();
         self.message.clear();
         self.on_document(|w, s, d| {
             let file = w.version_file(&s.id, &d.id, None)?;
-            let written = aktujo_app::improved(&file, &improve)?;
+            let written = aktujo_sdk::improved(&file, &improve)?;
             w.add_improved(&s.id, &d.id, &file.name, &written)
         });
         if self.message.is_empty() {
@@ -853,7 +853,7 @@ impl App {
         let sources = self.lock().sources().unwrap_or_default();
         // Read without the workspace.
         let read: Vec<_> =
-            sources.into_iter().filter(|s| s.on).map(|s| (aktujo_app::fetch_catalog(&s.url), s)).collect();
+            sources.into_iter().filter(|s| s.on).map(|s| (aktujo_sdk::fetch_catalog(&s.url), s)).collect();
         let language = texts.language().to_owned();
         for (catalog, source) in read {
             let catalog = match catalog {
@@ -873,7 +873,7 @@ impl App {
                     Standing::Taken => format!(" ({})", texts.get("catalog.standing.taken")),
                     Standing::Update => format!(" ({})", texts.get("catalog.standing.update")),
                 };
-                let official = source.is_default() && entry.author == aktujo_app::OFFICIAL_AUTHOR;
+                let official = source.is_default() && entry.author == aktujo_sdk::OFFICIAL_AUTHOR;
                 let by = if official { texts.get("catalog.official") } else { entry.author.clone() };
                 let name = entry.names.get(&language).unwrap_or(&entry.name).clone();
                 let kinds: Vec<&str> =
@@ -954,7 +954,7 @@ impl App {
             Ok(members) => {
                 for member in members {
                     let name = match (&member.name, &member.device) {
-                        _ if member.role == aktujo_app::MemberRole::Recovery => texts.get("sync.code"),
+                        _ if member.role == aktujo_sdk::MemberRole::Recovery => texts.get("sync.code"),
                         (Some(name), _) => name.clone(),
                         (None, Some(device)) => device.as_str().to_owned(),
                         (None, None) => "…".to_owned(),

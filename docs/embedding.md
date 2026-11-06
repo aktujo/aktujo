@@ -15,9 +15,11 @@ stands on its own above the ones it depends on:
 | [`aktujo-scan`](https://docs.rs/aktujo-scan) | pages of a PDF or an image as pictures: turned, cropped, straightened, grey or black and white, written as an image or a PDF |
 | [`aktujo-rules`](https://docs.rs/aktujo-rules) | the kind and the fields of a document from its text, as suggestions – from kinds as data, plus your own code |
 | [`aktujo-doc`](https://docs.rs/aktujo-doc) | documents as events: versions, kinds as data, fields suggested and confirmed, labels |
+| [`aktujo-sdk`](https://docs.rs/aktujo-sdk) | a whole archive on a device – what the program and the apps use: an encrypted data folder, spaces, documents, reading, search, sync, export ([RFC 0006](rfc/0006-apps-and-sdk.md)) |
 | [`aktujo-base`](https://docs.rs/aktujo-base), [`-log`](https://docs.rs/aktujo-log), [`-crypt`](https://docs.rs/aktujo-crypt), [`-store`](https://docs.rs/aktujo-store), [`-sync`](https://docs.rs/aktujo-sync), [`-relay`](https://docs.rs/aktujo-relay) | the core: an event log with hybrid logical clocks, members and keys, end-to-end encryption, SQLite, sync through a relay |
 
-The program aktujo (AGPL) is built on the same crates; nothing of it is needed to use them. aktujo has no kinds of
+The program aktujo – its API, web app, terminal interface and command line (AGPL) – is built on the same crates;
+nothing of it is needed to use them. aktujo has no kinds of
 documents of its own – your program brings its kinds, as data or as code.
 
 ## Originals by their hash

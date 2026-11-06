@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! The OCR models, built in (`docs/rfc/0004-archive-0.1.md`, decision 6; `build.rs` finds and checks them).
 
 use aktujo_extract::Models;

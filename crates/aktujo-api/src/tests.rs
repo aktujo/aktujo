@@ -259,7 +259,7 @@ async fn catalog_source(files: Arc<Mutex<std::collections::HashMap<String, Vec<u
 fn publish(files: &Mutex<std::collections::HashMap<String, Vec<u8>>>, kinds: Value) {
     let template =
         serde_json::to_vec(&json!({"author": "someone", "license": "MIT", "name": "Books", "kinds": kinds})).unwrap();
-    let sha256 = aktujo_app::Sha256Hash::of(&template).hex();
+    let sha256 = aktujo_sdk::Sha256Hash::of(&template).hex();
     let catalog = json!({"format": 1, "source": {"name": "test"}, "templates": [{
         "id": "someone.books", "author": "someone", "path": "templates/someone/books/template.json",
         "sha256": sha256, "name": "Books", "kinds": [{"id": "book", "name": "Book"}]}]});
@@ -324,7 +324,7 @@ async fn templates_from_a_catalog_are_taken_and_updated() {
     assert!(view["sources"][0]["error"].as_str().is_some());
 }
 
-const DEFAULT: &str = aktujo_app::DEFAULT_SOURCE;
+const DEFAULT: &str = aktujo_sdk::DEFAULT_SOURCE;
 
 #[tokio::test]
 async fn watched_folders_through_the_api() {
@@ -347,9 +347,9 @@ async fn watched_folders_through_the_api() {
     assert_eq!(watches, expected);
 
     std::fs::write(std::path::Path::new(&folder).join("letter.pdf"), b"%PDF-1.7 letter").unwrap();
-    let mut looks = aktujo_app::Looks::default();
-    aktujo_app::look(&workspace, &mut looks);
-    assert_eq!(aktujo_app::look(&workspace, &mut looks), 1);
+    let mut looks = aktujo_sdk::Looks::default();
+    aktujo_sdk::look(&workspace, &mut looks);
+    assert_eq!(aktujo_sdk::look(&workspace, &mut looks), 1);
     let (_, watches) = call(&router, "GET", "/api/v1/watches", None).await;
     assert_eq!(watches[0]["taken"], 1);
     assert_eq!(call(&router, "GET", "/api/v1/spaces", None).await.1[0]["documents"], 1);

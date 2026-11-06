@@ -16,3 +16,4 @@ accepted when the code follows it. Later decisions may replace earlier ones; not
 | [0003](0003-recognition.md) | Recognition: the kind and the fields of a document, from its text | draft |
 | [0004](0004-archive-0.1.md) | Archive 0.1: a person's archive, on their devices | draft |
 | [0005](0005-pure-core.md) | A pure core: kinds and rules as data of a space | draft |
+| [0006](0006-apps-and-sdk.md) | Apps and the SDK: one workspace under MIT, the apps in Flutter | draft |

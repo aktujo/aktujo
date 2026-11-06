@@ -11,7 +11,7 @@ use std::{
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 
-use aktujo_app::{FileKeys, KeyStore, Reader, Syncer, SystemKeys, Watcher, Worker, Workspace, default_folder};
+use aktujo_sdk::{FileKeys, KeyStore, Reader, Syncer, SystemKeys, Watcher, Worker, Workspace, default_folder};
 
 /// How often synchronised spaces are synchronised, besides after every change.
 const SYNC_EVERY: Duration = Duration::from_secs(60);
@@ -90,7 +90,7 @@ enum Templates {
         #[arg(long)]
         space: String,
         /// The catalog; by default the official one.
-        #[arg(long, default_value = aktujo_app::DEFAULT_SOURCE)]
+        #[arg(long, default_value = aktujo_sdk::DEFAULT_SOURCE)]
         source: String,
         #[command(flatten)]
         data: Data,
@@ -113,18 +113,18 @@ fn export(space: Option<&str>, to: &std::path::Path, zip: bool, data: &Data) -> 
     }
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_millis() as u64;
     for info in chosen {
-        let name = aktujo_app::export_name(info.name.as_deref(), now);
+        let name = aktujo_sdk::export_name(info.name.as_deref(), now);
         let exported = if zip {
             let path = to.join(format!("{name}.zip"));
             let file = std::fs::File::create_new(&path).with_context(|| format!("{}", path.display()))?;
-            let mut sink = aktujo_app::Zip::new(std::io::BufWriter::new(file), &name);
-            let exported = aktujo_app::export(&workspace, &info.id, &mut sink)?;
+            let mut sink = aktujo_sdk::Zip::new(std::io::BufWriter::new(file), &name);
+            let exported = aktujo_sdk::export(&workspace, &info.id, &mut sink)?;
             println!("{}", path.display());
             exported
         } else {
             let path = to.join(&name);
-            let mut sink = aktujo_app::Folder::create(&path).with_context(|| format!("{}", path.display()))?;
-            let exported = aktujo_app::export(&workspace, &info.id, &mut sink)?;
+            let mut sink = aktujo_sdk::Folder::create(&path).with_context(|| format!("{}", path.display()))?;
+            let exported = aktujo_sdk::export(&workspace, &info.id, &mut sink)?;
             println!("{}", path.display());
             exported
         };
@@ -155,13 +155,13 @@ fn spaces(found: Option<&str>, data: &Data) -> anyhow::Result<()> {
 fn import(from: &std::path::Path, name: Option<&str>, data: &Data) -> anyhow::Result<()> {
     let workspace = Mutex::new(data.workspace()?);
     let imported = if from.is_dir() {
-        let mut files = aktujo_app::FolderFiles::open(from).with_context(|| format!("{}", from.display()))?;
-        aktujo_app::import(&workspace, &mut files, name)?
+        let mut files = aktujo_sdk::FolderFiles::open(from).with_context(|| format!("{}", from.display()))?;
+        aktujo_sdk::import(&workspace, &mut files, name)?
     } else {
         let file = std::fs::File::open(from).with_context(|| format!("{}", from.display()))?;
         let mut files =
-            aktujo_app::ZipFiles::open(std::io::BufReader::new(file)).with_context(|| format!("{}", from.display()))?;
-        aktujo_app::import(&workspace, &mut files, name)?
+            aktujo_sdk::ZipFiles::open(std::io::BufReader::new(file)).with_context(|| format!("{}", from.display()))?;
+        aktujo_sdk::import(&workspace, &mut files, name)?
     };
     println!("{}  {} kinds, {} documents", imported.space, imported.kinds, imported.documents);
     if imported.missing > 0 {
@@ -175,7 +175,7 @@ fn import(from: &std::path::Path, name: Option<&str>, data: &Data) -> anyhow::Re
 
 /// Lists the templates of a catalog – read now.
 fn list_templates(source: &str) -> anyhow::Result<()> {
-    let catalog = aktujo_app::fetch_catalog(source)?;
+    let catalog = aktujo_sdk::fetch_catalog(source)?;
     println!("{} – {}", catalog.source.name, catalog.source.description);
     for entry in &catalog.templates {
         let kinds: Vec<&str> = entry.kinds.iter().map(|k| k.name.as_str()).collect();
@@ -186,14 +186,14 @@ fn list_templates(source: &str) -> anyhow::Result<()> {
 
 /// Takes a template over and says what happened to each kind.
 fn take_template(id: &str, space: &str, source: &str, data: &Data) -> anyhow::Result<()> {
-    let source = aktujo_app::source_url(source)?;
-    let catalog = aktujo_app::fetch_catalog(&source)?;
+    let source = aktujo_sdk::source_url(source)?;
+    let catalog = aktujo_sdk::fetch_catalog(&source)?;
     let entry =
         catalog.templates.iter().find(|t| t.id == id).with_context(|| format!("no template {id} in {source}"))?;
-    let template = aktujo_app::fetch_template(&source, entry)?;
+    let template = aktujo_sdk::fetch_template(&source, entry)?;
     let mut workspace = data.workspace()?;
     let space = space.parse().map_err(|_| anyhow::anyhow!("{space:?} is not the identity of a space"))?;
-    let origin = aktujo_app::TemplateOrigin { source: Some(source), id: Some(id.to_owned()) };
+    let origin = aktujo_sdk::TemplateOrigin { source: Some(source), id: Some(id.to_owned()) };
     let plan = workspace.plan(&space, origin, &template)?;
     let changed = workspace.apply(&space, &plan, &Default::default())?;
     for kind in &plan.kinds {
@@ -273,7 +273,7 @@ enum Command {
     /// Lists the templates of kinds in a catalog, read now – or takes one over into a space.
     Templates {
         /// The catalog; by default the official one.
-        #[arg(long, default_value = aktujo_app::DEFAULT_SOURCE)]
+        #[arg(long, default_value = aktujo_sdk::DEFAULT_SOURCE)]
         source: String,
         #[command(subcommand)]
         take: Option<Templates>,

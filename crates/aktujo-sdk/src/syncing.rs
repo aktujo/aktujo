@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Synchronising in the background (`docs/rfc/0004-archive-0.1.md`, decision 12): every space that is synchronised,
 //! at a regular interval and whenever an interface asks – after a change, for example. What arrives is read by the
 //! [`Worker`], if there is one. How it went is kept per space ([`crate::SpaceInfo::synced`]).

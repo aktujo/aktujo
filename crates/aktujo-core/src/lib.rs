@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! The domain of aktujo: its types and rules, without I/O – what a title, a label and the name of a space may be,
 //! and the events of the program that are not about documents (`aktujo-doc` holds those).
 

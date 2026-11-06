@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Catalogs of templates of kinds (`docs/rfc/0005-pure-core.md`): the sources this device knows, read only when a
 //! person asks, checked before anything of them is shown; and taking a template over into a space – the first time
 //! or as an update – kind by kind, with a person's changes kept by a three-way merge.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 //! Improving a version (`docs/rfc/0004-archive-0.1.md`, decision 5): its pages turned, straightened, cropped, in grey
 //! or black and white, chosen and ordered – written as the document's newest version; the earlier one stays. Several
 //! documents into one: their pages as a PDF, the newest version of the first, the others into the bin.
