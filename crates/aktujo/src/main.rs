@@ -39,7 +39,17 @@ struct Data {
 impl Data {
     /// The workspace, and reading and synchronising in the background on it.
     fn open(&self) -> anyhow::Result<(Arc<Mutex<Workspace>>, aktujo_api::Background)> {
-        let workspace = if self.memory {
+        let workspace = Arc::new(Mutex::new(self.workspace()?));
+        let reader = Reader::builtin()?;
+        let ocr = reader.ocr();
+        let worker = Arc::new(Worker::start(workspace.clone(), reader));
+        let syncer = Arc::new(Syncer::start(workspace.clone(), Some(worker.clone()), SYNC_EVERY));
+        Ok((workspace, aktujo_api::Background { worker: Some(worker), syncer: Some(syncer), ocr }))
+    }
+
+    /// The workspace alone.
+    fn workspace(&self) -> anyhow::Result<Workspace> {
+        Ok(if self.memory {
             // A device name of its own, as a data folder gets: two trials can then share a space.
             let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.subsec_nanos();
             Workspace::in_memory(&format!("memory-{:08x}", nanos ^ std::process::id()))?
@@ -51,14 +61,63 @@ impl Data {
                 }
             };
             Workspace::open(&folder, &SystemKeys).with_context(|| format!("the data folder {}", folder.display()))?
-        };
-        let workspace = Arc::new(Mutex::new(workspace));
-        let reader = Reader::builtin()?;
-        let ocr = reader.ocr();
-        let worker = Arc::new(Worker::start(workspace.clone(), reader));
-        let syncer = Arc::new(Syncer::start(workspace.clone(), Some(worker.clone()), SYNC_EVERY));
-        Ok((workspace, aktujo_api::Background { worker: Some(worker), syncer: Some(syncer), ocr }))
+        })
     }
+}
+
+/// Templates of kinds from a catalog.
+#[derive(Debug, Subcommand)]
+enum Templates {
+    /// Takes a template over into a space: kinds new there are added, kinds a person changed are merged with their
+    /// changes kept, kinds gone from the template are kept – what the web app proposes without a choice.
+    Take {
+        /// The template's ID, e.g. `aktujo.paperwork`.
+        id: String,
+        /// The space, by its identity.
+        #[arg(long)]
+        space: String,
+        /// The catalog; by default the official one.
+        #[arg(long, default_value = aktujo_app::DEFAULT_SOURCE)]
+        source: String,
+        #[command(flatten)]
+        data: Data,
+    },
+}
+
+/// Lists the templates of a catalog – read now.
+fn list_templates(source: &str) -> anyhow::Result<()> {
+    let catalog = aktujo_app::fetch_catalog(source)?;
+    println!("{} – {}", catalog.source.name, catalog.source.description);
+    for entry in &catalog.templates {
+        let kinds: Vec<&str> = entry.kinds.iter().map(|k| k.name.as_str()).collect();
+        println!("{:<24} {} – {}", entry.id, entry.name, kinds.join(", "));
+    }
+    Ok(())
+}
+
+/// Takes a template over and says what happened to each kind.
+fn take_template(id: &str, space: &str, source: &str, data: &Data) -> anyhow::Result<()> {
+    let source = aktujo_app::source_url(source)?;
+    let catalog = aktujo_app::fetch_catalog(&source)?;
+    let entry =
+        catalog.templates.iter().find(|t| t.id == id).with_context(|| format!("no template {id} in {source}"))?;
+    let template = aktujo_app::fetch_template(&source, entry)?;
+    let mut workspace = data.workspace()?;
+    let space = space.parse().map_err(|_| anyhow::anyhow!("{space:?} is not the identity of a space"))?;
+    let origin = aktujo_app::TemplateOrigin { source: Some(source), id: Some(id.to_owned()) };
+    let plan = workspace.plan(&space, origin, &template)?;
+    let changed = workspace.apply(&space, &plan, &Default::default())?;
+    for kind in &plan.kinds {
+        let conflicts = if kind.conflicts.is_empty() {
+            String::new()
+        } else {
+            let items: Vec<&str> = kind.conflicts.iter().map(|c| c.item.as_str()).collect();
+            format!(" – kept here: {}", items.join(", "))
+        };
+        println!("{:<16} {:?}{conflicts}", kind.id, kind.step);
+    }
+    println!("{changed} kinds changed");
+    Ok(())
 }
 
 #[derive(Debug, Subcommand)]
@@ -88,6 +147,14 @@ enum Command {
     },
     /// Prints the API's description in OpenAPI – what api/openapi.json holds.
     Openapi,
+    /// Lists the templates of kinds in a catalog, read now – or takes one over into a space.
+    Templates {
+        /// The catalog; by default the official one.
+        #[arg(long, default_value = aktujo_app::DEFAULT_SOURCE)]
+        source: String,
+        #[command(subcommand)]
+        take: Option<Templates>,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -107,6 +174,10 @@ fn main() -> anyhow::Result<()> {
             tokio::runtime::Runtime::new()?.block_on(aktujo_relay::serve(relay, listen))?;
         }
         Command::Openapi => println!("{}", aktujo_api::openapi()),
+        Command::Templates { source, take: None } => list_templates(&source)?,
+        Command::Templates { take: Some(Templates::Take { id, space, source, data }), .. } => {
+            take_template(&id, &space, &source, &data)?
+        }
     }
     Ok(())
 }

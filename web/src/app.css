@@ -603,3 +603,63 @@ input.wide,
     border-bottom: 1px solid var(--border);
   }
 }
+
+/* Templates from catalogs. */
+.catalog ul.templates,
+.catalog ul.plan {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.catalog ul.templates > li,
+.catalog ul.plan > li {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-soft);
+}
+
+.catalog ul.templates p {
+  margin: 0.3rem 0 0;
+}
+
+.spread {
+  justify-content: space-between;
+}
+
+.step {
+  font-size: 0.8rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.step.update,
+.step.merge,
+.step.gone {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+.conflicts {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.conflicts th,
+.conflicts td {
+  text-align: left;
+  padding: 0.2rem 0.5rem 0.2rem 0;
+  vertical-align: top;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin-top: 0.3rem;
+}

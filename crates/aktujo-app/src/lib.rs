@@ -25,13 +25,15 @@ use aktujo_core::{
 };
 use aktujo_crypt::{Domain, RecoveryCode};
 use aktujo_doc::{
-    DocumentEvent, Documents, KindError, KindEvent, KindSkipped, Kinds, Origin, Original, Skipped, ValueError,
+    DocumentEvent, Documents, KindError, KindEvent, KindSkipped, Kinds, Origin, Original, Skipped, TemplateRef,
+    ValueError,
 };
 use aktujo_log::DeviceId;
 use aktujo_store::Store as EventStore;
 use aktujo_sync::{Replica, SyncError, now_ms};
 use serde::{Deserialize, Serialize};
 
+mod catalog;
 mod keys;
 #[cfg(feature = "ocr")]
 mod models;
@@ -42,9 +44,15 @@ mod syncing;
 
 pub use aktujo_base::{Sha256Hash, SpaceId};
 pub use aktujo_crypt::{Member, MemberRole, Rights};
-pub use aktujo_doc::{Document, DocumentId, FieldDef, FieldType, Find, Kind, Reading, Value, Version, Weighted};
+pub use aktujo_doc::{
+    Conflict, Document, DocumentId, FieldDef, FieldType, Find, Kind, Reading, Value, Version, Weighted,
+};
 pub use aktujo_extract::{Extraction, Line, Method, Page};
 pub use aktujo_sync::SyncReport;
+pub use catalog::{
+    Catalog, Choice, DEFAULT_SOURCE, Entry, ListedKind, OFFICIAL_AUTHOR, Origin as TemplateOrigin, Plan, Planned,
+    Source, SourceInfo, Standing, Step, Template, fetch_catalog, fetch_template, source_url, template_of_file,
+};
 pub use keys::{KeyError, KeyStore, MemoryKeys, SystemKeys};
 pub use reading::{Job, ReadState, Reader, Worker, read_all};
 pub use sealed::SealedBlobs;
@@ -87,6 +95,9 @@ pub enum AppError {
     /// A kind that is not well formed.
     #[error(transparent)]
     Kind(#[from] KindError),
+    /// A catalog of templates: not reachable, not readable, or not what it claims.
+    #[error("catalog: {0}")]
+    Catalog(String),
     /// The database of the data folder.
     #[error(transparent)]
     Database(#[from] aktujo_store::StoreError),
@@ -409,7 +420,12 @@ impl Workspace {
         if self.view(space)?.kinds.get(&kind.id) == Some(&kind) {
             return Ok(());
         }
-        self.write(space, &KindEvent::KindDefined { definition: kind })
+        self.write_kind(space, kind, None)
+    }
+
+    /// Writes a kind, with the template it was taken from, if it was.
+    fn write_kind(&mut self, space: &SpaceId, kind: Kind, template: Option<TemplateRef>) -> Result<(), AppError> {
+        self.write(space, &KindEvent::KindDefined { definition: kind, template })
     }
 
     /// Removes a kind. Documents keep it as their kind; defining it again brings it back.

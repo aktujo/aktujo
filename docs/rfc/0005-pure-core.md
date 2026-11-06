@@ -129,15 +129,16 @@ sources; the default source can be switched off; templates taken over can be upd
 - Documents are not touched: their values stay, also of fields a new version no longer has (as for any change of a
   kind).
 
-Interfaces, as proposed:
+Built so (2026-11-06):
 
 | Where | What |
 |---|---|
-| `aktujo-app` | `sources()`, `add_source(url)`, `set_source(url, on)`, `remove_source(url)` (not the default source); `catalog(url) -> Catalog`; `template(url, id) -> Template` (checked); `preview_kinds(space, kinds)`; `updates(space) -> Vec<Update>`; `take_update(space, kind, choice)` |
-| API | `GET/POST /api/v1/sources`, `PUT/DELETE /api/v1/sources/{source}`, `GET /api/v1/sources/{source}/catalog`, `GET /api/v1/sources/{source}/templates/{template}`, `POST /api/v1/spaces/{space}/kind-import/preview`, `GET /api/v1/spaces/{space}/kind-updates`, `POST /api/v1/spaces/{space}/kind-updates/{kind}` |
-| Web app | *Settings → Sources* (each with a switch, the default source too); *Kinds → From a catalog …*: the templates of all sources that are on, by tag and language, with their kinds; the preview, then *Take over*; *Updates* with the merge, conflicts and the three choices per kind |
-| Terminal | a list of the templates of the sources that are on; Enter shows the preview, a second Enter takes over |
-| Command line | `aktujo templates [--source <url>]`, `aktujo templates take <id> --space <space>` |
+| `aktujo-doc` | `TemplateRef` in `kind_defined` (`template`: `source`, `id`, `sha256`, `base`), kept by `Kinds::template`; `merge(base, mine, theirs)` with `Conflict`s |
+| `aktujo-app` | `sources()`, `add_source`, `set_source`, `remove_source` (not the official catalog; setting `catalog.sources`); `fetch_catalog`, `fetch_template` (without the workspace; a repository on GitHub read from `raw.githubusercontent.com`, HTTP only on this device); `standing` (new, taken, update); `plan` (new, same, replace, merge, gone) and `apply` with a `Choice` per kind (take, theirs, keep, remove); `import_file` for a file as it is |
+| API | `GET/POST/PUT/DELETE /api/v1/sources`; `GET /api/v1/spaces/{space}/catalog` (every source that is on, read now, with each template's standing); `POST /api/v1/spaces/{space}/catalog/plan` and `…/catalog/take` (`{"source", "template", "choices"}`; the template is read and planned anew when taken); `POST /api/v1/spaces/{space}/kind-import` takes the file's bytes as they are |
+| Web app | *Settings → Sources of templates* (a switch each, the official catalog too); *Kinds → From a catalog …*: templates of all sources that are on, by tag, updates first, with the preview – a choice per kind, conflicts with both versions – then *Take over* |
+| Terminal | `C`: the templates of the sources that are on, numbered, with their standing; the number takes one over as proposed |
+| Command line | `aktujo templates [--source <url>]` lists a catalog; `aktujo templates take <id> --space <space>` takes one over as proposed |
 
 ## Interfaces
 

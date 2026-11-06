@@ -72,6 +72,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The sources of templates on this device: the official catalog first. */
+        get: operations["sources"];
+        /** Switches a source on or off – the official catalog too. */
+        put: operations["switch_source"];
+        /** Adds a source, switched on. */
+        post: operations["add_source"];
+        /** Removes a source; the official catalog can only be switched off. */
+        delete: operations["remove_source"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces": {
         parameters: {
             query?: never;
@@ -101,6 +121,66 @@ export interface paths {
         /** Gives a space a new name. */
         put: operations["rename_space"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The templates of the sources that are on, read now, with how each stands in the space: new, taken over, or with
+         *     an update. A source that cannot be read is named with why.
+         */
+        get: operations["catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/catalog/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What taking a template over would do in the space, kind by kind – new, the same, replaced, merged with a person's
+         *     changes (and where both changed an item), or gone from the template. Nothing is written.
+         */
+        post: operations["plan_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{space}/catalog/take": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Takes a template over as chosen, kind by kind – the first time or as an update. The template is read again and
+         *     planned anew, so what is taken is what the source has now.
+         */
+        post: operations["take_template"];
         delete?: never;
         options?: never;
         head?: never;
@@ -341,7 +421,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Takes over kinds – a template, or the kinds of another space – replacing those with the same identity. */
+        /**
+         * Takes over a file of kinds, as it is: a template of a catalog, the kinds exported from another space, or a list of
+         *     kinds. Kinds new to the space are added; one a person changed is merged, if the space knows the template it came
+         *     from; any other of the same identity is replaced. A template remembers its SHA-256, so that it is found in a
+         *     catalog later.
+         */
         post: operations["import_kinds"];
         delete?: never;
         options?: never;
@@ -503,6 +588,27 @@ export interface components {
          * @enum {string}
          */
         BinView: "outside" | "inside" | "both";
+        /** @description The templates of the sources that are on, for a space – read when asked. */
+        CatalogView: {
+            /** @description The sources that were read, with what went wrong. */
+            sources: components["schemas"]["ReadSource"][];
+            /** @description Their templates. */
+            templates: components["schemas"]["TemplateListing"][];
+        };
+        /**
+         * @description What to do with a kind of a template.
+         * @enum {string}
+         */
+        ChoiceView: "take" | "theirs" | "keep" | "remove";
+        /** @description An item both changed differently: the space's version stays. */
+        ConflictView: {
+            /** @description What it is: `name`, `names.de`, `field.total`, `word.invoice`, `title`. */
+            item: string;
+            /** @description The space's version; `null` where the space removed it. */
+            mine: Record<string, never>;
+            /** @description The template's version; `null` where the template removed it. */
+            theirs: Record<string, never>;
+        };
         /** @description The name people read for this device. */
         DeviceName: {
             /** @description Not empty, at most 100 characters. */
@@ -665,6 +771,17 @@ export interface components {
             /** @description The label. */
             label: string;
         };
+        /** @description A kind as a catalog lists it. */
+        ListedKindView: {
+            /** @description Its identity. */
+            id: string;
+            /** @description Its name. */
+            name: string;
+            /** @description Its name in other languages. */
+            names: {
+                [key: string]: string;
+            };
+        };
         /** @description A member of a space. */
         MemberView: {
             /** @description The device name it writes under; none for the recovery code. */
@@ -688,6 +805,11 @@ export interface components {
             /** @description The name people read. */
             name: string;
         };
+        /** @description A source to add. */
+        NewSource: {
+            /** @description A repository on GitHub, or any HTTPS address of a folder with a `catalog.json`. */
+            url: string;
+        };
         /** @description A page of the text that was read. */
         PageText: {
             /** @description How it was read: `text_layer`, `ocr` or `none`. */
@@ -702,10 +824,42 @@ export interface components {
             /** @description The text. */
             text: string;
         };
+        /** @description What taking a template over would do. */
+        PlanView: {
+            /** @description Every kind of the template, then those gone from it. */
+            kinds: components["schemas"]["PlannedView"][];
+            /** @description The source. */
+            source: string;
+            /** @description The template. */
+            template: string;
+        };
+        /** @description One kind of a plan. */
+        PlannedView: {
+            /** @description Items both changed differently. */
+            conflicts: components["schemas"]["ConflictView"][];
+            /** @description Its identity. */
+            id: string;
+            mine?: components["schemas"]["KindView"] | null;
+            proposed?: components["schemas"]["KindView"] | null;
+            /** @description What happens to it. */
+            step: components["schemas"]["StepView"];
+            theirs?: components["schemas"]["KindView"] | null;
+        };
         /** @description An error: what was refused or went wrong. */
         Problem: {
             /** @description What happened, in English. */
             error: string;
+        };
+        /** @description A source as it was read for the catalog view. */
+        ReadSource: {
+            /** @description What it offers. */
+            description?: string | null;
+            /** @description Why it could not be read. */
+            error?: string | null;
+            /** @description Its name, if it could be read. */
+            name?: string | null;
+            /** @description Its address. */
+            url: string;
         };
         /**
          * @description Where a document is in reading.
@@ -791,6 +945,22 @@ export interface components {
              */
             words: string;
         };
+        /** @description A source switched on or off. */
+        SourceSwitch: {
+            /** @description Whether it is read. */
+            on: boolean;
+            /** @description Its address. */
+            url: string;
+        };
+        /** @description A source of templates on this device. */
+        SourceView: {
+            /** @description Whether it is the official catalog – it can be switched off, not removed. */
+            default: boolean;
+            /** @description Whether it is read. */
+            on: boolean;
+            /** @description Its address. */
+            url: string;
+        };
         /** @description A new space, or a new name for one. */
         SpaceName: {
             /** @description Its name: not empty, at most 100 characters. */
@@ -820,6 +990,11 @@ export interface components {
             /** @description Whether this device asked to join and waits to be added. */
             waiting: boolean;
         };
+        /**
+         * @description How a template stands in a space.
+         * @enum {string}
+         */
+        StandingView: "new" | "taken" | "update";
         /** @description Where to synchronise a space through. */
         StartSync: {
             /** @description The address of the relay, e.g. `http://192.168.1.10:8072`. */
@@ -838,6 +1013,11 @@ export interface components {
             /** @description The version of the program. */
             version: string;
         };
+        /**
+         * @description What taking a template over does to a kind.
+         * @enum {string}
+         */
+        StepView: "new" | "same" | "replace" | "merge" | "gone";
         /** @description What a synchronisation did. */
         SyncReportView: {
             /** @description Devices added by invitation, by name. */
@@ -848,6 +1028,48 @@ export interface components {
             sent: number;
             /** @description Whether this device still waits to be added. */
             waiting: boolean;
+        };
+        /** @description A template of a source. */
+        TemplateChoice: {
+            /** @description What to do with each kind, by its identity; `take` for one not named. */
+            choices?: {
+                [key: string]: components["schemas"]["ChoiceView"];
+            };
+            /** @description The source's address. */
+            source: string;
+            /** @description The template's ID. */
+            template: string;
+        };
+        /** @description A template of a source, with how it stands in the space. */
+        TemplateListing: {
+            /** @description Who made it. */
+            author: string;
+            /** @description What it is for. */
+            description: string;
+            /** @description That in other languages. */
+            descriptions: {
+                [key: string]: string;
+            };
+            /** @description Its ID, `<author>.<name>`. */
+            id: string;
+            /** @description Its kinds. */
+            kinds: components["schemas"]["ListedKindView"][];
+            /** @description Its licence. */
+            license?: string | null;
+            /** @description Its name. */
+            name: string;
+            /** @description Its name in other languages. */
+            names: {
+                [key: string]: string;
+            };
+            /** @description Whether it is official: by `aktujo`, from the official catalog. */
+            official: boolean;
+            /** @description The source. */
+            source: string;
+            /** @description How it stands in the space. */
+            standing: components["schemas"]["StandingView"];
+            /** @description Its tags. */
+            tags: string[];
         };
         /** @description A new title. */
         TitleChange: {
@@ -1073,6 +1295,133 @@ export interface operations {
             };
         };
     };
+    sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceView"][];
+                };
+            };
+        };
+    };
+    switch_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceSwitch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceView"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewSource"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceView"][];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    remove_source: {
+        parameters: {
+            query: {
+                /** @description Its address. */
+                url: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceView"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     spaces: {
         parameters: {
             query?: never;
@@ -1154,6 +1503,128 @@ export interface operations {
                 };
             };
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    catalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    plan_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateChoice"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    take_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateChoice"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Imported"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

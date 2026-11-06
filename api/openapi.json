@@ -180,6 +180,160 @@
         }
       }
     },
+    "/api/v1/sources": {
+      "get": {
+        "tags": [],
+        "summary": "The sources of templates on this device: the official catalog first.",
+        "operationId": "sources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [],
+        "summary": "Switches a source on or off – the official catalog too.",
+        "operationId": "switch_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceSwitch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [],
+        "summary": "Adds a source, switched on.",
+        "operationId": "add_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewSource"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceView"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Removes a source; the official catalog can only be switched off.",
+        "operationId": "remove_source",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "description": "Its address.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces": {
       "get": {
         "tags": [],
@@ -274,6 +428,167 @@
             }
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/catalog": {
+      "get": {
+        "tags": [],
+        "summary": "The templates of the sources that are on, read now, with how each stands in the space: new, taken over, or with\nan update. A source that cannot be read is named with why.",
+        "operationId": "catalog",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/catalog/plan": {
+      "post": {
+        "tags": [],
+        "summary": "What taking a template over would do in the space, kind by kind – new, the same, replaced, merged with a person's\nchanges (and where both changed an item), or gone from the template. Nothing is written.",
+        "operationId": "plan_template",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateChoice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space}/catalog/take": {
+      "post": {
+        "tags": [],
+        "summary": "Takes a template over as chosen, kind by kind – the first time or as an update. The template is read again and\nplanned anew, so what is taken is what the source has now.",
+        "operationId": "take_template",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateChoice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Imported"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1217,7 +1532,7 @@
     "/api/v1/spaces/{space}/kind-import": {
       "post": {
         "tags": [],
-        "summary": "Takes over kinds – a template, or the kinds of another space – replacing those with the same identity.",
+        "summary": "Takes over a file of kinds, as it is: a template of a catalog, the kinds exported from another space, or a list of\nkinds. Kinds new to the space are added; one a person changed is merged, if the space knows the template it came\nfrom; any other of the same identity is replaced. A template remembers its SHA-256, so that it is found in a\ncatalog later.",
         "operationId": "import_kinds",
         "parameters": [
           {
@@ -1797,6 +2112,63 @@
           "both"
         ]
       },
+      "CatalogView": {
+        "type": "object",
+        "description": "The templates of the sources that are on, for a space – read when asked.",
+        "required": [
+          "sources",
+          "templates"
+        ],
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadSource"
+            },
+            "description": "The sources that were read, with what went wrong."
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateListing"
+            },
+            "description": "Their templates."
+          }
+        }
+      },
+      "ChoiceView": {
+        "type": "string",
+        "description": "What to do with a kind of a template.",
+        "enum": [
+          "take",
+          "theirs",
+          "keep",
+          "remove"
+        ]
+      },
+      "ConflictView": {
+        "type": "object",
+        "description": "An item both changed differently: the space's version stays.",
+        "required": [
+          "item",
+          "mine",
+          "theirs"
+        ],
+        "properties": {
+          "item": {
+            "type": "string",
+            "description": "What it is: `name`, `names.de`, `field.total`, `word.invoice`, `title`."
+          },
+          "mine": {
+            "type": "object",
+            "description": "The space's version; `null` where the space removed it."
+          },
+          "theirs": {
+            "type": "object",
+            "description": "The template's version; `null` where the template removed it."
+          }
+        }
+      },
       "DeviceName": {
         "type": "object",
         "description": "The name people read for this device.",
@@ -2304,6 +2676,35 @@
           }
         }
       },
+      "ListedKindView": {
+        "type": "object",
+        "description": "A kind as a catalog lists it.",
+        "required": [
+          "id",
+          "name",
+          "names"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its identity."
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "names": {
+            "type": "object",
+            "description": "Its name in other languages.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "MemberView": {
         "type": "object",
         "description": "A member of a space.",
@@ -2367,6 +2768,19 @@
           }
         }
       },
+      "NewSource": {
+        "type": "object",
+        "description": "A source to add.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "A repository on GitHub, or any HTTPS address of a folder with a `catalog.json`."
+          }
+        }
+      },
       "PageText": {
         "type": "object",
         "description": "A page of the text that was read.",
@@ -2403,6 +2817,91 @@
           }
         }
       },
+      "PlanView": {
+        "type": "object",
+        "description": "What taking a template over would do.",
+        "required": [
+          "source",
+          "template",
+          "kinds"
+        ],
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannedView"
+            },
+            "description": "Every kind of the template, then those gone from it."
+          },
+          "source": {
+            "type": "string",
+            "description": "The source."
+          },
+          "template": {
+            "type": "string",
+            "description": "The template."
+          }
+        }
+      },
+      "PlannedView": {
+        "type": "object",
+        "description": "One kind of a plan.",
+        "required": [
+          "id",
+          "step",
+          "conflicts"
+        ],
+        "properties": {
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConflictView"
+            },
+            "description": "Items both changed differently."
+          },
+          "id": {
+            "type": "string",
+            "description": "Its identity."
+          },
+          "mine": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KindView",
+                "description": "The space's kind."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposed": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KindView",
+                "description": "The kind as it would be."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "step": {
+            "$ref": "#/components/schemas/StepView",
+            "description": "What happens to it."
+          },
+          "theirs": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KindView",
+                "description": "The template's kind."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "Problem": {
         "type": "object",
         "description": "An error: what was refused or went wrong.",
@@ -2413,6 +2912,40 @@
           "error": {
             "type": "string",
             "description": "What happened, in English."
+          }
+        }
+      },
+      "ReadSource": {
+        "type": "object",
+        "description": "A source as it was read for the catalog view.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What it offers."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it could not be read."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its name, if it could be read."
+          },
+          "url": {
+            "type": "string",
+            "description": "Its address."
           }
         }
       },
@@ -2570,6 +3103,47 @@
           }
         }
       },
+      "SourceSwitch": {
+        "type": "object",
+        "description": "A source switched on or off.",
+        "required": [
+          "url",
+          "on"
+        ],
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "description": "Whether it is read."
+          },
+          "url": {
+            "type": "string",
+            "description": "Its address."
+          }
+        }
+      },
+      "SourceView": {
+        "type": "object",
+        "description": "A source of templates on this device.",
+        "required": [
+          "url",
+          "on",
+          "default"
+        ],
+        "properties": {
+          "default": {
+            "type": "boolean",
+            "description": "Whether it is the official catalog – it can be switched off, not removed."
+          },
+          "on": {
+            "type": "boolean",
+            "description": "Whether it is read."
+          },
+          "url": {
+            "type": "string",
+            "description": "Its address."
+          }
+        }
+      },
       "SpaceName": {
         "type": "object",
         "description": "A new space, or a new name for one.",
@@ -2650,6 +3224,15 @@
           }
         }
       },
+      "StandingView": {
+        "type": "string",
+        "description": "How a template stands in a space.",
+        "enum": [
+          "new",
+          "taken",
+          "update"
+        ]
+      },
       "StartSync": {
         "type": "object",
         "description": "Where to synchronise a space through.",
@@ -2700,6 +3283,17 @@
           }
         }
       },
+      "StepView": {
+        "type": "string",
+        "description": "What taking a template over does to a kind.",
+        "enum": [
+          "new",
+          "same",
+          "replace",
+          "merge",
+          "gone"
+        ]
+      },
       "SyncReportView": {
         "type": "object",
         "description": "What a synchronisation did.",
@@ -2730,6 +3324,122 @@
           "waiting": {
             "type": "boolean",
             "description": "Whether this device still waits to be added."
+          }
+        }
+      },
+      "TemplateChoice": {
+        "type": "object",
+        "description": "A template of a source.",
+        "required": [
+          "source",
+          "template"
+        ],
+        "properties": {
+          "choices": {
+            "type": "object",
+            "description": "What to do with each kind, by its identity; `take` for one not named.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ChoiceView"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "string",
+            "description": "The source's address."
+          },
+          "template": {
+            "type": "string",
+            "description": "The template's ID."
+          }
+        }
+      },
+      "TemplateListing": {
+        "type": "object",
+        "description": "A template of a source, with how it stands in the space.",
+        "required": [
+          "source",
+          "official",
+          "id",
+          "author",
+          "name",
+          "names",
+          "description",
+          "descriptions",
+          "tags",
+          "kinds",
+          "standing"
+        ],
+        "properties": {
+          "author": {
+            "type": "string",
+            "description": "Who made it."
+          },
+          "description": {
+            "type": "string",
+            "description": "What it is for."
+          },
+          "descriptions": {
+            "type": "object",
+            "description": "That in other languages.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string",
+            "description": "Its ID, `<author>.<name>`."
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListedKindView"
+            },
+            "description": "Its kinds."
+          },
+          "license": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its licence."
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "names": {
+            "type": "object",
+            "description": "Its name in other languages.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "official": {
+            "type": "boolean",
+            "description": "Whether it is official: by `aktujo`, from the official catalog."
+          },
+          "source": {
+            "type": "string",
+            "description": "The source."
+          },
+          "standing": {
+            "$ref": "#/components/schemas/StandingView",
+            "description": "How it stands in the space."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Its tags."
           }
         }
       },

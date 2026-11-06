@@ -21,10 +21,13 @@ use aktujo_log::{EventHash, Hlc, Log};
 use serde::{Deserialize, Serialize};
 
 mod kinds;
+mod merge;
 
 pub use kinds::{
-    FieldDef, FieldType, Find, KIND_EVENTS, Kind, KindError, KindEvent, KindSkipped, Kinds, MAX_ID, MAX_NAME, Weighted,
+    FieldDef, FieldType, Find, KIND_EVENTS, Kind, KindError, KindEvent, KindSkipped, Kinds, MAX_ID, MAX_NAME,
+    TemplateRef, Weighted,
 };
+pub use merge::{Conflict, Merged, merge};
 
 /// The identity of a document: a UUID in lower case, given when it is added and never changed.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

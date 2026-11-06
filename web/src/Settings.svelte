@@ -14,6 +14,36 @@
   let code = $state("");
   let error = $state("");
   let busy = $state(false);
+  let sources = $state<{ url: string; on: boolean; default: boolean }[]>([]);
+  let newSource = $state("");
+
+  async function loadSources() {
+    const { data } = await api.GET("/api/v1/sources");
+    sources = data ?? [];
+  }
+
+  async function addSource(event: SubmitEvent) {
+    event.preventDefault();
+    const { data, error: problem } = await api.POST("/api/v1/sources", { body: { url: newSource } });
+    error = problem?.error ?? "";
+    if (data) {
+      sources = data;
+      newSource = "";
+    }
+  }
+
+  async function switchSource(url: string, on: boolean) {
+    const { data, error: problem } = await api.PUT("/api/v1/sources", { body: { url, on } });
+    error = problem?.error ?? "";
+    if (data) sources = data;
+  }
+
+  async function removeSource(url: string) {
+    if (!confirm(t("sources.removeConfirm", { source: url }))) return;
+    const { data, error: problem } = await api.DELETE("/api/v1/sources", { params: { query: { url } } });
+    error = problem?.error ?? "";
+    if (data) sources = data;
+  }
 
   async function load() {
     const { data } = await api.GET("/api/v1/status");
@@ -48,6 +78,7 @@
 
   $effect(() => {
     load();
+    loadSources();
   });
 </script>
 
@@ -87,6 +118,26 @@
     <input bind:value={space} placeholder={t("settings.space")} aria-label={t("settings.space")} required />
     <input bind:value={code} placeholder={t("sync.code")} aria-label={t("sync.code")} required />
     <button type="submit" disabled={busy}>{t("sync.recover")}</button>
+  </form>
+
+  <h2>{t("sources.title")}</h2>
+  <p class="note">{t("sources.hint")}</p>
+  <ul class="versions">
+    {#each sources as source (source.url)}
+      <li>
+        <label class="check">
+          <input type="checkbox" checked={source.on} onchange={(e) => switchSource(source.url, e.currentTarget.checked)} />
+          {source.url}{#if source.default}&nbsp;<span class="note">({t("sources.official")})</span>{/if}
+        </label>
+        {#if !source.default}
+          <button class="danger small" onclick={() => removeSource(source.url)}>{t("sources.remove")}</button>
+        {/if}
+      </li>
+    {/each}
+  </ul>
+  <form class="row" onsubmit={addSource}>
+    <input class="wide" bind:value={newSource} placeholder="https://github.com/…/catalog" aria-label={t("sources.add")} />
+    <button type="submit" disabled={!newSource.trim()}>{t("sources.add")}</button>
   </form>
 
   {#if status}

@@ -146,7 +146,8 @@ Decided by the maintainer on 2026-11-05.
 13. **Kinds as data, catalog sources and updates are part of 0.1** (maintainer, 2026-11-06;
     [0005](0005-pure-core.md)): no kinds built in; kinds defined per space; templates taken from `aktujo/catalog` and
     other sources within aktujo, the default source can be switched off; templates taken over can be updated. Built
-    so (2026-11-06): kinds as data, their editing and the import of a template as a file.
+    so (2026-11-06): kinds as data, their editing, the import of a template as a file, catalog sources and updates
+    of templates in every interface ([0005](0005-pure-core.md), "Built so").
 
 ## Done when
 
@@ -181,7 +182,7 @@ Decided by the maintainer on 2026-11-05.
    like the system, the language in its settings; the terminal interface in the language of the environment. OPEN:
    showing a version's pages in the app itself (today: opened in a new tab or downloaded).
 5. Sync and sharing in every interface; `aktujo relay`.
-6. Kinds as data ([0005](0005-pure-core.md); built 2026-11-06), then catalog sources and updates of templates.
+6. Kinds as data, catalog sources and updates of templates ([0005](0005-pure-core.md); built 2026-11-06).
 7. Watched folders.
 8. Improving (`aktujo-scan`).
 9. Export.

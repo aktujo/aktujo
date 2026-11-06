@@ -27,8 +27,8 @@ use ratatui::{
 };
 
 use aktujo_app::{
-    AppError, Bin, Document, DocumentId, Kind, NewFile, ReadState, Reader, Rights, Search, SpaceInfo, Syncer, Value,
-    Worker, Workspace, date_of,
+    AppError, Bin, Document, DocumentId, Entry, Kind, NewFile, ReadState, Reader, Rights, Search, SpaceInfo, Standing,
+    Syncer, TemplateOrigin, Value, Worker, Workspace, date_of,
 };
 
 mod texts;
@@ -47,7 +47,7 @@ pub enum TuiError {
 }
 
 /// The actions at the bottom, each with its key and the key of its text – clickable as well.
-const ACTIONS: [(char, &str); 23] = [
+const ACTIONS: [(char, &str); 24] = [
     ('/', "tui.search"),
     ('a', "tui.add"),
     ('t', "tui.title"),
@@ -62,6 +62,7 @@ const ACTIONS: [(char, &str); 23] = [
     ('s', "tui.space"),
     ('n', "tui.newSpace"),
     ('K', "tui.importKinds"),
+    ('C', "tui.catalog"),
     ('y', "tui.sync"),
     ('S', "tui.startSync"),
     ('i', "tui.invite"),
@@ -93,6 +94,7 @@ enum Prompt {
     DeviceName,
     ChooseKind,
     ImportKinds,
+    TakeTemplate,
 }
 
 impl Prompt {
@@ -111,6 +113,7 @@ impl Prompt {
             Prompt::DeviceName => "settings.deviceName",
             Prompt::ChooseKind => "tui.chooseKindPrompt",
             Prompt::ImportKinds => "tui.importKindsPrompt",
+            Prompt::TakeTemplate => "tui.catalogPrompt",
         }
     }
 }
@@ -135,6 +138,8 @@ pub struct App {
     /// What the right side shows instead of the document: the sync and the members of the space, read from its relay
     /// when asked for – not at every frame.
     members: Option<Vec<Line<'static>>>,
+    /// The templates of the catalog view, by the number shown: their source and entry.
+    templates: Vec<(String, Entry)>,
     /// For titles offered from what was read: the rules only.
     titles: Reader,
     texts: Texts,
@@ -204,6 +209,7 @@ impl App {
             worker,
             syncer,
             members: None,
+            templates: Vec::new(),
             titles: Reader::text_layer(),
             texts,
             spaces: Vec::new(),
@@ -432,13 +438,31 @@ impl App {
                     w.set_kind(&s.id, &d.id, Some(&kind.id))
                 });
             }
+            Prompt::TakeTemplate => {
+                let chosen = text.trim().parse::<usize>().ok().and_then(|n| self.templates.get(n.wrapping_sub(1)));
+                let Some((source, entry)) = chosen.cloned() else {
+                    self.message = self.texts.get("tui.catalogNone");
+                    return;
+                };
+                let texts = self.texts.clone();
+                let template = aktujo_app::fetch_template(&source, &entry);
+                self.on_space(|w, s| {
+                    let origin = TemplateOrigin { source: Some(source.clone()), id: Some(entry.id.clone()) };
+                    let plan = w.plan(&s.id, origin, &template?)?;
+                    let changed = w.apply(&s.id, &plan, &Default::default())?;
+                    let conflicts: usize = plan.kinds.iter().map(|k| k.conflicts.len()).sum();
+                    let values = [("n", changed.to_string()), ("conflicts", conflicts.to_string())];
+                    let values: Vec<(&str, &str)> = values.iter().map(|(k, v)| (*k, v.as_str())).collect();
+                    Ok(texts.fill("tui.catalogTaken", &values))
+                });
+                self.members = None;
+            }
             Prompt::ImportKinds => {
                 let texts = self.texts.clone();
                 self.on_space(|w, s| {
                     let path = text.trim();
                     let bytes = std::fs::read(path).map_err(|e| AppError::NotFound(format!("{path}: {e}")))?;
-                    let kinds = kinds_of_file(&bytes).map_err(|e| AppError::NotFound(format!("{path}: {e}")))?;
-                    let changed = w.import_kinds(&s.id, kinds)?;
+                    let changed = w.import_file(&s.id, &bytes)?;
                     Ok(texts.fill("kinds.imported", &[("n", &changed.to_string())]))
                 });
             }
@@ -527,6 +551,14 @@ impl App {
             }
             KeyCode::Char('a') => prompt(self, Prompt::Add, String::new()),
             KeyCode::Char('K') => prompt(self, Prompt::ImportKinds, String::new()),
+            KeyCode::Char('C') => {
+                // Read now, when asked – the sources of this device that are on.
+                let lines = self.catalog();
+                self.members = Some(lines);
+                if !self.templates.is_empty() {
+                    prompt(self, Prompt::TakeTemplate, String::new());
+                }
+            }
             KeyCode::Char('b') => {
                 self.bin = !self.bin;
                 self.selected = Some(0);
@@ -601,6 +633,53 @@ impl App {
     }
 
     /// The lines that describe the sync of the chosen space and its members.
+    /// The templates of the sources that are on, numbered, with how each stands in the space.
+    fn catalog(&mut self) -> Vec<Line<'static>> {
+        let texts = self.texts.clone();
+        let bold = Style::default().add_modifier(Modifier::BOLD);
+        let mut lines = vec![Line::styled(texts.get("catalog.title"), bold)];
+        self.templates.clear();
+        let Some(space) = self.spaces.get(self.space).map(|s| s.id.clone()) else { return lines };
+        let sources = self.lock().sources().unwrap_or_default();
+        // Read without the workspace.
+        let read: Vec<_> =
+            sources.into_iter().filter(|s| s.on).map(|s| (aktujo_app::fetch_catalog(&s.url), s)).collect();
+        let language = texts.language().to_owned();
+        for (catalog, source) in read {
+            let catalog = match catalog {
+                Ok(catalog) => catalog,
+                Err(error) => {
+                    let problem = error.to_string();
+                    lines.push(Line::from(
+                        texts.fill("catalog.unreadable", &[("source", &source.url), ("problem", &problem)]),
+                    ));
+                    continue;
+                }
+            };
+            for entry in catalog.templates {
+                let standing = self.lock().standing(&space, &source.url, &entry).unwrap_or(Standing::New);
+                let mark = match standing {
+                    Standing::New => String::new(),
+                    Standing::Taken => format!(" ({})", texts.get("catalog.standing.taken")),
+                    Standing::Update => format!(" ({})", texts.get("catalog.standing.update")),
+                };
+                let official = source.is_default() && entry.author == aktujo_app::OFFICIAL_AUTHOR;
+                let by = if official { texts.get("catalog.official") } else { entry.author.clone() };
+                let name = entry.names.get(&language).unwrap_or(&entry.name).clone();
+                let kinds: Vec<&str> =
+                    entry.kinds.iter().map(|k| k.names.get(&language).unwrap_or(&k.name).as_str()).collect();
+                let number = self.templates.len() + 1;
+                lines.push(Line::from(format!("{number}. {name}{mark} – {by}")));
+                lines.push(Line::from(format!("   {}", kinds.join(", "))));
+                self.templates.push((source.url.clone(), entry));
+            }
+        }
+        if self.templates.is_empty() {
+            lines.push(Line::from(texts.get("catalog.empty")));
+        }
+        lines
+    }
+
     fn sharing(&self) -> Vec<Line<'static>> {
         let texts = &self.texts;
         let Some(space) = self.spaces.get(self.space) else { return Vec::new() };
@@ -736,19 +815,6 @@ impl App {
 /// The name of the kind `id` in `language`, from the kinds of its space; the identity if the space has no such kind.
 fn kind_name(kinds: &[Kind], id: &str, language: &str) -> String {
     kinds.iter().find(|k| k.id == id).map_or(id, |k| k.name_in(language)).to_owned()
-}
-
-/// The kinds in a file: a template (`{"kinds": […]}`, as in `aktujo/catalog`) or a list of kinds.
-fn kinds_of_file(bytes: &[u8]) -> Result<Vec<Kind>, serde_json::Error> {
-    #[derive(serde::Deserialize)]
-    #[serde(untagged)]
-    enum File {
-        Template { kinds: Vec<Kind> },
-        List(Vec<Kind>),
-    }
-    Ok(match serde_json::from_slice(bytes)? {
-        File::Template { kinds } | File::List(kinds) => kinds,
-    })
 }
 
 /// Draws the interface and remembers where the clickable parts are.

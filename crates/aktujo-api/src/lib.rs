@@ -25,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 use utoipa::OpenApi;
 
-use aktujo_app::{AppError, DocumentId, Kind, NewFile, ReadState, Reader, SpaceId, Syncer, Worker, Workspace};
+use aktujo_app::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Syncer, Worker, Workspace};
 
 mod views;
 
@@ -49,6 +49,13 @@ pub const UPLOAD_MAX: usize = 256 * 1024 * 1024;
         define_kind,
         remove_kind,
         import_kinds,
+        sources,
+        add_source,
+        switch_source,
+        remove_source,
+        catalog,
+        plan_template,
+        take_template,
         search,
         add_document,
         document,
@@ -91,7 +98,7 @@ impl From<AppError> for ApiError {
             AppError::Invalid(_) | AppError::Value(_) | AppError::Kind(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::NotAllowed(_) => StatusCode::FORBIDDEN,
-            AppError::Sync(_) => StatusCode::BAD_GATEWAY,
+            AppError::Sync(_) | AppError::Catalog(_) => StatusCode::BAD_GATEWAY,
             AppError::Database(_)
             | AppError::Originals(_)
             | AppError::Keys(_)
@@ -321,17 +328,187 @@ async fn remove_kind(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Takes over kinds – a template, or the kinds of another space – replacing those with the same identity.
+/// Takes over a file of kinds, as it is: a template of a catalog, the kinds exported from another space, or a list of
+/// kinds. Kinds new to the space are added; one a person changed is merged, if the space knows the template it came
+/// from; any other of the same identity is replaced. A template remembers its SHA-256, so that it is found in a
+/// catalog later.
 #[utoipa::path(post, path = "/api/v1/spaces/{space}/kind-import", request_body = KindImport,
     params(("space" = String, Path, description = "the space")),
     responses((status = 200, body = Imported), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
-async fn import_kinds(
+async fn import_kinds(State(shared): State<Shared>, Path(s): Path<String>, bytes: Bytes) -> Answer<Imported> {
+    let changed = shared.lock().import_file(&space(&s)?, &bytes)?;
+    shared.changed();
+    Ok(Json(Imported { changed }))
+}
+
+/// The sources of templates on this device: the official catalog first.
+#[utoipa::path(get, path = "/api/v1/sources", responses((status = 200, body = Vec<SourceView>)))]
+async fn sources(State(shared): State<Shared>) -> Answer<Vec<SourceView>> {
+    Ok(Json(shared.lock().sources()?.into_iter().map(SourceView::from).collect()))
+}
+
+/// Adds a source, switched on.
+#[utoipa::path(post, path = "/api/v1/sources", request_body = NewSource,
+    responses((status = 200, body = Vec<SourceView>), (status = 422, body = Problem)))]
+async fn add_source(State(shared): State<Shared>, Json(new): Json<NewSource>) -> Answer<Vec<SourceView>> {
+    let mut workspace = shared.lock();
+    workspace.add_source(&new.url)?;
+    Ok(Json(workspace.sources()?.into_iter().map(SourceView::from).collect()))
+}
+
+/// Switches a source on or off – the official catalog too.
+#[utoipa::path(put, path = "/api/v1/sources", request_body = SourceSwitch,
+    responses((status = 200, body = Vec<SourceView>), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn switch_source(State(shared): State<Shared>, Json(switch): Json<SourceSwitch>) -> Answer<Vec<SourceView>> {
+    let mut workspace = shared.lock();
+    workspace.set_source(&switch.url, switch.on)?;
+    Ok(Json(workspace.sources()?.into_iter().map(SourceView::from).collect()))
+}
+
+/// Removes a source; the official catalog can only be switched off.
+#[utoipa::path(delete, path = "/api/v1/sources", params(SourceQuery),
+    responses((status = 200, body = Vec<SourceView>), (status = 403, body = Problem), (status = 404, body = Problem)))]
+async fn remove_source(State(shared): State<Shared>, Query(query): Query<SourceQuery>) -> Answer<Vec<SourceView>> {
+    let mut workspace = shared.lock();
+    workspace.remove_source(&query.url)?;
+    Ok(Json(workspace.sources()?.into_iter().map(SourceView::from).collect()))
+}
+
+fn blocking_failed(error: tokio::task::JoinError) -> ApiError {
+    ApiError(StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
+}
+
+/// The templates of the sources that are on, read now, with how each stands in the space: new, taken over, or with
+/// an update. A source that cannot be read is named with why.
+#[utoipa::path(get, path = "/api/v1/spaces/{space}/catalog", params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = CatalogView), (status = 404, body = Problem)))]
+async fn catalog(State(shared): State<Shared>, Path(s): Path<String>) -> Answer<CatalogView> {
+    let space = space(&s)?;
+    let sources: Vec<aktujo_app::Source> = {
+        let workspace = shared.lock();
+        workspace.kinds(&space)?;
+        workspace.sources()?.into_iter().filter(|s| s.on).collect()
+    };
+    // Read without the workspace: a slow source holds nothing.
+    let fetched = tokio::task::spawn_blocking(move || {
+        sources.into_iter().map(|s| (aktujo_app::fetch_catalog(&s.url), s)).collect::<Vec<_>>()
+    })
+    .await
+    .map_err(blocking_failed)?;
+    let workspace = shared.lock();
+    let mut view = CatalogView { sources: vec![], templates: vec![] };
+    for (result, source) in fetched {
+        match result {
+            Err(error) => view.sources.push(ReadSource {
+                url: source.url,
+                name: None,
+                description: None,
+                error: Some(error.to_string()),
+            }),
+            Ok(catalog) => {
+                for entry in catalog.templates {
+                    let standing = match workspace.standing(&space, &source.url, &entry)? {
+                        aktujo_app::Standing::New => StandingView::New,
+                        aktujo_app::Standing::Taken => StandingView::Taken,
+                        aktujo_app::Standing::Update => StandingView::Update,
+                    };
+                    view.templates.push(TemplateListing {
+                        source: source.url.clone(),
+                        official: source.is_default() && entry.author == aktujo_app::OFFICIAL_AUTHOR,
+                        kinds: entry
+                            .kinds
+                            .into_iter()
+                            .map(|k| ListedKindView { id: k.id, name: k.name, names: k.names })
+                            .collect(),
+                        id: entry.id,
+                        author: entry.author,
+                        license: entry.license,
+                        name: entry.name,
+                        names: entry.names,
+                        description: entry.description,
+                        descriptions: entry.descriptions,
+                        tags: entry.tags,
+                        standing,
+                    });
+                }
+                view.sources.push(ReadSource {
+                    url: source.url,
+                    name: Some(catalog.source.name),
+                    description: Some(catalog.source.description),
+                    error: None,
+                });
+            }
+        }
+    }
+    Ok(Json(view))
+}
+
+/// A template of a source that is on, read now and checked.
+async fn fetched(shared: &Shared, source: &str, id: &str) -> Result<aktujo_app::Template, ApiError> {
+    let url = aktujo_app::source_url(source)?;
+    if !shared.lock().sources()?.iter().any(|s| s.url == url && s.on) {
+        return Err(not_found("such source switched on"));
+    }
+    let id = id.to_owned();
+    let template = tokio::task::spawn_blocking(move || {
+        let catalog = aktujo_app::fetch_catalog(&url)?;
+        let entry = catalog
+            .templates
+            .iter()
+            .find(|t| t.id == id)
+            .ok_or_else(|| AppError::NotFound(format!("no template {id} in {url}")))?;
+        aktujo_app::fetch_template(&url, entry)
+    })
+    .await
+    .map_err(blocking_failed)??;
+    Ok(template)
+}
+
+fn origin(choice: &TemplateChoice) -> Result<aktujo_app::TemplateOrigin, ApiError> {
+    Ok(aktujo_app::TemplateOrigin {
+        source: Some(aktujo_app::source_url(&choice.source)?),
+        id: Some(choice.template.clone()),
+    })
+}
+
+/// What taking a template over would do in the space, kind by kind – new, the same, replaced, merged with a person's
+/// changes (and where both changed an item), or gone from the template. Nothing is written.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/catalog/plan", request_body = TemplateChoice,
+    params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = PlanView), (status = 404, body = Problem), (status = 502, body = Problem)))]
+async fn plan_template(
     State(shared): State<Shared>,
     Path(s): Path<String>,
-    Json(import): Json<KindImport>,
+    Json(choice): Json<TemplateChoice>,
+) -> Answer<PlanView> {
+    let space = space(&s)?;
+    let template = fetched(&shared, &choice.source, &choice.template).await?;
+    let plan = shared.lock().plan(&space, origin(&choice)?, &template)?;
+    Ok(Json(PlanView {
+        source: choice.source,
+        template: choice.template,
+        kinds: plan.kinds.into_iter().map(PlannedView::from).collect(),
+    }))
+}
+
+/// Takes a template over as chosen, kind by kind – the first time or as an update. The template is read again and
+/// planned anew, so what is taken is what the source has now.
+#[utoipa::path(post, path = "/api/v1/spaces/{space}/catalog/take", request_body = TemplateChoice,
+    params(("space" = String, Path, description = "the space")),
+    responses((status = 200, body = Imported), (status = 403, body = Problem), (status = 404, body = Problem), (status = 502, body = Problem)))]
+async fn take_template(
+    State(shared): State<Shared>,
+    Path(s): Path<String>,
+    Json(choice): Json<TemplateChoice>,
 ) -> Answer<Imported> {
-    let kinds = import.kinds.into_iter().map(Kind::from).collect();
-    let changed = shared.lock().import_kinds(&space(&s)?, kinds)?;
+    let space = space(&s)?;
+    let template = fetched(&shared, &choice.source, &choice.template).await?;
+    let choices = choice.choices.iter().map(|(id, c)| (id.clone(), (*c).into())).collect();
+    let changed = {
+        let mut workspace = shared.lock();
+        let plan = workspace.plan(&space, origin(&choice)?, &template)?;
+        workspace.apply(&space, &plan, &choices)?
+    };
     shared.changed();
     Ok(Json(Imported { changed }))
 }
@@ -799,6 +976,10 @@ pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Route
         .route("/spaces/{space}/labels", get(labels))
         .route("/spaces/{space}/kinds", get(kinds).post(add_kind))
         .route("/spaces/{space}/kind-import", post(import_kinds))
+        .route("/sources", get(sources).post(add_source).put(switch_source).delete(remove_source))
+        .route("/spaces/{space}/catalog", get(catalog))
+        .route("/spaces/{space}/catalog/plan", post(plan_template))
+        .route("/spaces/{space}/catalog/take", post(take_template))
         .route("/spaces/{space}/kinds/{kind}", put(define_kind).delete(remove_kind))
         .route("/search", post(search))
         .route("/spaces/{space}/documents", post(add_document))

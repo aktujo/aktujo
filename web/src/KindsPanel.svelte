@@ -1,6 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
   import { api, type Kind, type Space } from "./lib/api";
+  import CatalogPanel from "./CatalogPanel.svelte";
   import { byName, i18n, nameOf, t } from "./lib/i18n.svelte";
 
   type Field = Kind["fields"][number];
@@ -20,6 +21,7 @@
   const WEIGHT = 2;
 
   let draft = $state<Kind | null>(null);
+  let browsing = $state(false);
   let words = $state("");
   let json = $state("");
   let asJson = $state(false);
@@ -188,22 +190,16 @@
   async function importFile(files: FileList) {
     const file = files[0];
     if (!file) return;
-    let kindsInFile: Kind[];
-    try {
-      const parsed = JSON.parse(await file.text()) as Kind[] | { kinds: Kind[] };
-      kindsInFile = Array.isArray(parsed) ? parsed : parsed.kinds;
-      if (!Array.isArray(kindsInFile)) throw new Error(t("kinds.notTemplate"));
-    } catch (problem) {
-      error = `${file.name}: ${problem instanceof Error ? problem.message : String(problem)}`;
-      return;
-    }
-    const { data, error: problem } = await api.POST("/api/v1/spaces/{space}/kind-import", {
-      params: { path },
-      body: { kinds: kindsInFile },
+    // The file as it is: a template remembers its SHA-256, so that it is found in a catalog later.
+    const response = await fetch(`/api/v1/spaces/${encodeURIComponent(space.id)}/kind-import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: file,
     });
-    error = problem ? `${file.name}: ${problem.error}` : "";
-    if (data) {
-      message = t("kinds.imported", { n: data.changed });
+    const body = (await response.json().catch(() => null)) as { changed?: number; error?: string } | null;
+    error = response.ok ? "" : `${file.name}: ${body?.error ?? response.statusText}`;
+    if (response.ok) {
+      message = t("kinds.imported", { n: body?.changed ?? 0 });
       onchange();
     }
   }
@@ -228,6 +224,9 @@
   {#if message}<p class="note" aria-live="polite">{message}</p>{/if}
 
   <fieldset class="plain" disabled={readOnly}>
+    {#if browsing}
+      <CatalogPanel {space} onclose={() => (browsing = false)} {onchange} />
+    {:else}
     {#if kinds.length}
       <ul class="versions">
         {#each byName(kinds) as kind (kind.id)}
@@ -246,6 +245,7 @@
       <button type="submit" disabled={!newName.trim()}>{t("kinds.add")}</button>
     </form>
     <p class="row">
+      <button class="primary" onclick={() => ((browsing = true), (draft = null))}>{t("catalog.browse")}</button>
       <button onclick={() => picker?.click()}>{t("kinds.import")}</button>
       <button onclick={exportKinds} disabled={!kinds.length}>{t("kinds.export")}</button>
       <input
@@ -360,6 +360,7 @@
           <button type="button" class="danger" onclick={remove}>{t("kinds.remove")}</button>
         </p>
       </form>
+    {/if}
     {/if}
   </fieldset>
 </article>

@@ -236,3 +236,91 @@ async fn sharing_through_the_api() {
     let (_, spaces) = call(&phone, "GET", "/api/v1/spaces", None).await;
     assert!(spaces[0]["sync_problem"].as_str().unwrap().contains("removed"));
 }
+
+/// A catalog on a free port of this machine, its files in memory – changed by the test as a source would be.
+async fn catalog_source(files: Arc<Mutex<std::collections::HashMap<String, Vec<u8>>>>) -> String {
+    let app = Router::new().fallback(move |uri: axum::http::Uri| {
+        let files = files.clone();
+        async move {
+            match files.lock().unwrap().get(uri.path().trim_start_matches('/')) {
+                Some(bytes) => (StatusCode::OK, bytes.clone()).into_response(),
+                None => StatusCode::NOT_FOUND.into_response(),
+            }
+        }
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("http://{address}")
+}
+
+/// Puts a template with `kinds` into the catalog's files, as `tools/catalog.py` of aktujo/catalog writes them.
+fn publish(files: &Mutex<std::collections::HashMap<String, Vec<u8>>>, kinds: Value) {
+    let template =
+        serde_json::to_vec(&json!({"author": "someone", "license": "MIT", "name": "Books", "kinds": kinds})).unwrap();
+    let sha256 = aktujo_app::Sha256Hash::of(&template).hex();
+    let catalog = json!({"format": 1, "source": {"name": "test"}, "templates": [{
+        "id": "someone.books", "author": "someone", "path": "templates/someone/books/template.json",
+        "sha256": sha256, "name": "Books", "kinds": [{"id": "book", "name": "Book"}]}]});
+    let mut files = files.lock().unwrap();
+    files.insert("templates/someone/books/template.json".into(), template);
+    files.insert("catalog.json".into(), serde_json::to_vec(&catalog).unwrap());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn templates_from_a_catalog_are_taken_and_updated() {
+    let files = Arc::new(Mutex::new(std::collections::HashMap::new()));
+    let book = json!({"id": "book", "name": "Book", "fields": [{"key": "isbn", "name": "ISBN", "type": "text"}]});
+    publish(&files, json!([book]));
+    let url = catalog_source(files.clone()).await;
+    let router = server();
+    let (_, space) = call(&router, "POST", "/api/v1/spaces", Some(json!({"name": "Books"}))).await;
+    let space = space["id"].as_str().unwrap().to_owned();
+
+    // The official catalog is switched off, so that the test reads nothing from the internet; ours is added.
+    let (_, sources) = call(&router, "PUT", "/api/v1/sources", Some(json!({"url": DEFAULT, "on": false}))).await;
+    assert_eq!(sources[0], json!({"url": DEFAULT, "on": false, "default": true}));
+    let removed = call(&router, "DELETE", &format!("/api/v1/sources?url={DEFAULT}"), None).await.0;
+    assert_eq!(removed, StatusCode::FORBIDDEN);
+    let (status, sources) = call(&router, "POST", "/api/v1/sources", Some(json!({"url": url}))).await;
+    assert_eq!((status, sources.as_array().unwrap().len()), (StatusCode::OK, 2));
+
+    let catalog = format!("/api/v1/spaces/{space}/catalog");
+    let (status, view) = call(&router, "GET", &catalog, None).await;
+    assert_eq!(status, StatusCode::OK, "{view}");
+    assert_eq!(view["sources"], json!([{"url": url, "name": "test", "description": "", "error": null}]));
+    assert_eq!((&view["templates"][0]["standing"], &view["templates"][0]["official"]), (&json!("new"), &json!(false)));
+
+    let which = json!({"source": url, "template": "someone.books"});
+    let (_, plan) = call(&router, "POST", &format!("{catalog}/plan"), Some(which.clone())).await;
+    assert_eq!(plan["kinds"][0]["step"], "new");
+    let (_, taken) = call(&router, "POST", &format!("{catalog}/take"), Some(which.clone())).await;
+    assert_eq!(taken, json!({"changed": 1}));
+    assert_eq!(call(&router, "GET", &catalog, None).await.1["templates"][0]["standing"], "taken");
+
+    // A person renames the kind; the template gets a field.
+    let mut mine = book.clone();
+    mine["name"] = json!("Volume");
+    call(&router, "PUT", &format!("/api/v1/spaces/{space}/kinds/book"), Some(mine)).await;
+    let mut newer = book.clone();
+    newer["fields"].as_array_mut().unwrap().push(json!({"key": "year", "name": "Year", "type": "number"}));
+    publish(&files, json!([newer]));
+    assert_eq!(call(&router, "GET", &catalog, None).await.1["templates"][0]["standing"], "update");
+    let (_, plan) = call(&router, "POST", &format!("{catalog}/plan"), Some(which.clone())).await;
+    assert_eq!((&plan["kinds"][0]["step"], &plan["kinds"][0]["conflicts"]), (&json!("merge"), &json!([])));
+    assert_eq!(plan["kinds"][0]["proposed"]["name"], "Volume");
+    call(&router, "POST", &format!("{catalog}/take"), Some(which)).await;
+    let (_, kinds) = call(&router, "GET", &format!("/api/v1/spaces/{space}/kinds"), None).await;
+    assert_eq!((&kinds[0]["name"], kinds[0]["fields"].as_array().unwrap().len()), (&json!("Volume"), 2));
+    assert_eq!(call(&router, "GET", &catalog, None).await.1["templates"][0]["standing"], "taken");
+
+    // A source switched off is not read; one that cannot be read says why.
+    let other = json!({"url": "http://127.0.0.1:9"});
+    call(&router, "POST", "/api/v1/sources", Some(other)).await;
+    call(&router, "PUT", "/api/v1/sources", Some(json!({"url": url, "on": false}))).await;
+    let (_, view) = call(&router, "GET", &catalog, None).await;
+    assert_eq!(view["templates"], json!([]));
+    assert!(view["sources"][0]["error"].as_str().is_some());
+}
+
+const DEFAULT: &str = aktujo_app::DEFAULT_SOURCE;

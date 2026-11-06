@@ -7,6 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use aktujo_base::Sha256Hash;
 use aktujo_log::{EventHash, Log};
 use serde::{Deserialize, Serialize};
 
@@ -140,6 +141,9 @@ pub enum KindError {
     /// A title made of a field the kind does not have.
     #[error("the title names the field {0:?}, which the kind does not have")]
     TitleField(String),
+    /// A template whose base is another kind.
+    #[error("the template's base is the kind {0:?}, not this one")]
+    Base(String),
 }
 
 fn identity(id: &str) -> Result<(), KindError> {
@@ -202,14 +206,34 @@ impl Kind {
     }
 }
 
+/// Where a kind came from: the template it was taken over from – from a catalog, or as a file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TemplateRef {
+    /// The address of the catalog source; none for a template imported as a file and not yet found in a catalog.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// The template's ID in its catalog (`aktujo.paperwork`); none like the source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// The SHA-256 of the template's file, as it was taken over.
+    pub sha256: Sha256Hash,
+    /// The kind as the template defines it – what a person's changes are told apart from when it is updated.
+    pub base: Box<Kind>,
+}
+
 /// What happens to the kinds of a space – the payload of an event in its log.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[expect(clippy::large_enum_variant, reason = "kind events are few and read once; a box would only cost")]
 pub enum KindEvent {
     /// A kind defined, or defined anew: the whole definition replaces the one before.
     KindDefined {
         /// The kind.
         definition: Kind,
+        /// The template it was taken from, when it was – a person's change leaves this out, and the space keeps the
+        /// template it knew.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        template: Option<TemplateRef>,
     },
     /// A kind removed. Documents keep it as their kind; it can be defined again.
     KindRemoved {
@@ -231,7 +255,7 @@ pub enum KindSkipped {
         /// Why.
         reason: String,
     },
-    /// A definition that is not valid.
+    /// A definition that is not valid, or a template whose base is not the same kind.
     Invalid {
         /// The event.
         event: EventHash,
@@ -244,6 +268,7 @@ pub enum KindSkipped {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Kinds {
     kinds: BTreeMap<String, Kind>,
+    templates: BTreeMap<String, TemplateRef>,
 }
 
 impl Kinds {
@@ -270,12 +295,20 @@ impl Kinds {
     /// Applies one event.
     pub fn apply(&mut self, payload: KindEvent) -> Result<(), KindError> {
         match payload {
-            KindEvent::KindDefined { definition } => {
+            KindEvent::KindDefined { definition, template } => {
                 definition.check()?;
+                if let Some(template) = template {
+                    template.base.check()?;
+                    if template.base.id != definition.id {
+                        return Err(KindError::Base(template.base.id.clone()));
+                    }
+                    self.templates.insert(definition.id.clone(), template);
+                }
                 self.kinds.insert(definition.id.clone(), definition);
             }
             KindEvent::KindRemoved { id } => {
                 self.kinds.remove(&id);
+                self.templates.remove(&id);
             }
         }
         Ok(())
@@ -284,6 +317,11 @@ impl Kinds {
     /// The kind with `id`.
     pub fn get(&self, id: &str) -> Option<&Kind> {
         self.kinds.get(id)
+    }
+
+    /// The template the kind `id` was taken from, if it was.
+    pub fn template(&self, id: &str) -> Option<&TemplateRef> {
+        self.templates.get(id)
     }
 
     /// All kinds, by identity.
@@ -360,15 +398,15 @@ mod tests {
         let mut log = Log::new();
         let mut laptop = Clock::new("laptop".parse::<DeviceId>().unwrap());
         let book = Kind::new("book", "Book", vec![FieldDef::new("author", "Author", FieldType::Text)]);
-        log.append(&mut laptop, 1, &KindEvent::KindDefined { definition: letter() }).unwrap();
-        log.append(&mut laptop, 2, &KindEvent::KindDefined { definition: book.clone() }).unwrap();
+        log.append(&mut laptop, 1, &KindEvent::KindDefined { definition: letter(), template: None }).unwrap();
+        log.append(&mut laptop, 2, &KindEvent::KindDefined { definition: book.clone(), template: None }).unwrap();
         let mut renamed = letter();
         renamed.name = "Mail".into();
-        log.append(&mut laptop, 3, &KindEvent::KindDefined { definition: renamed }).unwrap();
+        log.append(&mut laptop, 3, &KindEvent::KindDefined { definition: renamed, template: None }).unwrap();
         log.append(&mut laptop, 4, &KindEvent::KindRemoved { id: "book".into() }).unwrap();
         let mut bad = book;
         bad.id = "".into();
-        let wrong = log.append(&mut laptop, 5, &KindEvent::KindDefined { definition: bad }).unwrap();
+        let wrong = log.append(&mut laptop, 5, &KindEvent::KindDefined { definition: bad, template: None }).unwrap();
         let (kinds, skipped) = Kinds::from_log(&log);
         assert_eq!(kinds.len(), 1);
         assert_eq!(kinds.get("letter").map(|k| k.name.as_str()), Some("Mail"));
@@ -376,12 +414,46 @@ mod tests {
     }
 
     #[test]
+    fn a_kind_remembers_its_template_until_it_is_removed() {
+        let mut log = Log::new();
+        let mut laptop = Clock::new("laptop".parse::<DeviceId>().unwrap());
+        let template = TemplateRef {
+            source: Some("https://github.com/aktujo/catalog".into()),
+            id: Some("aktujo.paperwork".into()),
+            sha256: Sha256Hash::of(b"template"),
+            base: Box::new(letter()),
+        };
+        let taken = KindEvent::KindDefined { definition: letter(), template: Some(template.clone()) };
+        log.append(&mut laptop, 1, &taken).unwrap();
+        let mut changed = letter();
+        changed.name = "Mail".into();
+        log.append(&mut laptop, 2, &KindEvent::KindDefined { definition: changed, template: None }).unwrap();
+        let (kinds, skipped) = Kinds::from_log(&log);
+        assert!(skipped.is_empty());
+        assert_eq!(kinds.get("letter").map(|k| k.name.as_str()), Some("Mail"));
+        assert_eq!(kinds.template("letter"), Some(&template), "a person's change keeps the template");
+        let json = serde_json::to_value(&taken).unwrap();
+        assert_eq!(json["template"]["id"], "aktujo.paperwork");
+        assert_eq!(json["template"]["base"]["name"], "Letter");
+
+        let mut other = template.clone();
+        other.base.id = "book".into();
+        let wrong = log
+            .append(&mut laptop, 3, &KindEvent::KindDefined { definition: letter(), template: Some(other) })
+            .unwrap();
+        log.append(&mut laptop, 4, &KindEvent::KindRemoved { id: "letter".into() }).unwrap();
+        let (kinds, skipped) = Kinds::from_log(&log);
+        assert_eq!(kinds.template("letter"), None);
+        assert_eq!(skipped, vec![KindSkipped::Invalid { event: wrong, reason: KindError::Base("book".into()) }]);
+    }
+
+    #[test]
     fn a_kind_reads_as_written() {
-        let json = serde_json::to_value(KindEvent::KindDefined { definition: letter() }).unwrap();
+        let json = serde_json::to_value(KindEvent::KindDefined { definition: letter(), template: None }).unwrap();
         assert_eq!(json["kind"], "kind_defined");
         assert_eq!(json["definition"]["fields"][1], serde_json::json!({"key": "date", "name": "Date", "type": "date"}));
         assert_eq!(json["definition"]["names"], serde_json::json!({"de": "Brief"}));
         let back: KindEvent = serde_json::from_value(json).unwrap();
-        assert_eq!(back, KindEvent::KindDefined { definition: letter() });
+        assert_eq!(back, KindEvent::KindDefined { definition: letter(), template: None });
     }
 }

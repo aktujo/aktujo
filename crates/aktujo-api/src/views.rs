@@ -494,6 +494,237 @@ pub struct Imported {
     pub changed: usize,
 }
 
+/// A source of templates on this device.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SourceView {
+    /// Its address.
+    pub url: String,
+    /// Whether it is read.
+    pub on: bool,
+    /// Whether it is the official catalog – it can be switched off, not removed.
+    pub default: bool,
+}
+
+impl From<aktujo_app::Source> for SourceView {
+    fn from(source: aktujo_app::Source) -> Self {
+        SourceView { default: source.is_default(), url: source.url, on: source.on }
+    }
+}
+
+/// A source to add.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct NewSource {
+    /// A repository on GitHub, or any HTTPS address of a folder with a `catalog.json`.
+    pub url: String,
+}
+
+/// A source switched on or off.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SourceSwitch {
+    /// Its address.
+    pub url: String,
+    /// Whether it is read.
+    pub on: bool,
+}
+
+/// The source to remove.
+#[derive(Debug, Clone, Deserialize, utoipa::IntoParams)]
+pub struct SourceQuery {
+    /// Its address.
+    pub url: String,
+}
+
+/// A source as it was read for the catalog view.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ReadSource {
+    /// Its address.
+    pub url: String,
+    /// Its name, if it could be read.
+    pub name: Option<String>,
+    /// What it offers.
+    pub description: Option<String>,
+    /// Why it could not be read.
+    pub error: Option<String>,
+}
+
+/// A kind as a catalog lists it.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ListedKindView {
+    /// Its identity.
+    pub id: String,
+    /// Its name.
+    pub name: String,
+    /// Its name in other languages.
+    pub names: BTreeMap<String, String>,
+}
+
+/// How a template stands in a space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StandingView {
+    /// None of its kinds came from it.
+    New,
+    /// Its kinds came from it as it is now.
+    Taken,
+    /// Its kinds came from an earlier version.
+    Update,
+}
+
+/// A template of a source, with how it stands in the space.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TemplateListing {
+    /// The source.
+    pub source: String,
+    /// Whether it is official: by `aktujo`, from the official catalog.
+    pub official: bool,
+    /// Its ID, `<author>.<name>`.
+    pub id: String,
+    /// Who made it.
+    pub author: String,
+    /// Its licence.
+    pub license: Option<String>,
+    /// Its name.
+    pub name: String,
+    /// Its name in other languages.
+    pub names: BTreeMap<String, String>,
+    /// What it is for.
+    pub description: String,
+    /// That in other languages.
+    pub descriptions: BTreeMap<String, String>,
+    /// Its tags.
+    pub tags: Vec<String>,
+    /// Its kinds.
+    pub kinds: Vec<ListedKindView>,
+    /// How it stands in the space.
+    pub standing: StandingView,
+}
+
+/// The templates of the sources that are on, for a space – read when asked.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CatalogView {
+    /// The sources that were read, with what went wrong.
+    pub sources: Vec<ReadSource>,
+    /// Their templates.
+    pub templates: Vec<TemplateListing>,
+}
+
+/// A template of a source.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TemplateChoice {
+    /// The source's address.
+    pub source: String,
+    /// The template's ID.
+    pub template: String,
+    /// What to do with each kind, by its identity; `take` for one not named.
+    #[serde(default)]
+    pub choices: BTreeMap<String, ChoiceView>,
+}
+
+/// What to do with a kind of a template.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ChoiceView {
+    /// What the plan proposes: add, replace, merge; a kind gone from the template is kept.
+    Take,
+    /// The template's kind as it is.
+    Theirs,
+    /// The space's kind as it is; a new one is not added.
+    Keep,
+    /// A kind gone from the template is removed.
+    Remove,
+}
+
+impl From<ChoiceView> for aktujo_app::Choice {
+    fn from(choice: ChoiceView) -> Self {
+        match choice {
+            ChoiceView::Take => aktujo_app::Choice::Take,
+            ChoiceView::Theirs => aktujo_app::Choice::Theirs,
+            ChoiceView::Keep => aktujo_app::Choice::Keep,
+            ChoiceView::Remove => aktujo_app::Choice::Remove,
+        }
+    }
+}
+
+/// What taking a template over does to a kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StepView {
+    /// Added.
+    New,
+    /// Already as the template has it.
+    Same,
+    /// Replaced by the template's.
+    Replace,
+    /// Changed by a person: merged.
+    Merge,
+    /// No longer in the template: offered to remove.
+    Gone,
+}
+
+/// An item both changed differently: the space's version stays.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ConflictView {
+    /// What it is: `name`, `names.de`, `field.total`, `word.invoice`, `title`.
+    pub item: String,
+    /// The space's version; `null` where the space removed it.
+    #[schema(value_type = Object)]
+    pub mine: serde_json::Value,
+    /// The template's version; `null` where the template removed it.
+    #[schema(value_type = Object)]
+    pub theirs: serde_json::Value,
+}
+
+/// One kind of a plan.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PlannedView {
+    /// Its identity.
+    pub id: String,
+    /// What happens to it.
+    pub step: StepView,
+    /// The space's kind.
+    pub mine: Option<KindView>,
+    /// The template's kind.
+    pub theirs: Option<KindView>,
+    /// The kind as it would be.
+    pub proposed: Option<KindView>,
+    /// Items both changed differently.
+    pub conflicts: Vec<ConflictView>,
+}
+
+impl From<aktujo_app::Planned> for PlannedView {
+    fn from(planned: aktujo_app::Planned) -> Self {
+        PlannedView {
+            id: planned.id,
+            step: match planned.step {
+                aktujo_app::Step::New => StepView::New,
+                aktujo_app::Step::Same => StepView::Same,
+                aktujo_app::Step::Replace => StepView::Replace,
+                aktujo_app::Step::Merge => StepView::Merge,
+                aktujo_app::Step::Gone => StepView::Gone,
+            },
+            mine: planned.mine.map(KindView::from),
+            theirs: planned.theirs.map(KindView::from),
+            proposed: planned.proposed.map(KindView::from),
+            conflicts: planned
+                .conflicts
+                .into_iter()
+                .map(|c| ConflictView { item: c.item, mine: c.mine, theirs: c.theirs })
+                .collect(),
+        }
+    }
+}
+
+/// What taking a template over would do.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PlanView {
+    /// The source.
+    pub source: String,
+    /// The template.
+    pub template: String,
+    /// Every kind of the template, then those gone from it.
+    pub kinds: Vec<PlannedView>,
+}
+
 /// Where in the bin to look.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]

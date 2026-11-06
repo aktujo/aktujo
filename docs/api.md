@@ -27,7 +27,11 @@ Paths below are under `/api/v1`; `{space}` and `{document}` are identities, `D` 
 | GET | `/spaces/{space}/kinds` | the kinds of documents the space defines – none until someone adds or imports them |
 | POST | `/spaces/{space}/kinds` | adds a kind: `{"name": "…"}`; its identity is made from the name |
 | PUT, DELETE | `/spaces/{space}/kinds/{kind}` | defines a kind anew – name, fields, words, title, as JSON ([RFC 0005](rfc/0005-pure-core.md)) – or removes it |
-| POST | `/spaces/{space}/kind-import` | takes over kinds: `{"kinds": […]}` – a template of `aktujo/catalog` as it is |
+| POST | `/spaces/{space}/kind-import` | takes over a file of kinds as it is – a template (it remembers its SHA-256), an export, a list |
+| GET, POST, PUT, DELETE | `/sources` | the sources of templates on this device: `{"url"}` to add, `{"url", "on"}` to switch, `?url=…` to remove (not the official catalog) |
+| GET | `/spaces/{space}/catalog` | the templates of the sources that are on, read now, each `new`, `taken` or with an `update` |
+| POST | `/spaces/{space}/catalog/plan` | what taking a template over would do: `{"source", "template"}` → each kind `new`, `same`, `replace`, `merge` (with conflicts) or `gone` |
+| POST | `/spaces/{space}/catalog/take` | takes it over: `{"source", "template", "choices": {"<kind>": "take" \| "theirs" \| "keep" \| "remove"}}` |
 | POST | `/search` | finds documents: `{"words", "spaces", "kind", "labels", "from", "to", "bin", "limit"}`, every part optional |
 | POST | `/spaces/{space}/documents?name=…` | adds a file – its bytes as the body, its media type as `Content-Type` |
 | GET | `D` | a document with its fields, versions and suggestions |
