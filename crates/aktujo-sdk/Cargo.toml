@@ -30,7 +30,7 @@ miniz_oxide.workspace = true
 hex.workspace = true
 hkdf.workspace = true
 image = { workspace = true, optional = true }
-keyring.workspace = true
+keyring = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -41,6 +41,10 @@ ureq.workspace = true
 sha2.workspace = true
 
 [features]
+default = ["system-keys"]
+# SystemKeys: the key in the key store of the operating system (Keychain, Credential Manager, Secret Service). Apps
+# that keep the key themselves – on iOS and Android, through Flutter – leave it out.
+system-keys = ["dep:keyring"]
 # OCR with the models built in, and improving scans; without it, text layers only (aktujo-minimal).
 ocr = ["aktujo-extract/pure", "scan"]
 # Improving scans and photos (aktujo-scan).

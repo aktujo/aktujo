@@ -63,7 +63,9 @@ pub use importing::{Files, FolderFiles, Imported, ZipFiles, import, import_error
 pub use improving::{
     Colour, Crop, Improve, ScanError, VersionFile, combined, improved, page_count, page_png, preview_png,
 };
-pub use keys::{FileKeys, KeyError, KeyStore, MemoryKeys, SystemKeys};
+#[cfg(feature = "system-keys")]
+pub use keys::SystemKeys;
+pub use keys::{FileKeys, KeyError, KeyStore, MemoryKeys};
 pub use reading::{Job, ReadState, Reader, Worker, read_all};
 pub use sealed::SealedBlobs;
 pub use search::{Bin, Hit, Part, Search, date_of};

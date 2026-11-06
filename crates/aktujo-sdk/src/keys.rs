@@ -18,6 +18,7 @@ use hkdf::Hkdf;
 use sha2::Sha256;
 
 /// The service name entries are kept under in the key store of the operating system.
+#[cfg(feature = "system-keys")]
 const SERVICE: &str = "aktujo";
 
 /// Why a key could not be read or kept.
@@ -33,16 +34,19 @@ pub trait KeyStore: Send + Sync {
     fn set(&self, name: &str, secret: &[u8; 32]) -> Result<(), KeyError>;
 }
 
-/// The key store of the operating system.
+/// The key store of the operating system (feature `system-keys`).
+#[cfg(feature = "system-keys")]
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemKeys;
 
+#[cfg(feature = "system-keys")]
 impl SystemKeys {
     fn entry(name: &str) -> Result<keyring::Entry, KeyError> {
         keyring::Entry::new(SERVICE, name).map_err(|e| KeyError(e.to_string()))
     }
 }
 
+#[cfg(feature = "system-keys")]
 impl KeyStore for SystemKeys {
     fn get(&self, name: &str) -> Result<Option<[u8; 32]>, KeyError> {
         match Self::entry(name)?.get_secret() {
