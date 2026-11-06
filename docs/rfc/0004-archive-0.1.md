@@ -162,8 +162,9 @@ Decided by the maintainer on 2026-11-05.
     as `aktujo` and as `aktujo-minimal` (decision 6). Other ways
     (cargo install, Nix, Homebrew) later. OPEN: signing and notarising the binaries for macOS and Windows.
     Built so (2026-11-06): CI checks Linux, macOS and Windows; a version tag builds `aktujo` and `aktujo-minimal` for
-    Linux (x86-64, ARM64), macOS (ARM64) and Windows (x86-64, ARM64), each packed with the licence and README, and
-    puts them with their SHA-256 sums into a **draft** release that the maintainer publishes. OPEN: macOS on x86-64.
+    Linux (x86-64, ARM64), macOS (ARM64) and Windows (x86-64), each packed with the licence and README, and puts
+    them with their SHA-256 sums into a **draft** release that the maintainer publishes. OPEN: macOS on x86-64;
+    Windows on ARM64 (tract's assembly does not link with MSVC there).
 12. **Sync and sharing are part of 0.1**: through a relay the person runs (`aktujo relay`); invitations with rights,
     members listed and removed, the recovery code – what `aktujo-sync` does today, offered in every interface.
     Built so (2026-11-05): `serve` and `tui` synchronise every synchronised space in the background (`Syncer` in

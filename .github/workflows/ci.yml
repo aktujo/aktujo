@@ -127,8 +127,8 @@ jobs:
 
   # The program for each platform, from a version tag once the checks passed: `aktujo` (everything) and
   # `aktujo-minimal` (without scanning, OCR and object stores – decision 6 of RFC 0004), each with the licence and
-  # README. Linux and Windows on x86-64 and ARM64, macOS on ARM64 (OPEN: macOS on x86-64; signing and notarising for
-  # macOS and Windows).
+  # README. Linux on x86-64 and ARM64, macOS on ARM64, Windows on x86-64 (OPEN: macOS on x86-64; Windows on ARM64,
+  # where tract's assembly does not link with MSVC; signing and notarising for macOS and Windows).
   binaries:
     needs: [rust, licences]
     # Also when started by hand, to try the builds without a release.
@@ -141,7 +141,6 @@ jobs:
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, name: linux-arm64 }
           - { os: macos-latest, target: aarch64-apple-darwin, name: macos-arm64 }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, name: windows-x86_64 }
-          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, name: windows-arm64 }
     runs-on: ${{ matrix.os }}
     defaults:
       run:

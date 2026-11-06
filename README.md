@@ -20,7 +20,7 @@ The brand kit lives in its own repository, [aktujo/brand](https://github.com/akt
 ## Install
 
 Each [release](https://github.com/aktujo/aktujo/releases) has the program for Linux (x86-64, ARM64), macOS (ARM64)
-and Windows (x86-64, ARM64), each in two builds: **`aktujo`** with everything, and **`aktujo-minimal`** without
+and Windows (x86-64), each in two builds: **`aktujo`** with everything, and **`aktujo-minimal`** without
 scanning, OCR and object stores – smaller, for a server or an old computer; both read and write the same data. Unpack
 it, check it against `SHA256SUMS`, and run it:
 
