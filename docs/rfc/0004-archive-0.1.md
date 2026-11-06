@@ -172,11 +172,11 @@ Decided by the maintainer on 2026-11-05.
     (cargo install, Nix, Homebrew) later. OPEN: signing and notarising the binaries for macOS and Windows.
     Built so (2026-11-06): CI checks Linux, macOS and Windows; a version tag builds `aktujo` and `aktujo-minimal` for
     Linux (x86-64, ARM64), macOS (ARM64) and Windows (x86-64), each packed with the licence and README, and puts
-    them with their SHA-256 sums into a **draft** release that the maintainer publishes. Since 2026-11-06 also macOS
-    on x86-64 (built on Apple silicon) and, as `aktujo-minimal` only, Windows on ARM64; CI checks that `aktujo` and
-    `aktujo-minimal` open the same data folder (`scripts/check-editions.sh`: each founds a space and imports an
-    export, and each sees what the other wrote). OPEN: `aktujo` on Windows on ARM64 (tract's assembly does not link
-    with MSVC there).
+    them with their SHA-256 sums into a **draft** release that the maintainer publishes. These are falkOSS's platforms
+    (starterpack, `docs/practices.md`): macOS on Intel is never built, Windows on ARM64 once the community asks – then
+    `aktujo-minimal` only for a start, as tract's assembly does not link with MSVC there (OPEN). CI checks that
+    `aktujo` and `aktujo-minimal` open the same data folder (`scripts/check-editions.sh`: each founds a space and
+    imports an export, and each sees what the other wrote).
 12. **Sync and sharing are part of 0.1**: through a relay the person runs (`aktujo relay`); invitations with rights,
     members listed and removed, the recovery code – what `aktujo-sync` does today, offered in every interface.
     Built so (2026-11-05): `serve` and `tui` synchronise every synchronised space in the background (`Syncer` in

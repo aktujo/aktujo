@@ -13,10 +13,11 @@ Each [release](https://github.com/aktujo/aktujo/releases) has the program in two
 |---|---|---|
 | Linux x86-64 | yes | yes |
 | Linux ARM64 | yes | yes |
-| macOS ARM64 (Apple silicon) | yes | yes |
-| macOS x86-64 (Intel) | yes | yes |
-| Windows x86-64 | yes | yes |
-| Windows ARM64 | – (OPEN) | yes |
+| macOS on Apple silicon | yes | yes |
+| Windows x64 | yes | yes |
+
+These are the platforms of falkOSS: macOS on Intel is not built; Windows on ARM64 follows once people ask for it
+(an issue).
 
 - **`aktujo`** has everything: reading scans by OCR, improving scans, object stores.
 - **`aktujo-minimal`** leaves out scanning, OCR and object stores – smaller, for a server or an old computer. It
