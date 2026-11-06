@@ -4,7 +4,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.99"
 license = "AGPL-3.0-or-later"
@@ -17,19 +17,19 @@ publish = false
 # their own dependencies.
 [workspace.dependencies]
 aktujo-api = { path = "crates/aktujo-api" }
-aktujo-sdk = { path = "crates/aktujo-sdk", version = "0.2.0" }
-aktujo-base = { path = "crates/aktujo-base", version = "0.2.0" }
-aktujo-blob = { path = "crates/aktujo-blob", version = "0.2.0" }
-aktujo-crypt = { path = "crates/aktujo-crypt", version = "0.2.0" }
-aktujo-doc = { path = "crates/aktujo-doc", version = "0.2.0" }
-aktujo-extract = { path = "crates/aktujo-extract", version = "0.2.0", default-features = false }
-aktujo-log = { path = "crates/aktujo-log", version = "0.2.0" }
-aktujo-relay = { path = "crates/aktujo-relay", version = "0.2.0" }
-aktujo-rules = { path = "crates/aktujo-rules", version = "0.2.0" }
-aktujo-scan = { path = "crates/aktujo-scan", version = "0.2.0" }
-aktujo-core = { path = "crates/aktujo-core", version = "0.2.0" }
-aktujo-store = { path = "crates/aktujo-store", version = "0.2.0" }
-aktujo-sync = { path = "crates/aktujo-sync", version = "0.2.0" }
+aktujo-sdk = { path = "crates/aktujo-sdk", version = "0.3.0" }
+aktujo-base = { path = "crates/aktujo-base", version = "0.3.0" }
+aktujo-blob = { path = "crates/aktujo-blob", version = "0.3.0" }
+aktujo-crypt = { path = "crates/aktujo-crypt", version = "0.3.0" }
+aktujo-doc = { path = "crates/aktujo-doc", version = "0.3.0" }
+aktujo-extract = { path = "crates/aktujo-extract", version = "0.3.0", default-features = false }
+aktujo-log = { path = "crates/aktujo-log", version = "0.3.0" }
+aktujo-relay = { path = "crates/aktujo-relay", version = "0.3.0" }
+aktujo-rules = { path = "crates/aktujo-rules", version = "0.3.0" }
+aktujo-scan = { path = "crates/aktujo-scan", version = "0.3.0" }
+aktujo-core = { path = "crates/aktujo-core", version = "0.3.0" }
+aktujo-store = { path = "crates/aktujo-store", version = "0.3.0" }
+aktujo-sync = { path = "crates/aktujo-sync", version = "0.3.0" }
 aktujo-tui = { path = "crates/aktujo-tui" }
 anyhow = "1.0.104"
 axum = "0.8.9"
