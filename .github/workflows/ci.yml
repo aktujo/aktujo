@@ -103,7 +103,7 @@ jobs:
     uses: falkoss/starterpack/.github/workflows/dco.yml@8fba58423b0b95131b436cb2edcb91adad742d71
 
   # Every crate on crates.io – the core, the document crates, the SDK, the texts, the interfaces and the program – from
-  # a tag `v0.3.1` on a commit of main, once the checks of this run passed: in the order of their dependencies, each in
+  # a tag `v0.4.0` on a commit of main, once the checks of this run passed: in the order of their dependencies, each in
   # the tag's version, through crates.io's trusted publishing (a short-lived token for this workflow and the
   # environment `crates-io`, no stored secret). A version already on crates.io is left alone, so the job can run
   # again. A crate's first version is published by hand, since trusted publishing is set up on crates.io for a crate

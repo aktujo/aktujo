@@ -245,4 +245,6 @@ Decided by the maintainer on 2026-11-05.
   release of the program is **0.2.0** – the core crates were 0.1.0 on crates.io already, and 0.2.0 breaks one of them
   (`aktujo-crypt` lost a domain); "Archive 0.1" stays the name of this plan. **0.3.0** follows (2026-11-06): the
   trait `Blobs` of `aktujo-blob` gained `remove`, `size` and `get_range`, and `aktujo-sdk` needs them.
+  **0.4.0** follows (2026-11-06): the trait `Backend` of `aktujo-store` (PostgreSQL), `Blobs` streamed, the corners of
+  a sheet in `Improve` of `aktujo-scan`, the ways `tallest` and `within` in `aktujo-doc` – each breaks a crate.
 - OPEN: real samples from the maintainer (also open in 0002 and 0003) – needed for "done when".

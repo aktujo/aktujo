@@ -52,7 +52,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-api",
  "aktujo-crypt",
@@ -67,7 +67,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-api"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "aktujo-core",
@@ -87,7 +87,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-base"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "base64 0.23.1",
  "getrandom 0.4.3",
@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-blob"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "bytes",
@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-crypt"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "aktujo-log",
@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-doc"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "aktujo-log",
@@ -151,7 +151,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-extract"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "aktujo-extract-det",
@@ -179,14 +179,14 @@ checksum = "2365996ebe6b8d57ab8b988b1bc26bebf0c67c53cd3e12628e302a39f0459b0e"
 
 [[package]]
 name = "aktujo-locales"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "aktujo-log"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "serde",
@@ -196,7 +196,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-relay"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "aktujo-crypt",
@@ -212,7 +212,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-rules"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "aktujo-doc",
@@ -225,7 +225,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-scan"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "hayro",
  "image",
@@ -237,7 +237,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-sdk"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "aktujo-blob",
@@ -270,7 +270,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-store"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "aktujo-crypt",
@@ -286,7 +286,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-sync"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-base",
  "aktujo-blob",
@@ -304,7 +304,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-tui"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aktujo-crypt",
  "aktujo-locales",
@@ -319,7 +319,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-web"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "axum",
  "http-body-util",
