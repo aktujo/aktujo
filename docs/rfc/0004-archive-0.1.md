@@ -143,6 +143,10 @@ Decided by the maintainer on 2026-11-05.
     the relay; a request to join from a device whose device name is taken in the space is passed over without a word
     (`aktujo-sync`), so that device waits for ever – it should be told; the recovery code's member carries an English
     name from `aktujo-sync` (the interfaces show it by its role).
+13. **Kinds as data, catalog sources and updates are part of 0.1** (maintainer, 2026-11-06;
+    [0005](0005-pure-core.md)): no kinds built in; kinds defined per space; templates taken from `aktujo/catalog` and
+    other sources within aktujo, the default source can be switched off; templates taken over can be updated. Built
+    so (2026-11-06): kinds as data, their editing and the import of a template as a file.
 
 ## Done when
 
@@ -150,6 +154,9 @@ Decided by the maintainer on 2026-11-05.
   folder, sees the suggestions, confirms some, labels them, finds them again by a word of their text, puts one in
   the bin and takes it out, adds a second version by improving a scan, founds a second space, and exports
   everything – in the web app and in the terminal, in English and German.
+- Starting from a space without kinds, a person takes a template from `aktujo/catalog` within aktujo, sees what it
+  would add, changes a kind, and later takes an update of the template with their change kept; a second source is
+  added, and the default source switched off is not read.
 - A second device joins the space by an invitation and shows the same documents; a change on either arrives on
   the other after a sync through `aktujo relay`; a second person invited to read sees the documents and cannot
   change them; a removed member gets nothing written after its removal.
@@ -174,10 +181,11 @@ Decided by the maintainer on 2026-11-05.
    like the system, the language in its settings; the terminal interface in the language of the environment. OPEN:
    showing a version's pages in the app itself (today: opened in a new tab or downloaded).
 5. Sync and sharing in every interface; `aktujo relay`.
-6. Watched folders.
-7. Improving (`aktujo-scan`).
-8. Export.
-9. Windows in CI, binaries in the release, the release 0.1.0 of the program.
+6. Kinds as data ([0005](0005-pure-core.md); built 2026-11-06), then catalog sources and updates of templates.
+7. Watched folders.
+8. Improving (`aktujo-scan`).
+9. Export.
+10. Windows in CI, binaries in the release, the release 0.1.0 of the program.
 
 ## Open points
 

@@ -75,8 +75,8 @@ as a file; taking one from a catalog within aktujo is planned below.
 ## Catalog sources (planned)
 
 State: proposal. Decided by the maintainer on 2026-11-06: aktujo takes templates from catalogs itself and knows other
-sources; the default source can be switched off; templates taken over can be updated. When: OPEN – after Archive 0.1
-unless it is taken into it.
+sources; the default source can be switched off; templates taken over can be updated – all of it part of Archive 0.1
+([0004](0004-archive-0.1.md), decision 13), before the watched folders.
 
 - **A source** is a place where a `catalog.json` lives, with the templates next to it at the paths it names – a
   repository on GitHub (`https://github.com/<owner>/<repository>`, optionally `…/tree/<branch>`; read from its raw
@@ -144,8 +144,8 @@ Interfaces, as proposed:
 
 ## Open points
 
-- OPEN: when catalog sources and updates come (above). Until then a second import of a template replaces kinds of the
-  same identity, also the changes a person made to them.
+- Until catalog sources and updates are built, a second import of a template replaces kinds of the same identity,
+  also the changes a person made to them.
 - OPEN: plugins – code behind `Recogniser` added to an installed aktujo (WebAssembly?), and the rules of app stores
   for it ([0003](0003-recognition.md)).
 - OPEN: the date order (`day_first`, `month_first`) per space; today the program reads slashed dates only where they
