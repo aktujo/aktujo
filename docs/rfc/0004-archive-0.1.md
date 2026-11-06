@@ -161,6 +161,9 @@ Decided by the maintainer on 2026-11-05.
 11. **Installed from binaries** attached to each GitHub release, built by CI for Linux, macOS and Windows – each
     as `aktujo` and as `aktujo-minimal` (decision 6). Other ways
     (cargo install, Nix, Homebrew) later. OPEN: signing and notarising the binaries for macOS and Windows.
+    Built so (2026-11-06): CI checks Linux, macOS and Windows; a version tag builds `aktujo` and `aktujo-minimal` for
+    Linux (x86-64, ARM64), macOS (ARM64) and Windows (x86-64, ARM64), each packed with the licence and README, and
+    puts them with their SHA-256 sums into a **draft** release that the maintainer publishes. OPEN: macOS on x86-64.
 12. **Sync and sharing are part of 0.1**: through a relay the person runs (`aktujo relay`); invitations with rights,
     members listed and removed, the recovery code – what `aktujo-sync` does today, offered in every interface.
     Built so (2026-11-05): `serve` and `tui` synchronise every synchronised space in the background (`Syncer` in
@@ -214,7 +217,7 @@ Decided by the maintainer on 2026-11-05.
 7. Watched folders (built 2026-11-06).
 8. Improving (`aktujo-scan`; built 2026-11-06).
 9. Export (built 2026-11-06).
-10. Windows in CI, binaries in the release, the release 0.1.0 of the program.
+10. Windows in CI, binaries in the release (built 2026-11-06), the release 0.1.0 of the program.
 
 ## Open points
 

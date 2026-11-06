@@ -4,7 +4,7 @@
 
 **aktujo** takes care of a document's whole life: scan or upload it, read and label it, keep every version, find and share it, and route it through approvals and signatures – every step in an audit log. Documents are end-to-end encrypted and stay where you want them – on your own devices, synced directly between them, or in your organisation's cloud. aktujo runs on one computer as well as on Kubernetes with PostgreSQL and S3, on its own or built into other apps. Free software – everything included, no telemetry.
 
-aktujo is at its beginning: there is nothing to install yet.
+aktujo is at its beginning – version 0.1 is a person's archive on their own devices.
 The idea and the plan are in the [whitepaper](https://github.com/aktujo/whitepaper).
 The website is [aktujo.org](https://aktujo.org), the documentation is at [aktujo.dev](https://aktujo.dev).
 
@@ -17,7 +17,22 @@ The website is [aktujo.org](https://aktujo.org), the documentation is at [aktujo
 
 The brand kit lives in its own repository, [aktujo/brand](https://github.com/aktujo/brand).
 
-## Try it
+## Install
+
+Each [release](https://github.com/aktujo/aktujo/releases) has the program for Linux (x86-64, ARM64), macOS (ARM64)
+and Windows (x86-64, ARM64), each in two builds: **`aktujo`** with everything, and **`aktujo-minimal`** without
+scanning, OCR and object stores – smaller, for a server or an old computer; both read and write the same data. Unpack
+it, check it against `SHA256SUMS`, and run it:
+
+```sh
+aktujo serve        # the archive in the browser, on http://127.0.0.1:8071
+aktujo tui          # the same archive in the terminal
+```
+
+The binaries are not signed yet (OPEN): macOS and Windows ask before they run one from the internet.
+
+## Try it from the source
+
 
 ```sh
 (cd web && pnpm install && pnpm build)   # the web app the binary embeds
