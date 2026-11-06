@@ -69,19 +69,22 @@ a catalog of their own. An identity of a kind is in one template of a catalog on
 never replaces a kind of the one with the other's. It starts with three general templates – **`aktujo/paperwork`**
 (letter, contract, official notice, invoice, receipt, insurance policy, payslip; the rules that came with the library
 before, in six languages), **`aktujo/library`** (book) and **`aktujo/research`** (research paper). Accounting in
-depth and sheet music are not general cases; they come with the programs of those trades. OPEN: browsing a catalog
-from within aktujo; today a template is imported as a file.
+depth and sheet music are not general cases; they come with the programs of those trades. Today a template is imported
+as a file; taking one from a catalog within aktujo is planned below.
 
 ## Catalog sources (planned)
 
-State: proposal (maintainer, 2026-11-06: aktujo shall take templates from catalogs itself and know other sources).
-When: OPEN – after Archive 0.1 unless it is taken into it.
+State: proposal. Decided by the maintainer on 2026-11-06: aktujo takes templates from catalogs itself and knows other
+sources; the default source can be switched off; templates taken over can be updated. When: OPEN – after Archive 0.1
+unless it is taken into it.
 
 - **A source** is a place where a `catalog.json` lives, with the templates next to it at the paths it names – a
   repository on GitHub (`https://github.com/<owner>/<repository>`, optionally `…/tree/<branch>`; read from its raw
-  files) or any HTTPS address of a folder. `aktujo/catalog` is the default source; others are added by address and
-  each is switched on or off. Sources belong to the **device** (a setting of the workspace), not to a space: which
-  catalogs a person trusts is theirs, the kinds they take over go into the space and sync as always.
+  files) or any HTTPS address of a folder. `aktujo/catalog` is the default source; others are added by address. Each
+  is switched on or off – **the default source too**: switched off, it is not read and stays off until switched on
+  again; it cannot be removed, only switched off, so that it can always come back. Sources belong to the
+  **device** (a setting of the workspace), not to a space: which catalogs a person trusts is theirs, the kinds they
+  take over go into the space and sync as always.
 - **Only when asked.** aktujo reads a source when a person opens the catalog view or asks for it on the command line
   – never at start, never in the background, no counting of downloads. What it read is kept for that view only.
 - **The program reads, not the browser.** `aktujo-app` fetches over HTTPS (the HTTP client the sync already uses);
@@ -95,17 +98,37 @@ When: OPEN – after Archive 0.1 unless it is taken into it.
 - **Seen before it is taken.** Taking a template over first shows what it would do in this space: which kinds are new,
   which would replace a kind of the same identity (with what differs), which are already the same. Only then are the
   kinds defined (`import_kinds`, as today).
-- **Where a kind came from:** OPEN – a kind may carry its template (source, ID, SHA-256) in `kind_defined`, so that an
-  interface can offer a newer version of the template later and show what a person changed; until that is decided,
-  nothing is recorded.
+- **Where a kind came from.** A kind taken from a catalog remembers its template: `kind_defined` gets a member
+  `template` – the source's address, the template's ID (`aktujo.paperwork`), the SHA-256 of its `template.json`, and
+  `base`, the kind as the template defines it. A person's change writes `kind_defined` without `template`; the space
+  keeps the last `template` of the kind, so it still knows where the kind came from and what the template said.
+  Removing the kind forgets it. A template imported as a file records nothing (OPEN: whether it records its SHA-256).
+
+## Updating a template
+
+- **Found when asked.** When a person opens the catalog view, aktujo compares, for every kind of the space that came
+  from a template of a source that is on, the SHA-256 it remembers with the one in `catalog.json`. A difference is an
+  update; the view lists the templates with updates for this space. Nothing is looked up otherwise.
+- **Shown before it is taken**, kind by kind:
+  - *Not changed here* (the kind is its `base`): the template's new definition replaces it.
+  - *Changed here*: a three-way merge of `base`, this space's kind and the template's new kind, item by item – the
+    name, each field by its key, each word, the title. What only one side changed is taken from that side; fields
+    and words a person added stay; where both changed the same item differently, this space's stays and the item is
+    shown as a conflict, with the template's version beside it to take instead.
+  - *New in the template*: offered to add. *Gone from the template*: offered to remove – never removed on its own.
+- **Choices per kind:** take the update (merged as above), take the template's version as it is, or keep this space's
+  as it is. Each choice writes `kind_defined` with the new `template` (SHA-256 and `base` of the new version), so the
+  same update is not offered again; keeping this space's kind does not change it.
+- Documents are not touched: their values stay, also of fields a new version no longer has (as for any change of a
+  kind).
 
 Interfaces, as proposed:
 
 | Where | What |
 |---|---|
-| `aktujo-app` | `sources()`, `add_source(url)`, `set_source(url, on)`, `remove_source(url)`; `catalog(url) -> Catalog`; `template(url, id) -> Template` (checked); `preview_kinds(space, kinds)` |
-| API | `GET/POST /api/v1/sources`, `PUT/DELETE /api/v1/sources/{source}`, `GET /api/v1/sources/{source}/catalog`, `GET /api/v1/sources/{source}/templates/{template}`, `POST /api/v1/spaces/{space}/kind-import/preview` |
-| Web app | *Settings → Sources*; *Kinds → From a catalog …*: the templates of all sources that are on, by tag and language, with their kinds; the preview, then *Take over* |
+| `aktujo-app` | `sources()`, `add_source(url)`, `set_source(url, on)`, `remove_source(url)` (not the default source); `catalog(url) -> Catalog`; `template(url, id) -> Template` (checked); `preview_kinds(space, kinds)`; `updates(space) -> Vec<Update>`; `take_update(space, kind, choice)` |
+| API | `GET/POST /api/v1/sources`, `PUT/DELETE /api/v1/sources/{source}`, `GET /api/v1/sources/{source}/catalog`, `GET /api/v1/sources/{source}/templates/{template}`, `POST /api/v1/spaces/{space}/kind-import/preview`, `GET /api/v1/spaces/{space}/kind-updates`, `POST /api/v1/spaces/{space}/kind-updates/{kind}` |
+| Web app | *Settings → Sources* (each with a switch, the default source too); *Kinds → From a catalog …*: the templates of all sources that are on, by tag and language, with their kinds; the preview, then *Take over*; *Updates* with the merge, conflicts and the three choices per kind |
 | Terminal | a list of the templates of the sources that are on; Enter shows the preview, a second Enter takes over |
 | Command line | `aktujo templates [--source <url>]`, `aktujo templates take <id> --space <space>` |
 
@@ -121,9 +144,8 @@ Interfaces, as proposed:
 
 ## Open points
 
-- OPEN: updating a template already taken over – today a second import replaces kinds of the same identity, also
-  the changes a person made to them (see *Where a kind came from* above).
-- OPEN: catalog sources – when, and whether the default source can be switched off for good (above).
+- OPEN: when catalog sources and updates come (above). Until then a second import of a template replaces kinds of the
+  same identity, also the changes a person made to them.
 - OPEN: plugins – code behind `Recogniser` added to an installed aktujo (WebAssembly?), and the rules of app stores
   for it ([0003](0003-recognition.md)).
 - OPEN: the date order (`day_first`, `month_first`) per space; today the program reads slashed dates only where they
