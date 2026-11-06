@@ -11,7 +11,10 @@ homepage.workspace = true
 readme = "README.md"
 keywords = ["ocr", "pdf", "text-extraction", "paddleocr", "aktujo"]
 categories = ["text-processing", "multimedia::images"]
-publish.workspace = true
+
+# docs.rs shows both backends.
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
 aktujo-base.workspace = true

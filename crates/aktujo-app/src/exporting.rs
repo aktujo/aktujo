@@ -67,15 +67,15 @@ impl Sink for Folder {
     }
 }
 
-/// An export as a ZIP: the files stored as they are – documents are compressed already – under `prefix/`. Up to
-/// 4 GiB; a larger space is exported to a folder.
+/// An export as a ZIP: the files stored as they are – documents are compressed already – under `prefix/`. Beyond
+/// 4 GiB or 65,535 files it is a ZIP64, which every current unzip reads.
 #[derive(Debug)]
 pub struct Zip<W: Write> {
     out: W,
     prefix: String,
     offset: u64,
     central: Vec<u8>,
-    count: u16,
+    count: u64,
 }
 
 impl<W: Write> Zip<W> {
@@ -90,59 +90,106 @@ impl<W: Write> Zip<W> {
     }
 }
 
-fn too_large() -> io::Error {
-    io::Error::other("the export is larger than a ZIP holds (4 GiB, 65535 files) – export to a folder instead")
-}
+/// The largest size and offset a ZIP holds without ZIP64; it stands for "in the ZIP64 field".
+const MAX32: u64 = 0xFFFF_FFFF;
+/// The most files a ZIP holds without ZIP64.
+const MAX16: u64 = 0xFFFF;
 
 impl<W: Write> Sink for Zip<W> {
     fn file(&mut self, path: &str, bytes: &[u8]) -> io::Result<()> {
         let name = format!("{}/{path}", self.prefix);
         let name = name.as_bytes();
-        let size = u32::try_from(bytes.len()).map_err(|_| too_large())?;
-        let offset = u32::try_from(self.offset).map_err(|_| too_large())?;
-        self.count = self.count.checked_add(1).ok_or_else(too_large)?;
+        let size = bytes.len() as u64;
+        let offset = self.offset;
+        self.count += 1;
         let crc = crc32fast::hash(bytes);
         let name_len = u16::try_from(name.len()).map_err(|_| io::Error::other("a path too long"))?;
-        // Version 2.0, the name in UTF-8 (bit 11), stored, no time (1980-01-01).
-        let common = |header: &mut Vec<u8>| {
-            header.extend_from_slice(&20u16.to_le_bytes());
+        let large = size >= MAX32;
+        // The ZIP64 field of the local header: both sizes.
+        let mut local_extra = Vec::new();
+        if large {
+            local_extra.extend_from_slice(&1u16.to_le_bytes());
+            local_extra.extend_from_slice(&16u16.to_le_bytes());
+            local_extra.extend_from_slice(&size.to_le_bytes());
+            local_extra.extend_from_slice(&size.to_le_bytes());
+        }
+        // The ZIP64 field of the central directory: the sizes and the offset, those that do not fit.
+        let mut central_extra = Vec::new();
+        if large {
+            central_extra.extend_from_slice(&size.to_le_bytes());
+            central_extra.extend_from_slice(&size.to_le_bytes());
+        }
+        if offset >= MAX32 {
+            central_extra.extend_from_slice(&offset.to_le_bytes());
+        }
+        if !central_extra.is_empty() {
+            let mut field = 1u16.to_le_bytes().to_vec();
+            field.extend_from_slice(&(central_extra.len() as u16).to_le_bytes());
+            field.extend_from_slice(&central_extra);
+            central_extra = field;
+        }
+        let version: u16 = if central_extra.is_empty() { 20 } else { 45 };
+        let size32 = size.min(MAX32) as u32;
+        // The name in UTF-8 (bit 11), stored, no time (1980-01-01).
+        let common = |header: &mut Vec<u8>, extra: usize| {
+            header.extend_from_slice(&version.to_le_bytes());
             header.extend_from_slice(&0x0800u16.to_le_bytes());
             header.extend_from_slice(&0u16.to_le_bytes());
             header.extend_from_slice(&0u16.to_le_bytes());
             header.extend_from_slice(&0x0021u16.to_le_bytes());
             header.extend_from_slice(&crc.to_le_bytes());
-            header.extend_from_slice(&size.to_le_bytes());
-            header.extend_from_slice(&size.to_le_bytes());
+            header.extend_from_slice(&size32.to_le_bytes());
+            header.extend_from_slice(&size32.to_le_bytes());
             header.extend_from_slice(&name_len.to_le_bytes());
-            header.extend_from_slice(&0u16.to_le_bytes());
+            header.extend_from_slice(&(extra as u16).to_le_bytes());
         };
         let mut local = 0x0403_4b50u32.to_le_bytes().to_vec();
-        common(&mut local);
+        common(&mut local, local_extra.len());
         local.extend_from_slice(name);
+        local.extend_from_slice(&local_extra);
         self.out.write_all(&local)?;
         self.out.write_all(bytes)?;
         self.offset += (local.len() + bytes.len()) as u64;
 
         self.central.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
-        self.central.extend_from_slice(&20u16.to_le_bytes());
-        common(&mut self.central);
+        self.central.extend_from_slice(&version.to_le_bytes());
+        common(&mut self.central, central_extra.len());
         self.central.extend_from_slice(&[0; 6]); // comment length, disk, internal attributes
         self.central.extend_from_slice(&0u32.to_le_bytes()); // external attributes
-        self.central.extend_from_slice(&offset.to_le_bytes());
+        self.central.extend_from_slice(&(offset.min(MAX32) as u32).to_le_bytes());
         self.central.extend_from_slice(name);
+        self.central.extend_from_slice(&central_extra);
         Ok(())
     }
 
     fn finish(&mut self) -> io::Result<()> {
-        let start = u32::try_from(self.offset).map_err(|_| too_large())?;
-        let length = u32::try_from(self.central.len()).map_err(|_| too_large())?;
+        let start = self.offset;
+        let length = self.central.len() as u64;
         self.out.write_all(&self.central)?;
+        if self.count > MAX16 || start >= MAX32 || length >= MAX32 {
+            // The ZIP64 end of the central directory, and where it is.
+            let at = start + length;
+            let mut record = 0x0606_4b50u32.to_le_bytes().to_vec();
+            record.extend_from_slice(&44u64.to_le_bytes());
+            record.extend_from_slice(&45u16.to_le_bytes());
+            record.extend_from_slice(&45u16.to_le_bytes());
+            record.extend_from_slice(&[0; 8]); // this disk, the disk of the directory
+            record.extend_from_slice(&self.count.to_le_bytes());
+            record.extend_from_slice(&self.count.to_le_bytes());
+            record.extend_from_slice(&length.to_le_bytes());
+            record.extend_from_slice(&start.to_le_bytes());
+            record.extend_from_slice(&0x0706_4b50u32.to_le_bytes());
+            record.extend_from_slice(&0u32.to_le_bytes());
+            record.extend_from_slice(&at.to_le_bytes());
+            record.extend_from_slice(&1u32.to_le_bytes());
+            self.out.write_all(&record)?;
+        }
         let mut end = 0x0605_4b50u32.to_le_bytes().to_vec();
         end.extend_from_slice(&[0; 4]); // this disk, the disk of the directory
-        end.extend_from_slice(&self.count.to_le_bytes());
-        end.extend_from_slice(&self.count.to_le_bytes());
-        end.extend_from_slice(&length.to_le_bytes());
-        end.extend_from_slice(&start.to_le_bytes());
+        end.extend_from_slice(&(self.count.min(MAX16) as u16).to_le_bytes());
+        end.extend_from_slice(&(self.count.min(MAX16) as u16).to_le_bytes());
+        end.extend_from_slice(&(length.min(MAX32) as u32).to_le_bytes());
+        end.extend_from_slice(&(start.min(MAX32) as u32).to_le_bytes());
         end.extend_from_slice(&0u16.to_le_bytes());
         self.out.write_all(&end)?;
         self.out.flush()
@@ -165,7 +212,7 @@ pub fn export_name(space: Option<&str>, unix_ms: u64) -> String {
 const README: &str = "aktujo – an export of one space
 ================================
 
-space.json      the space, its kinds and the state of every document: title, kind, fields (confirmed and
+space.json      the space, its kinds (with the templates they came from) and the state of every document: title, kind, fields (confirmed and
                 suggested), labels, whether it is in the bin, and its versions with their files
 documents/      every version of every document as it was added (v1, v2 …), and what was read from it (vN text.txt,
                 pages split by a form feed)
@@ -255,6 +302,12 @@ impl Workspace {
             "exported": aktujo_sync::now_ms(),
             "space": {"id": space.as_str(), "name": view.name},
             "kinds": view.kinds.to_vec(),
+            "templates": view
+                .kinds
+                .to_vec()
+                .iter()
+                .filter_map(|kind| view.kinds.template(&kind.id).map(|t| (kind.id.clone(), json!(t))))
+                .collect::<serde_json::Map<String, Json>>(),
             "documents": states,
         });
         files.push(("space.json".into(), serde_json::to_vec_pretty(&state).expect("JSON")));

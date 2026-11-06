@@ -334,6 +334,62 @@
         }
       }
     },
+    "/api/v1/space-import": {
+      "post": {
+        "tags": [],
+        "summary": "Reads an export of aktujo – a ZIP as `GET /spaces/{space}/export` writes it – back in, as a new space: the kinds,\nthe documents with their versions, titles, confirmed kinds and fields, labels and the bin. The history starts\nanew; the text is read again. No limit of size: the ZIP is written to a file first.",
+        "operationId": "import_space",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "The name of the new space; by default the exported one's.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/zip": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceImported"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces": {
       "get": {
         "tags": [],
@@ -2538,7 +2594,7 @@
       },
       "put": {
         "tags": [],
-        "summary": "Switches a watched folder on or off, and sets what happens to a file once it was taken.",
+        "summary": "Switches a watched folder on or off, and sets what happens to a file once it was taken and whether its\nsubfolders are looked at.",
         "operationId": "switch_watch",
         "requestBody": {
           "content": {
@@ -3505,6 +3561,10 @@
           "space": {
             "type": "string",
             "description": "The space its files go to."
+          },
+          "subfolders": {
+            "type": "boolean",
+            "description": "Whether its subfolders are looked at too; by default not."
           }
         }
       },
@@ -3882,6 +3942,45 @@
           "url": {
             "type": "string",
             "description": "Its address."
+          }
+        }
+      },
+      "SpaceImported": {
+        "type": "object",
+        "description": "What reading an export back in did.",
+        "required": [
+          "space",
+          "kinds",
+          "documents",
+          "missing",
+          "skipped"
+        ],
+        "properties": {
+          "documents": {
+            "type": "integer",
+            "description": "The documents added.",
+            "minimum": 0
+          },
+          "kinds": {
+            "type": "integer",
+            "description": "The kinds defined in it.",
+            "minimum": 0
+          },
+          "missing": {
+            "type": "integer",
+            "description": "Versions whose file was not in the export.",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What could not be taken over, and why."
+          },
+          "space": {
+            "type": "string",
+            "description": "The new space."
           }
         }
       },
@@ -4399,6 +4498,10 @@
           "space": {
             "type": "string",
             "description": "The space."
+          },
+          "subfolders": {
+            "type": "boolean",
+            "description": "Whether its subfolders are looked at too."
           }
         }
       },
@@ -4410,6 +4513,7 @@
           "folder",
           "after",
           "on",
+          "subfolders",
           "taken"
         ],
         "properties": {
@@ -4444,6 +4548,10 @@
           "space": {
             "type": "string",
             "description": "The space its files go to."
+          },
+          "subfolders": {
+            "type": "boolean",
+            "description": "Whether its subfolders are looked at too."
           },
           "taken": {
             "type": "integer",

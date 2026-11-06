@@ -6,10 +6,12 @@
 //! The folder is looked at every few seconds, not watched by the operating system: the same everywhere – also on
 //! network shares, where file events are unreliable – and without a dependency. A file is taken once it stayed the
 //! same (size and time of change) between two looks, so that one a scanner is still writing is left until it is
-//! done. Only its top level is looked at; hidden and unfinished files (`.part`, `.tmp`, `.crdownload`, `~$…`) and files
-//! of other types than PDF, PNG, JPEG and TIFF are left alone. What was taken is remembered by name, size and time of
+//! done. Its top level is looked at, or – if asked – its subfolders too, down to [`DEPTH`] levels, without `added`;
+//! hidden and unfinished files and folders (`.part`, `.tmp`, `.crdownload`, `~$…`) and files of other types than PDF,
+//! PNG, JPEG and TIFF are left alone. What was taken is remembered by its path inside the folder, size and time of
 //! change, so it is not read again; the same bytes twice are one document anyway. After taking a file, it is left
-//! where it is (the default) or moved into the folder `added` inside the watched one – nothing is deleted.
+//! where it is (the default) or moved into the folder `added` inside the watched one, in the subfolder it was in –
+//! nothing is deleted.
 
 use std::{
     collections::BTreeMap,
@@ -31,6 +33,8 @@ const WATCHES: &str = "watch.folders";
 pub const ADDED: &str = "added";
 /// The largest file taken from a watched folder, as from an upload.
 const MAX_FILE: u64 = 256 * 1024 * 1024;
+/// How deep subfolders are looked into.
+pub const DEPTH: usize = 8;
 
 /// What happens to a file once it was taken in.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,6 +59,9 @@ pub struct Watch {
     pub after: After,
     /// Whether it is looked at.
     pub on: bool,
+    /// Whether its subfolders are looked at too.
+    #[serde(default)]
+    pub subfolders: bool,
 }
 
 /// How the last look at a watched folder went.
@@ -135,7 +142,13 @@ impl Workspace {
 
     /// Watches a folder for a space, switched on: it must be a folder of this device, given as an absolute path, and
     /// the device must be able to write in the space. Returns the folder as it is kept.
-    pub fn add_watch(&mut self, space: &SpaceId, folder: &Path, after: After) -> Result<PathBuf, AppError> {
+    pub fn add_watch(
+        &mut self,
+        space: &SpaceId,
+        folder: &Path,
+        after: After,
+        subfolders: bool,
+    ) -> Result<PathBuf, AppError> {
         self.may_write(space)?;
         if !folder.is_absolute() {
             return Err(AppError::Watch(format!("{} is not an absolute path", folder.display())));
@@ -149,15 +162,24 @@ impl Workspace {
             Some(watch) => {
                 watch.after = after;
                 watch.on = true;
+                watch.subfolders = subfolders;
             }
-            None => watches.push(Watch { space: space.clone(), folder: folder.clone(), after, on: true }),
+            None => watches.push(Watch { space: space.clone(), folder: folder.clone(), after, on: true, subfolders }),
         }
         self.keep_watches(&watches)?;
         Ok(folder)
     }
 
-    /// Switches a watched folder on or off, and sets what happens to a file once it was taken.
-    pub fn set_watch(&mut self, space: &SpaceId, folder: &Path, on: bool, after: After) -> Result<(), AppError> {
+    /// Switches a watched folder on or off, and sets what happens to a file once it was taken and whether its
+    /// subfolders are looked at.
+    pub fn set_watch(
+        &mut self,
+        space: &SpaceId,
+        folder: &Path,
+        on: bool,
+        after: After,
+        subfolders: bool,
+    ) -> Result<(), AppError> {
         let mut watches = self.watches()?;
         let watch = watches
             .iter_mut()
@@ -165,6 +187,7 @@ impl Workspace {
             .ok_or_else(|| AppError::NotFound(format!("{} is not watched", folder.display())))?;
         watch.on = on;
         watch.after = after;
+        watch.subfolders = subfolders;
         self.keep_watches(&watches)
     }
 
@@ -248,19 +271,10 @@ pub fn look(workspace: &Mutex<Workspace>, looks: &mut Looks) -> usize {
 
 fn look_at(workspace: &Mutex<Workspace>, watch: &Watch, looks: &mut Looks) -> (usize, Option<String>) {
     let lock = || workspace.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    let entries = match fs::read_dir(&watch.folder) {
-        Ok(entries) => entries,
-        Err(error) => return (0, Some(format!("{}: {error}", watch.folder.display()))),
-    };
     let mut now = BTreeMap::new();
-    for entry in entries.flatten() {
-        let Ok(name) = entry.file_name().into_string() else { continue };
-        if unfinished(&name) || media_type_of(&name).is_none() {
-            continue;
-        }
-        if let Some(seen) = seen(&entry.path()) {
-            now.insert(name, seen);
-        }
+    let depth = if watch.subfolders { DEPTH } else { 0 };
+    if let Err(error) = files_in(&watch.folder, "", depth, &mut now) {
+        return (0, Some(format!("{}: {error}", watch.folder.display())));
     }
     let before = looks.before.insert(watch.folder.clone(), now.clone()).unwrap_or_default();
     let taken_before = match lock().taken(watch) {
@@ -287,9 +301,11 @@ fn look_at(workspace: &Mutex<Workspace>, watch: &Watch, looks: &mut Looks) -> (u
             }
         };
         let media_type = media_type_of(name).expect("only known types are looked at");
+        let file_name = name.rsplit('/').next().unwrap_or(name);
         let added = {
             let mut workspace = lock();
-            let added = workspace.add_document(&watch.space, NewFile { name, media_type, bytes: &bytes });
+            let new_file = NewFile { name: file_name, media_type, bytes: &bytes };
+            let added = workspace.add_document(&watch.space, new_file);
             added.and_then(|added| workspace.remember(watch, name, Some(*seen)).map(|()| added))
         };
         match added {
@@ -311,9 +327,34 @@ fn look_at(workspace: &Mutex<Workspace>, watch: &Watch, looks: &mut Looks) -> (u
     (taken, problem)
 }
 
-/// Moves a taken file into `added` inside its folder, under a free name.
-fn move_away(folder: &Path, name: &str) -> std::io::Result<()> {
-    let target = folder.join(ADDED);
+/// The files in `folder` to look at, by their path inside the watched folder (`prefix` and `/` between folders), down
+/// to `depth` levels of subfolders; `added` at the top is left out.
+fn files_in(folder: &Path, prefix: &str, depth: usize, found: &mut BTreeMap<String, Seen>) -> std::io::Result<()> {
+    for entry in fs::read_dir(folder)?.flatten() {
+        let Ok(name) = entry.file_name().into_string() else { continue };
+        if unfinished(&name) {
+            continue;
+        }
+        let path = format!("{prefix}{name}");
+        let Ok(kind) = entry.file_type() else { continue };
+        if kind.is_dir() {
+            if depth > 0 && !(prefix.is_empty() && name == ADDED) {
+                // A subfolder that cannot be read is left out, not the whole look.
+                let _ = files_in(&entry.path(), &format!("{path}/"), depth - 1, found);
+            }
+        } else if media_type_of(&name).is_some()
+            && let Some(seen) = seen(&entry.path())
+        {
+            found.insert(path, seen);
+        }
+    }
+    Ok(())
+}
+
+/// Moves a taken file into `added` inside its folder – in the subfolder it was in – under a free name.
+fn move_away(folder: &Path, path: &str) -> std::io::Result<()> {
+    let (inner, name) = path.rsplit_once('/').unwrap_or(("", path));
+    let target = inner.split('/').filter(|p| !p.is_empty()).fold(folder.join(ADDED), |t, part| t.join(part));
     fs::create_dir_all(&target)?;
     let (stem, extension) = name.rsplit_once('.').unwrap_or((name, ""));
     let free = (1..)
@@ -321,7 +362,7 @@ fn move_away(folder: &Path, name: &str) -> std::io::Result<()> {
         .map(|candidate| target.join(candidate))
         .find(|candidate| !candidate.exists())
         .expect("a free name");
-    fs::rename(folder.join(name), free)
+    fs::rename(folder.join(path), free)
 }
 
 /// Looking at the watched folders on a thread of its own: every `every` and whenever it is woken. It stops when
@@ -392,8 +433,8 @@ mod tests {
         let space = {
             let mut w = workspace.lock().unwrap();
             let space = w.found_space("Home").unwrap();
-            assert_eq!(w.add_watch(&space, &dir, After::Leave).unwrap(), dir);
-            assert!(w.add_watch(&space, Path::new("relative"), After::Leave).is_err());
+            assert_eq!(w.add_watch(&space, &dir, After::Leave, false).unwrap(), dir);
+            assert!(w.add_watch(&space, Path::new("relative"), After::Leave, false).is_err());
             space
         };
         fs::write(dir.join("scan 1.pdf"), b"%PDF-1.7 one").unwrap();
@@ -431,7 +472,7 @@ mod tests {
         let space = {
             let mut w = workspace.lock().unwrap();
             let space = w.found_space("Home").unwrap();
-            w.add_watch(&space, &dir, After::Move).unwrap();
+            w.add_watch(&space, &dir, After::Move, false).unwrap();
             space
         };
         fs::create_dir_all(dir.join(ADDED)).unwrap();
@@ -443,16 +484,48 @@ mod tests {
         assert!(!dir.join("scan.pdf").exists());
         assert!(dir.join(ADDED).join("scan (2).pdf").exists(), "a free name beside the older one");
 
-        workspace.lock().unwrap().set_watch(&space, &dir, false, After::Move).unwrap();
+        workspace.lock().unwrap().set_watch(&space, &dir, false, After::Move, false).unwrap();
         fs::write(dir.join("other.png"), b"png").unwrap();
         look(&workspace, &mut looks);
         assert_eq!(look(&workspace, &mut looks), 0, "switched off");
 
         fs::remove_dir_all(&dir).unwrap();
-        workspace.lock().unwrap().set_watch(&space, &dir, true, After::Move).unwrap();
+        workspace.lock().unwrap().set_watch(&space, &dir, true, After::Move, false).unwrap();
         look(&workspace, &mut looks);
         assert!(workspace.lock().unwrap().watched(&space, &dir).unwrap().problem.is_some(), "the folder is gone");
         workspace.lock().unwrap().remove_watch(&space, &dir).unwrap();
         assert!(workspace.lock().unwrap().watches().unwrap().is_empty());
+    }
+
+    #[test]
+    fn subfolders_are_looked_at_if_asked() {
+        let workspace = Mutex::new(Workspace::in_memory("laptop").unwrap());
+        let dir = folder("deep");
+        let space = {
+            let mut w = workspace.lock().unwrap();
+            let space = w.found_space("Home").unwrap();
+            w.add_watch(&space, &dir, After::Move, false).unwrap();
+            space
+        };
+        fs::create_dir_all(dir.join("Taxes/2026")).unwrap();
+        fs::create_dir_all(dir.join(".hidden")).unwrap();
+        fs::write(dir.join("Taxes/2026/notice.pdf"), b"%PDF-1.7 notice").unwrap();
+        fs::write(dir.join(".hidden/secret.pdf"), b"%PDF-1.7 secret").unwrap();
+        let mut looks = Looks::default();
+        look(&workspace, &mut looks);
+        assert_eq!(look(&workspace, &mut looks), 0, "only the top level");
+
+        workspace.lock().unwrap().set_watch(&space, &dir, true, After::Move, true).unwrap();
+        look(&workspace, &mut looks);
+        assert_eq!(look(&workspace, &mut looks), 1);
+        let w = workspace.lock().unwrap();
+        assert_eq!(w.documents(&space).unwrap()[0].title, "notice", "titled after the file, not its path");
+        assert!(dir.join(ADDED).join("Taxes/2026/notice.pdf").exists(), "moved into its subfolder of added");
+        assert!(dir.join(".hidden/secret.pdf").exists());
+        drop(w);
+        assert_eq!(look(&workspace, &mut looks), 0, "what was moved into added is not taken again");
+        look(&workspace, &mut looks);
+        assert_eq!(workspace.lock().unwrap().documents(&space).unwrap().len(), 1);
+        fs::remove_dir_all(&dir).unwrap();
     }
 }

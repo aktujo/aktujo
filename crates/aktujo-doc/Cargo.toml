@@ -11,7 +11,6 @@ homepage.workspace = true
 readme = "README.md"
 keywords = ["document", "archive", "event-sourcing", "local-first", "aktujo"]
 categories = ["data-structures"]
-publish.workspace = true
 
 [dependencies]
 aktujo-base.workspace = true

@@ -106,6 +106,14 @@ impl Blobs for SealedBlobs {
         hashes.sort();
         Ok(hashes)
     }
+
+    fn remove(&self, hash: &Sha256Hash) -> Result<bool, BlobError> {
+        match fs::remove_file(self.path(hash)) {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error.into()),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -11,7 +11,6 @@ homepage.workspace = true
 readme = "README.md"
 keywords = ["document", "recognition", "classification", "extraction", "aktujo"]
 categories = ["text-processing"]
-publish.workspace = true
 
 [dependencies]
 aktujo-doc.workspace = true

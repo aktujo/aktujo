@@ -342,7 +342,7 @@ async fn watched_folders_through_the_api() {
     let (status, watches) =
         call(&router, "POST", "/api/v1/watches", Some(json!({"space": space, "folder": folder}))).await;
     assert_eq!(status, StatusCode::OK, "{watches}");
-    let expected = json!([{"space": space, "folder": folder, "after": "leave", "on": true,
+    let expected = json!([{"space": space, "folder": folder, "after": "leave", "on": true, "subfolders": false,
         "looked_at": null, "taken": 0, "problem": null}]);
     assert_eq!(watches, expected);
 
@@ -446,4 +446,19 @@ async fn a_space_is_exported_as_a_zip() {
     let text = String::from_utf8_lossy(&bytes);
     assert!(text.contains("/documents/0001 lease/v1 lease.pdf") && text.contains("%PDF-1.7 lease"));
     assert_eq!(call(&router, "GET", "/api/v1/spaces/nothing/export", None).await.0, StatusCode::NOT_FOUND);
+
+    // The export comes back as a new space.
+    let import = request("POST", "/api/v1/space-import?name=Home%20again")
+        .header(header::CONTENT_TYPE, "application/zip")
+        .body(Body::from(bytes))
+        .unwrap();
+    let (status, _, answer) = send(&router, import).await;
+    let imported: Value = serde_json::from_slice(&answer).unwrap();
+    assert_eq!(status, StatusCode::CREATED, "{imported}");
+    assert_eq!((imported["documents"].as_u64(), imported["skipped"].as_array().map(Vec::len)), (Some(1), Some(0)));
+    let spaces = call(&router, "GET", "/api/v1/spaces", None).await.1;
+    let again = spaces.as_array().unwrap().iter().find(|s| s["name"] == "Home again").unwrap();
+    assert_eq!((&again["id"], &again["documents"]), (&imported["space"], &json!(1)));
+    let not_a_zip = request("POST", "/api/v1/space-import").body(Body::from("no zip")).unwrap();
+    assert_eq!(send(&router, not_a_zip).await.0, StatusCode::UNPROCESSABLE_ENTITY);
 }

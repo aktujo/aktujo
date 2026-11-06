@@ -8,7 +8,9 @@
 
 use std::{
     collections::BTreeMap,
-    fs, io,
+    fs,
+    io::{self, Read, Seek, SeekFrom},
+    ops::Range,
     path::{Path, PathBuf},
     sync::RwLock,
 };
@@ -50,6 +52,30 @@ pub trait Blobs: Send + Sync {
 
     /// The hashes of everything stored, in order.
     fn list(&self) -> Result<Vec<Sha256Hash>, BlobError>;
+
+    /// Removes the bytes stored under `hash`; whether there were any. What else refers to them is the caller's
+    /// concern: a store keeps no count of references.
+    fn remove(&self, hash: &Sha256Hash) -> Result<bool, BlobError>;
+
+    /// The length of the bytes stored under `hash`, without checking them; none if there are none.
+    fn size(&self, hash: &Sha256Hash) -> Result<Option<u64>, BlobError> {
+        Ok(self.get(hash)?.map(|bytes| bytes.len() as u64))
+    }
+
+    /// The bytes in `range` of what is stored under `hash`, cut to its end – to stream a long recording or film
+    /// in parts. A part cannot be checked against the hash of the whole: a store that reads only the part (a
+    /// folder, an object store) returns it unchecked; read everything with [`Blobs::get`] to check it.
+    fn get_range(&self, hash: &Sha256Hash, range: Range<u64>) -> Result<Option<Vec<u8>>, BlobError> {
+        Ok(self.get(hash)?.map(|bytes| cut(&bytes, range).to_vec()))
+    }
+}
+
+/// The part of `bytes` in `range`, cut to their end; empty if the range starts after it or is reversed.
+fn cut(bytes: &[u8], range: Range<u64>) -> &[u8] {
+    let len = bytes.len() as u64;
+    let start = range.start.min(len);
+    let end = range.end.clamp(start, len);
+    &bytes[start as usize..end as usize]
 }
 
 /// The bytes if they have the hash, or [`BlobError::Damaged`].
@@ -88,6 +114,14 @@ impl Blobs for MemoryBlobs {
 
     fn list(&self) -> Result<Vec<Sha256Hash>, BlobError> {
         Ok(self.blobs.read().expect("not poisoned").keys().copied().collect())
+    }
+
+    fn remove(&self, hash: &Sha256Hash) -> Result<bool, BlobError> {
+        Ok(self.blobs.write().expect("not poisoned").remove(hash).is_some())
+    }
+
+    fn size(&self, hash: &Sha256Hash) -> Result<Option<u64>, BlobError> {
+        Ok(self.blobs.read().expect("not poisoned").get(hash).map(|bytes| bytes.len() as u64))
     }
 }
 
@@ -155,6 +189,42 @@ impl Blobs for FolderBlobs {
         hashes.sort();
         Ok(hashes)
     }
+
+    fn remove(&self, hash: &Sha256Hash) -> Result<bool, BlobError> {
+        remove_file(&self.path(hash))
+    }
+
+    fn size(&self, hash: &Sha256Hash) -> Result<Option<u64>, BlobError> {
+        match fs::metadata(self.path(hash)) {
+            Ok(meta) => Ok(Some(meta.len())),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    fn get_range(&self, hash: &Sha256Hash, range: Range<u64>) -> Result<Option<Vec<u8>>, BlobError> {
+        let mut file = match fs::File::open(self.path(hash)) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        let len = file.metadata()?.len();
+        let start = range.start.min(len);
+        let end = range.end.clamp(start, len);
+        file.seek(SeekFrom::Start(start))?;
+        let mut bytes = Vec::with_capacity((end - start) as usize);
+        file.take(end - start).read_to_end(&mut bytes)?;
+        Ok(Some(bytes))
+    }
+}
+
+/// Removes a file; whether there was one.
+fn remove_file(path: &Path) -> Result<bool, BlobError> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
 }
 
 /// A random suffix for a file being written, so that two writers never share one.
@@ -197,6 +267,18 @@ pub(crate) mod tests {
         let mut expected = vec![hash, empty];
         expected.sort();
         assert_eq!(store.list().unwrap(), expected);
+
+        assert_eq!(store.size(&hash).unwrap(), Some(10));
+        assert_eq!(store.size(&other).unwrap(), None);
+        assert_eq!(store.get_range(&hash, 1..8).unwrap().as_deref(), Some(&b"Invoice"[..]));
+        assert_eq!(store.get_range(&hash, 8..100).unwrap().as_deref(), Some(&b"/>"[..]));
+        assert_eq!(store.get_range(&hash, 50..60).unwrap().as_deref(), Some(&b""[..]));
+        assert_eq!(store.get_range(&other, 0..1).unwrap(), None);
+
+        assert!(store.remove(&empty).unwrap());
+        assert!(!store.remove(&empty).unwrap());
+        assert!(!store.contains(&empty).unwrap());
+        assert_eq!(store.list().unwrap(), vec![hash]);
     }
 
     #[test]
@@ -210,7 +292,7 @@ pub(crate) mod tests {
         let store = FolderBlobs::open(&scratch.0).unwrap();
         behaves(&store);
         let reopened = FolderBlobs::open(&scratch.0).unwrap();
-        assert_eq!(reopened.list().unwrap().len(), 2);
+        assert_eq!(reopened.list().unwrap().len(), 1);
     }
 
     #[test]

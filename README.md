@@ -19,17 +19,19 @@ The brand kit lives in its own repository, [aktujo/brand](https://github.com/akt
 
 ## Install
 
-Each [release](https://github.com/aktujo/aktujo/releases) has the program for Linux (x86-64, ARM64), macOS (ARM64)
-and Windows (x86-64), each in two builds: **`aktujo`** with everything, and **`aktujo-minimal`** without
-scanning, OCR and object stores – smaller, for a server or an old computer; both read and write the same data. Unpack
-it, check it against `SHA256SUMS`, and run it:
+Each [release](https://github.com/aktujo/aktujo/releases) has the program for Linux (x86-64, ARM64), macOS (ARM64,
+x86-64) and Windows (x86-64; ARM64 as `aktujo-minimal` only), in two builds: **`aktujo`** with everything, and
+**`aktujo-minimal`** without scanning, OCR and object stores – smaller, for a server or an old computer; both read
+and write the same data. Unpack it, check it against `SHA256SUMS`, and run it:
 
 ```sh
 aktujo serve        # the archive in the browser, on http://127.0.0.1:8071
 aktujo tui          # the same archive in the terminal
 ```
 
-The binaries are not signed yet (OPEN): macOS and Windows ask before they run one from the internet.
+The binaries are not signed yet (OPEN): macOS and Windows ask before they run one from the internet. More – export
+and import, a key file for servers – on [aktujo.dev](https://aktujo.dev/install.html); to build the libraries into
+a program of your own, see [Build it in](https://aktujo.dev/embedding.html).
 
 ## Try it from the source
 

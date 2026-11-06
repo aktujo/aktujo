@@ -92,6 +92,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/space-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reads an export of aktujo – a ZIP as `GET /spaces/{space}/export` writes it – back in, as a new space: the kinds,
+         *     the documents with their versions, titles, confirmed kinds and fields, labels and the bin. The history starts
+         *     anew; the text is read again. No limit of size: the ZIP is written to a file first.
+         */
+        post: operations["import_space"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces": {
         parameters: {
             query?: never;
@@ -689,7 +710,10 @@ export interface paths {
         };
         /** The watched folders of this device: whose new files go into which space, and how the last look went. */
         get: operations["watches"];
-        /** Switches a watched folder on or off, and sets what happens to a file once it was taken. */
+        /**
+         * Switches a watched folder on or off, and sets what happens to a file once it was taken and whether its
+         *     subfolders are looked at.
+         */
         put: operations["switch_watch"];
         /** Watches a folder of this device for a space: its new files are taken in on their own. */
         post: operations["add_watch"];
@@ -1001,6 +1025,8 @@ export interface components {
             folder: string;
             /** @description The space its files go to. */
             space: string;
+            /** @description Whether its subfolders are looked at too; by default not. */
+            subfolders?: boolean;
         };
         /** @description A page of the text that was read. */
         PageText: {
@@ -1157,6 +1183,19 @@ export interface components {
             on: boolean;
             /** @description Its address. */
             url: string;
+        };
+        /** @description What reading an export back in did. */
+        SpaceImported: {
+            /** @description The documents added. */
+            documents: number;
+            /** @description The kinds defined in it. */
+            kinds: number;
+            /** @description Versions whose file was not in the export. */
+            missing: number;
+            /** @description What could not be taken over, and why. */
+            skipped: string[];
+            /** @description The new space. */
+            space: string;
         };
         /** @description A new space, or a new name for one. */
         SpaceName: {
@@ -1339,6 +1378,8 @@ export interface components {
             on: boolean;
             /** @description The space. */
             space: string;
+            /** @description Whether its subfolders are looked at too. */
+            subfolders?: boolean;
         };
         /** @description A watched folder of this device. */
         WatchView: {
@@ -1357,6 +1398,8 @@ export interface components {
             problem?: string | null;
             /** @description The space its files go to. */
             space: string;
+            /** @description Whether its subfolders are looked at too. */
+            subfolders: boolean;
             /** @description How many files were taken from it since the program started. */
             taken: number;
         };
@@ -1643,6 +1686,40 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    import_space: {
+        parameters: {
+            query?: {
+                /** @description The name of the new space; by default the exported one's. */
+                name?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/zip": number[];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceImported"];
+                };
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

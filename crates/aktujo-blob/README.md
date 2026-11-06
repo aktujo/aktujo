@@ -2,7 +2,8 @@
 
 Originals stored by their SHA-256 hash, on any storage: in memory, in a folder, and – with the feature `object` or
 `s3` – in an object store such as S3, MinIO, Garage or Ceph. Bytes are checked against their hash on every read;
-damaged bytes are reported, never returned.
+damaged bytes are reported, never returned. Originals can be removed, sized and read in byte ranges – to stream a
+long recording.
 
 | Feature | What |
 |---|---|

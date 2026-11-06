@@ -132,18 +132,25 @@ Decided by the maintainer on 2026-11-05.
    is in `aktujo-minimal` too. Built so (2026-11-05): SQLCipher is the feature `sqlcipher` of `aktujo-store`, so the
    core stays usable without it; the originals are sealed with XChaCha20-Poly1305 in their folder, bound to their hash
    (`SealedBlobs` in `aktujo-app`); the key stores are reached through `keyring`; one secret of 32 bytes per data
-   folder, the keys of the database and of the originals derived from it with HKDF-SHA256. OPEN: the passphrase file
-   where there is no key store; whether `SealedBlobs` moves into the core.
+   folder, the keys of the database and of the originals derived from it with HKDF-SHA256. Where there is no key
+   store, the secret is kept in a file of its own (`--key-file`, `AKTUJO_KEY_FILE`; `FileKeys`, 2026-11-06) – for a
+   server or a container, a secret mounted into it. OPEN: that file protected by a passphrase; whether `SealedBlobs`
+   moves into the core.
 8. **No import or export of other programs** in 0.1; aktujo's own export stays. Built so (2026-11-06): a space is
    exported to a folder or as a ZIP of its own – `README.txt`; `space.json` (format 1) with the space, its kinds and
    every document's state (title, kind, fields confirmed and suggested, labels, the bin, versions with their file and
    SHA-256); `documents/0001 <title>/vN <file>` every version as it was added and `vN text.txt` what was read (pages
    split by a form feed); `events.jsonl` the events as they are, in their order. No keys, no member list, nothing
    encrypted – the README says so. The ZIP is written by hand (stored, no compression – documents are compressed
-   already), up to 4 GiB; a larger space goes to a folder. The workspace is locked to read the state, then once per
+   already), as a ZIP64 beyond 4 GiB or 65,535 files. The workspace is locked to read the state, then once per
    original. Web app: *Export* beside the space; terminal: `E`; command line: `aktujo export [--space …] [--to …]
-   [--zip]` (every space without `--space`); API: `GET /api/v1/spaces/{space}/export`. OPEN: ZIP64 for larger
-   spaces; reading an export back into aktujo.
+   [--zip]` (every space without `--space`); API: `GET /api/v1/spaces/{space}/export`. `space.json` also names the
+   template each kind came from. **An export is read back in** as a new space (2026-11-06): the kinds with their
+   templates, every document with its versions in their order, title, confirmed kind and fields, labels and the bin;
+   not the events – they belong to the space they were written in, its members and keys – so the new space's history
+   starts on the day of the import, and the text is read anew. From a folder or a ZIP (stored or deflated, ZIP64
+   too), read where its files are. Web app: *Settings*; command line: `aktujo import <folder or ZIP> [--name …]`;
+   API: `POST /api/v1/space-import`.
 9. **English and German** in the interface. Built so (2026-11-05): the texts are data, `locales/<language>.json`,
    shared by the web app (the browser's language, or the one chosen) and the terminal interface (the environment's,
    `LC_ALL`, `LC_MESSAGES`, `LANG`). Names of kinds and fields are data of the kind, with names in other languages
@@ -152,19 +159,24 @@ Decided by the maintainer on 2026-11-05.
     are or moved to a folder beside it. Built so (2026-11-06): watched folders belong to the device (a setting of the
     workspace), any number per space; `Watcher` in `aktujo-app` looks at them every 5 s while `serve` or `tui` runs –
     no file events of the operating system, the same everywhere and on network shares. A file is taken once it stayed
-    the same between two looks (a scanner still writing is waited for); only PDF, PNG, JPEG and TIFF at the top level,
-    hidden and unfinished files (`.part`, `.tmp`, `.crdownload`, `~$…`) left alone; what was taken is remembered by
-    name, size and time of change, so it is not read again. The default is to **leave** the file where it is
-    (nothing is deleted or moved unasked); moving puts it into `added/` inside the watched folder under a free name.
-    In the web app under *Settings*, in the terminal with `W`, in the API under `/api/v1/watches`. OPEN: folders
-    inside a watched one; looking while aktujo does not run (a service of the operating system).
+    the same between two looks (a scanner still writing is waited for); only PDF, PNG, JPEG and TIFF, at the top level
+    or – if asked for a folder (2026-11-06) – in its subfolders too, down to eight levels and without `added`; hidden
+    and unfinished files and folders (`.part`, `.tmp`, `.crdownload`, `~$…`) left alone; what was taken is remembered
+    by its path inside the folder, size and time of change, so it is not read again. The default is to **leave** the
+    file where it is (nothing is deleted or moved unasked); moving puts it into `added/` inside the watched folder, in
+    the subfolder it was in, under a free name. In the web app under *Settings*, in the terminal with `W` (a folder
+    ending in `/**` with its subfolders), in the API under `/api/v1/watches`. OPEN: looking while aktujo does not
+    run (a service of the operating system).
 11. **Installed from binaries** attached to each GitHub release, built by CI for Linux, macOS and Windows – each
     as `aktujo` and as `aktujo-minimal` (decision 6). Other ways
     (cargo install, Nix, Homebrew) later. OPEN: signing and notarising the binaries for macOS and Windows.
     Built so (2026-11-06): CI checks Linux, macOS and Windows; a version tag builds `aktujo` and `aktujo-minimal` for
     Linux (x86-64, ARM64), macOS (ARM64) and Windows (x86-64), each packed with the licence and README, and puts
-    them with their SHA-256 sums into a **draft** release that the maintainer publishes. OPEN: macOS on x86-64;
-    Windows on ARM64 (tract's assembly does not link with MSVC there).
+    them with their SHA-256 sums into a **draft** release that the maintainer publishes. Since 2026-11-06 also macOS
+    on x86-64 (built on Apple silicon) and, as `aktujo-minimal` only, Windows on ARM64; CI checks that `aktujo` and
+    `aktujo-minimal` open the same data folder (`scripts/check-editions.sh`: each founds a space and imports an
+    export, and each sees what the other wrote). OPEN: `aktujo` on Windows on ARM64 (tract's assembly does not link
+    with MSVC there).
 12. **Sync and sharing are part of 0.1**: through a relay the person runs (`aktujo relay`); invitations with rights,
     members listed and removed, the recovery code – what `aktujo-sync` does today, offered in every interface.
     Built so (2026-11-05): `serve` and `tui` synchronise every synchronised space in the background (`Syncer` in

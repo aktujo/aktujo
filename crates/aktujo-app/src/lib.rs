@@ -20,9 +20,7 @@ use std::{
 };
 
 use aktujo_blob::{BlobError, Blobs, MemoryBlobs};
-use aktujo_core::{
-    DomainError, SPACE_KINDS, SpaceEvent, device_name, kind_id, label, space_name, title, title_of_file,
-};
+use aktujo_core::{DomainError, SPACE_KINDS, SpaceEvent, device_name, label, space_name, title, title_of_file};
 use aktujo_crypt::{Domain, RecoveryCode};
 use aktujo_doc::{
     DocumentEvent, Documents, KindError, KindEvent, KindSkipped, Kinds, Origin, Original, Skipped, TemplateRef,
@@ -35,6 +33,7 @@ use serde::{Deserialize, Serialize};
 
 mod catalog;
 mod exporting;
+mod importing;
 #[cfg(feature = "scan")]
 mod improving;
 mod keys;
@@ -47,6 +46,7 @@ mod syncing;
 mod watching;
 
 pub use aktujo_base::{Sha256Hash, SpaceId};
+pub use aktujo_core::kind_id;
 pub use aktujo_crypt::{Member, MemberRole, Rights};
 pub use aktujo_doc::{
     Conflict, Document, DocumentId, FieldDef, FieldType, Find, Kind, Reading, Value, Version, Weighted,
@@ -58,11 +58,12 @@ pub use catalog::{
     Source, SourceInfo, Standing, Step, Template, fetch_catalog, fetch_template, source_url, template_of_file,
 };
 pub use exporting::{Exported, Folder, Sink, Zip, export, export_name};
+pub use importing::{Files, FolderFiles, Imported, ZipFiles, import, import_error};
 #[cfg(feature = "scan")]
 pub use improving::{
     Colour, Crop, Improve, ScanError, VersionFile, combined, improved, page_count, page_png, preview_png,
 };
-pub use keys::{KeyError, KeyStore, MemoryKeys, SystemKeys};
+pub use keys::{FileKeys, KeyError, KeyStore, MemoryKeys, SystemKeys};
 pub use reading::{Job, ReadState, Reader, Worker, read_all};
 pub use sealed::SealedBlobs;
 pub use search::{Bin, Hit, Part, Search, date_of};
@@ -114,6 +115,9 @@ pub enum AppError {
     /// A file that cannot be improved, or a page it does not have.
     #[error("improving: {0}")]
     Scan(String),
+    /// An export that cannot be read back in.
+    #[error("import: {0}")]
+    Import(String),
     /// The database of the data folder.
     #[error(transparent)]
     Database(#[from] aktujo_store::StoreError),

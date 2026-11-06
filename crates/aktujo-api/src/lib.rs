@@ -59,6 +59,7 @@ pub const UPLOAD_MAX: usize = 256 * 1024 * 1024;
         plan_template,
         take_template,
         export_space,
+        import_space,
         watches,
         add_watch,
         switch_watch,
@@ -111,9 +112,12 @@ pub struct ApiError(StatusCode, String);
 impl From<AppError> for ApiError {
     fn from(error: AppError) -> Self {
         let status = match &error {
-            AppError::Invalid(_) | AppError::Value(_) | AppError::Kind(_) | AppError::Watch(_) | AppError::Scan(_) => {
-                StatusCode::UNPROCESSABLE_ENTITY
-            }
+            AppError::Invalid(_)
+            | AppError::Value(_)
+            | AppError::Kind(_)
+            | AppError::Watch(_)
+            | AppError::Scan(_)
+            | AppError::Import(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::NotAllowed(_) => StatusCode::FORBIDDEN,
             AppError::Sync(_) | AppError::Catalog(_) => StatusCode::BAD_GATEWAY,
@@ -369,6 +373,56 @@ async fn import_kinds(State(shared): State<Shared>, Path(s): Path<String>, bytes
     Ok(Json(Imported { changed }))
 }
 
+/// The name an imported space gets, if not the exported one's.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+struct ImportName {
+    /// The name of the new space; by default the exported one's.
+    name: Option<String>,
+}
+
+/// Reads an export of aktujo – a ZIP as `GET /spaces/{space}/export` writes it – back in, as a new space: the kinds,
+/// the documents with their versions, titles, confirmed kinds and fields, labels and the bin. The history starts
+/// anew; the text is read again. No limit of size: the ZIP is written to a file first.
+#[utoipa::path(post, path = "/api/v1/space-import", params(ImportName),
+    request_body(content = Vec<u8>, content_type = "application/zip"),
+    responses((status = 201, body = SpaceImported), (status = 422, body = Problem)))]
+async fn import_space(
+    State(shared): State<Shared>,
+    Query(name): Query<ImportName>,
+    body: axum::body::Body,
+) -> Result<(StatusCode, Json<SpaceImported>), ApiError> {
+    use futures_util::StreamExt;
+    let random: [u8; 8] = aktujo_base::random();
+    let path = std::env::temp_dir().join(format!("aktujo-import-{}.zip", hex_of(&random)));
+    let received = async {
+        let mut file = tokio::fs::File::create(&path).await?;
+        let mut stream = body.into_data_stream();
+        while let Some(chunk) = stream.next().await {
+            tokio::io::AsyncWriteExt::write_all(&mut file, &chunk.map_err(std::io::Error::other)?).await?;
+        }
+        tokio::io::AsyncWriteExt::flush(&mut file).await
+    }
+    .await;
+    if let Err(error) = received {
+        let _ = std::fs::remove_file(&path);
+        return Err(AppError::from(error).into());
+    }
+    let workspace = shared.workspace.clone();
+    let target = path.clone();
+    let imported = tokio::task::spawn_blocking(move || -> Result<aktujo_app::Imported, AppError> {
+        let file = std::fs::File::open(&target)?;
+        let mut files = aktujo_app::ZipFiles::open(std::io::BufReader::new(file)).map_err(aktujo_app::import_error)?;
+        aktujo_app::import(&workspace, &mut files, name.name.as_deref())
+    })
+    .await
+    .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
+    let _ = std::fs::remove_file(&path);
+    let imported = imported??;
+    shared.wake();
+    shared.changed();
+    Ok((StatusCode::CREATED, Json(imported.into())))
+}
+
 /// The sources of templates on this device: the official catalog first.
 #[utoipa::path(get, path = "/api/v1/sources", responses((status = 200, body = Vec<SourceView>)))]
 async fn sources(State(shared): State<Shared>) -> Answer<Vec<SourceView>> {
@@ -564,21 +618,23 @@ async fn watches(State(shared): State<Shared>) -> Answer<Vec<WatchView>> {
 async fn add_watch(State(shared): State<Shared>, Json(new): Json<NewWatch>) -> Answer<Vec<WatchView>> {
     let views = {
         let mut workspace = shared.lock();
-        workspace.add_watch(&space(&new.space)?, std::path::Path::new(new.folder.trim()), new.after.into())?;
+        let folder = std::path::Path::new(new.folder.trim());
+        workspace.add_watch(&space(&new.space)?, folder, new.after.into(), new.subfolders)?;
         watch_views(&workspace)?
     };
     shared.look();
     Ok(Json(views))
 }
 
-/// Switches a watched folder on or off, and sets what happens to a file once it was taken.
+/// Switches a watched folder on or off, and sets what happens to a file once it was taken and whether its
+/// subfolders are looked at.
 #[utoipa::path(put, path = "/api/v1/watches", request_body = WatchSwitch,
     responses((status = 200, body = Vec<WatchView>), (status = 404, body = Problem)))]
 async fn switch_watch(State(shared): State<Shared>, Json(switch): Json<WatchSwitch>) -> Answer<Vec<WatchView>> {
     let views = {
         let mut workspace = shared.lock();
         let folder = std::path::Path::new(&switch.folder);
-        workspace.set_watch(&space(&switch.space)?, folder, switch.on, switch.after.into())?;
+        workspace.set_watch(&space(&switch.space)?, folder, switch.on, switch.after.into(), switch.subfolders)?;
         watch_views(&workspace)?
     };
     shared.look();
@@ -1142,6 +1198,7 @@ pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Route
         .route("/spaces/{space}/catalog/plan", post(plan_template))
         .route("/spaces/{space}/catalog/take", post(take_template))
         .route("/spaces/{space}/export", get(export_space))
+        .route("/space-import", post(import_space).layer(DefaultBodyLimit::disable()))
         .route("/watches", get(watches).post(add_watch).put(switch_watch).delete(remove_watch))
         .route("/spaces/{space}/kinds/{kind}", put(define_kind).delete(remove_kind))
         .route("/search", post(search))

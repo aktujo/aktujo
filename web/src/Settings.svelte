@@ -20,6 +20,7 @@
   let watchSpace = $state("");
   let watchFolder = $state("");
   let watchMove = $state(false);
+  let watchDeep = $state(false);
 
   async function loadWatches() {
     const [w, s] = await Promise.all([api.GET("/api/v1/watches"), api.GET("/api/v1/spaces")]);
@@ -30,7 +31,8 @@
 
   async function addWatch(event: SubmitEvent) {
     event.preventDefault();
-    const body = { space: watchSpace, folder: watchFolder, after: watchMove ? ("move" as const) : ("leave" as const) };
+    const after = watchMove ? ("move" as const) : ("leave" as const);
+    const body = { space: watchSpace, folder: watchFolder, after, subfolders: watchDeep };
     const { data, error: problem } = await api.POST("/api/v1/watches", { body });
     error = problem?.error ?? "";
     if (data) {
@@ -39,8 +41,13 @@
     }
   }
 
-  async function switchWatch(watch: Schemas["WatchView"], on: boolean, after: Schemas["AfterView"]) {
-    const body = { space: watch.space, folder: watch.folder, on, after };
+  async function switchWatch(
+    watch: Schemas["WatchView"],
+    on: boolean,
+    after: Schemas["AfterView"],
+    subfolders: boolean = watch.subfolders,
+  ) {
+    const body = { space: watch.space, folder: watch.folder, on, after, subfolders };
     const { data, error: problem } = await api.PUT("/api/v1/watches", { body });
     error = problem?.error ?? "";
     if (data) watches = data;
@@ -119,6 +126,39 @@
     if (data) onjoined(data.id);
   }
 
+  let importFile = $state<File | null>(null);
+  let importName = $state("");
+  let importNote = $state("");
+
+  async function importExport(event: SubmitEvent) {
+    event.preventDefault();
+    if (!importFile) return;
+    busy = true;
+    importNote = "";
+    const query = importName.trim() ? `?name=${encodeURIComponent(importName.trim())}` : "";
+    // Fetch, not openapi-fetch: the body is the ZIP as it is.
+    const response = await fetch(`/api/v1/space-import${query}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/zip" },
+      body: importFile,
+    });
+    busy = false;
+    const answer = (await response.json().catch(() => null)) as
+      | (Schemas["SpaceImported"] & { error?: string })
+      | null;
+    if (!response.ok || !answer) {
+      error = answer?.error ?? response.statusText;
+      return;
+    }
+    error = "";
+    importNote = t("import.done", { documents: answer.documents, kinds: answer.kinds });
+    if (answer.missing) importNote += " " + t("import.missing", { n: answer.missing });
+    if (answer.skipped.length) importNote += " " + t("import.skipped", { what: answer.skipped.join("; ") });
+    importFile = null;
+    importName = "";
+    onjoined(answer.space);
+  }
+
   $effect(() => {
     load();
     loadSources();
@@ -171,6 +211,21 @@
     <button type="submit" disabled={busy}>{t("sync.recover")}</button>
   </form>
 
+  <h2>{t("import.title")}</h2>
+  <p class="note">{t("import.hint")}</p>
+  <form class="stack" onsubmit={importExport}>
+    <input
+      type="file"
+      accept=".zip,application/zip"
+      aria-label={t("import.file")}
+      onchange={(e) => (importFile = e.currentTarget.files?.[0] ?? null)}
+      required
+    />
+    <input bind:value={importName} placeholder={t("import.name")} aria-label={t("import.name")} />
+    <button type="submit" disabled={busy || !importFile}>{t("import.start")}</button>
+  </form>
+  {#if importNote}<p class="note">{importNote}</p>{/if}
+
   <h2>{t("watch.title")}</h2>
   <p class="note">{t("watch.hint")}</p>
   {#if watches.length}
@@ -184,6 +239,7 @@
             </label>
             <span class="note">
               {watch.after === "move" ? t("watch.move") : t("watch.leave")}
+              · {watch.subfolders ? t("watch.deep") : t("watch.flat")}
               {#if watch.looked_at}· {t("watch.taken", { n: watch.taken, time: new Date(watch.looked_at).toLocaleTimeString() })}{/if}
             </span>
             {#if watch.problem}<span class="error">{watch.problem}</span>{/if}
@@ -191,6 +247,9 @@
           <span class="row">
             <button class="small" onclick={() => switchWatch(watch, watch.on, watch.after === "move" ? "leave" : "move")}>
               {watch.after === "move" ? t("watch.toLeave") : t("watch.toMove")}
+            </button>
+            <button class="small" onclick={() => switchWatch(watch, watch.on, watch.after, !watch.subfolders)}>
+              {watch.subfolders ? t("watch.toFlat") : t("watch.toDeep")}
             </button>
             <button class="danger small" onclick={() => removeWatch(watch)}>{t("watch.remove")}</button>
           </span>
@@ -204,6 +263,7 @@
       <select bind:value={watchSpace} aria-label={t("watch.space")}>
         {#each spaces as sp (sp.id)}<option value={sp.id}>{sp.name ?? "…"}</option>{/each}
       </select>
+      <label class="check"><input type="checkbox" bind:checked={watchDeep} /> {t("watch.deepOption")}</label>
       <label class="check"><input type="checkbox" bind:checked={watchMove} /> {t("watch.moveOption")}</label>
       <button type="submit" disabled={!watchFolder.trim() || !watchSpace}>{t("watch.add")}</button>
     </form>

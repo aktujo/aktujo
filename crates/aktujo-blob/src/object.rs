@@ -5,7 +5,7 @@
 //! [`Blobs`] is synchronous; the object store is not. Every call runs on a small runtime of the store's own, on a
 //! helper thread, so that it works from plain threads as well as from within another async runtime.
 
-use std::sync::Arc;
+use std::{ops::Range, sync::Arc};
 
 use futures_util::StreamExt;
 use object_store::{ObjectStore, ObjectStoreExt, PutPayload, path::Path};
@@ -148,6 +148,38 @@ impl Blobs for ObjectBlobs {
         }
         hashes.sort();
         Ok(hashes)
+    }
+
+    fn remove(&self, hash: &Sha256Hash) -> Result<bool, BlobError> {
+        if !self.contains(hash)? {
+            return Ok(false);
+        }
+        let path = self.path(hash);
+        match self.run(async { self.inner.delete(&path).await }) {
+            Ok(()) | Err(object_store::Error::NotFound { .. }) => Ok(true),
+            Err(error) => Err(store_error(error)),
+        }
+    }
+
+    fn size(&self, hash: &Sha256Hash) -> Result<Option<u64>, BlobError> {
+        let path = self.path(hash);
+        match self.run(async { self.inner.head(&path).await }) {
+            Ok(meta) => Ok(Some(meta.size)),
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(error) => Err(store_error(error)),
+        }
+    }
+
+    fn get_range(&self, hash: &Sha256Hash, range: Range<u64>) -> Result<Option<Vec<u8>>, BlobError> {
+        let Some(len) = self.size(hash)? else { return Ok(None) };
+        let start = range.start.min(len);
+        let end = range.end.clamp(start, len);
+        if start == end {
+            return Ok(Some(Vec::new()));
+        }
+        let path = self.path(hash);
+        let bytes = self.run(async { self.inner.get_range(&path, start..end).await }).map_err(store_error)?;
+        Ok(Some(bytes.to_vec()))
     }
 }
 

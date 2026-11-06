@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The command line of aktujo: the terminal interface, the API with the web app, the relay, and the API's
-//! description.
+//! The command line of aktujo: the terminal interface, the API with the web app, the relay, the API's description,
+//! and spaces, templates, export and import without an interface.
 
 use std::{
     path::PathBuf,
@@ -11,7 +11,7 @@ use std::{
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 
-use aktujo_app::{Reader, Syncer, SystemKeys, Watcher, Worker, Workspace, default_folder};
+use aktujo_app::{FileKeys, KeyStore, Reader, Syncer, SystemKeys, Watcher, Worker, Workspace, default_folder};
 
 /// How often synchronised spaces are synchronised, besides after every change.
 const SYNC_EVERY: Duration = Duration::from_secs(60);
@@ -36,6 +36,10 @@ struct Data {
     /// A workspace in memory, gone when the program ends – to try it out.
     #[arg(long)]
     memory: bool,
+    /// Keeps the data folder's key in this file instead of the key store of the operating system – for a server or
+    /// a container. Made with a new key if it is not there; keep it apart from the data folder.
+    #[arg(long, env = "AKTUJO_KEY_FILE", conflicts_with = "memory")]
+    key_file: Option<PathBuf>,
 }
 
 impl Data {
@@ -65,7 +69,11 @@ impl Data {
                     default_folder().context("no folder for application data is known here – give one with --data")?
                 }
             };
-            Workspace::open(&folder, &SystemKeys).with_context(|| format!("the data folder {}", folder.display()))?
+            let keys: Box<dyn KeyStore> = match &self.key_file {
+                Some(file) => Box::new(FileKeys::new(file)),
+                None => Box::new(SystemKeys),
+            };
+            Workspace::open(&folder, keys.as_ref()).with_context(|| format!("the data folder {}", folder.display()))?
         })
     }
 }
@@ -125,6 +133,42 @@ fn export(space: Option<&str>, to: &std::path::Path, zip: bool, data: &Data) -> 
             print!(", {} originals not on this device", exported.missing);
         }
         println!();
+    }
+    Ok(())
+}
+
+/// Lists the spaces – after founding one, if asked to.
+fn spaces(found: Option<&str>, data: &Data) -> anyhow::Result<()> {
+    let mut workspace = data.workspace()?;
+    if let Some(name) = found {
+        let id = workspace.found_space(name)?;
+        println!("founded {id}");
+    }
+    for space in workspace.spaces()? {
+        let name = space.name.as_deref().unwrap_or("–");
+        println!("{}  {name}  {} documents, {} in the bin", space.id, space.documents, space.trashed);
+    }
+    Ok(())
+}
+
+/// Reads an export back in, as a new space.
+fn import(from: &std::path::Path, name: Option<&str>, data: &Data) -> anyhow::Result<()> {
+    let workspace = Mutex::new(data.workspace()?);
+    let imported = if from.is_dir() {
+        let mut files = aktujo_app::FolderFiles::open(from).with_context(|| format!("{}", from.display()))?;
+        aktujo_app::import(&workspace, &mut files, name)?
+    } else {
+        let file = std::fs::File::open(from).with_context(|| format!("{}", from.display()))?;
+        let mut files =
+            aktujo_app::ZipFiles::open(std::io::BufReader::new(file)).with_context(|| format!("{}", from.display()))?;
+        aktujo_app::import(&workspace, &mut files, name)?
+    };
+    println!("{}  {} kinds, {} documents", imported.space, imported.kinds, imported.documents);
+    if imported.missing > 0 {
+        println!("  {} versions were not in the export", imported.missing);
+    }
+    for skipped in &imported.skipped {
+        println!("  not taken over: {skipped}");
     }
     Ok(())
 }
@@ -207,6 +251,25 @@ enum Command {
         #[command(flatten)]
         data: Data,
     },
+    /// Lists the spaces of the data folder; with `--found`, founds one first.
+    Spaces {
+        /// The name of a space to found.
+        #[arg(long)]
+        found: Option<String>,
+        #[command(flatten)]
+        data: Data,
+    },
+    /// Reads an export – a folder or a ZIP – back in, as a new space: the kinds, the documents with their versions,
+    /// titles, confirmed kinds and fields, labels and the bin. The history starts anew; the text is read again.
+    Import {
+        /// The export: its folder, the folder it is in, or the ZIP.
+        from: PathBuf,
+        /// The name of the new space; by default the exported one's.
+        #[arg(long)]
+        name: Option<String>,
+        #[command(flatten)]
+        data: Data,
+    },
     /// Lists the templates of kinds in a catalog, read now – or takes one over into a space.
     Templates {
         /// The catalog; by default the official one.
@@ -236,6 +299,8 @@ fn main() -> anyhow::Result<()> {
         Command::Openapi => println!("{}", aktujo_api::openapi()),
         Command::Templates { source, take: None } => list_templates(&source)?,
         Command::Export { space, to, zip, data } => export(space.as_deref(), &to, zip, &data)?,
+        Command::Spaces { found, data } => spaces(found.as_deref(), &data)?,
+        Command::Import { from, name, data } => import(&from, name.as_deref(), &data)?,
         Command::Templates { take: Some(Templates::Take { id, space, source, data }), .. } => {
             take_template(&id, &space, &source, &data)?
         }

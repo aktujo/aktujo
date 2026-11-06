@@ -496,6 +496,33 @@ pub struct Imported {
     pub changed: usize,
 }
 
+/// What reading an export back in did.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SpaceImported {
+    /// The new space.
+    pub space: String,
+    /// The kinds defined in it.
+    pub kinds: usize,
+    /// The documents added.
+    pub documents: usize,
+    /// Versions whose file was not in the export.
+    pub missing: usize,
+    /// What could not be taken over, and why.
+    pub skipped: Vec<String>,
+}
+
+impl From<aktujo_app::Imported> for SpaceImported {
+    fn from(imported: aktujo_app::Imported) -> Self {
+        SpaceImported {
+            space: imported.space.to_string(),
+            kinds: imported.kinds,
+            documents: imported.documents,
+            missing: imported.missing,
+            skipped: imported.skipped,
+        }
+    }
+}
+
 /// A source of templates on this device.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SourceView {
@@ -758,6 +785,8 @@ pub struct WatchView {
     pub after: AfterView,
     /// Whether it is looked at.
     pub on: bool,
+    /// Whether its subfolders are looked at too.
+    pub subfolders: bool,
     /// When it was last looked at, in milliseconds since 1970, since the program started.
     pub looked_at: Option<u64>,
     /// How many files were taken from it since the program started.
@@ -777,6 +806,7 @@ impl WatchView {
                 aktujo_app::After::Move => AfterView::Move,
             },
             on: watch.on,
+            subfolders: watch.subfolders,
             looked_at: watched.as_ref().map(|w| w.at),
             taken: watched.as_ref().map_or(0, |w| w.taken),
             problem: watched.and_then(|w| w.problem),
@@ -794,6 +824,9 @@ pub struct NewWatch {
     /// What happens to a file once it was taken; by default it stays.
     #[serde(default)]
     pub after: AfterView,
+    /// Whether its subfolders are looked at too; by default not.
+    #[serde(default)]
+    pub subfolders: bool,
 }
 
 /// A watched folder switched on or off.
@@ -808,6 +841,9 @@ pub struct WatchSwitch {
     /// What happens to a file once it was taken.
     #[serde(default)]
     pub after: AfterView,
+    /// Whether its subfolders are looked at too.
+    #[serde(default)]
+    pub subfolders: bool,
 }
 
 /// The watched folder to stop watching.

@@ -27,8 +27,8 @@ use ratatui::{
 };
 
 use aktujo_app::{
-    After, AppError, Bin, Document, DocumentId, Entry, Kind, NewFile, ReadState, Reader, Rights, Search, SpaceInfo,
-    Standing, Syncer, TemplateOrigin, Value, Watcher, Worker, Workspace, date_of,
+    After, AppError, Bin, Document, DocumentId, Entry, FieldDef, FieldType, Kind, NewFile, ReadState, Reader, Rights,
+    Search, SpaceInfo, Standing, Syncer, TemplateOrigin, Value, Watcher, Weighted, Worker, Workspace, date_of, kind_id,
 };
 
 mod texts;
@@ -46,8 +46,93 @@ pub enum TuiError {
     Workspace(#[from] AppError),
 }
 
+/// The name of a field type as it is typed.
+fn type_name(field_type: FieldType) -> &'static str {
+    match field_type {
+        FieldType::Text => "text",
+        FieldType::Date => "date",
+        FieldType::Money => "money",
+        FieldType::Number => "number",
+        FieldType::Flag => "flag",
+    }
+}
+
+/// Edits the kinds of a space by a line of text (`tui.kindsHelp`):
+///
+/// ```text
+/// + Letter                     a new kind
+/// - letter                     removes a kind
+/// letter = Business letter     renames it
+/// letter + sender text Sender  adds a field: key, type (text, date, money, number, flag), name
+/// letter - sender              removes a field
+/// letter ~ invoice 6           a word that speaks for the kind, with its weight (0 removes it)
+/// ```
+fn edit_kinds(
+    workspace: &mut Workspace,
+    space: &aktujo_app::SpaceId,
+    line: &str,
+    texts: &Texts,
+) -> Result<String, AppError> {
+    let line = line.trim();
+    let invalid = || AppError::NotFound(texts.get("tui.kindsHelp"));
+    if line.is_empty() {
+        return Ok(String::new());
+    }
+    if let Some(name) = line.strip_prefix('+') {
+        let id = workspace.add_kind(space, name.trim())?;
+        return Ok(texts.fill("tui.kindAdded", &[("id", &id)]));
+    }
+    if let Some(id) = line.strip_prefix('-') {
+        workspace.remove_kind(space, id.trim())?;
+        return Ok(String::new());
+    }
+    let (id, rest) = line.split_once(' ').ok_or_else(invalid)?;
+    let mut kind: Kind = workspace.kind(space, id)?.clone();
+    let rest = rest.trim();
+    if let Some(name) = rest.strip_prefix('=') {
+        kind.name = name.trim().to_owned();
+    } else if let Some(field) = rest.strip_prefix('+') {
+        let mut parts = field.split_whitespace();
+        let key = kind_id(parts.next().ok_or_else(invalid)?);
+        let field_type = match parts.next().ok_or_else(invalid)? {
+            "text" => FieldType::Text,
+            "date" => FieldType::Date,
+            "money" => FieldType::Money,
+            "number" => FieldType::Number,
+            "flag" => FieldType::Flag,
+            _ => return Err(invalid()),
+        };
+        let name: Vec<&str> = parts.collect();
+        let name = if name.is_empty() { key.clone() } else { name.join(" ") };
+        kind.fields.retain(|f| f.key != key);
+        kind.fields.push(FieldDef::new(&key, &name, field_type));
+    } else if let Some(key) = rest.strip_prefix('-') {
+        let key = key.trim();
+        kind.fields.retain(|f| f.key != key);
+        for title in &mut kind.title {
+            title.retain(|k| k != key);
+        }
+        kind.title.retain(|t| !t.is_empty());
+    } else if let Some(word) = rest.strip_prefix('~') {
+        let word = word.trim();
+        let (word, weight) = match word.rsplit_once(' ') {
+            Some((word, weight)) if weight.parse::<u32>().is_ok() => (word.trim(), weight.parse().expect("a number")),
+            _ => (word, 1),
+        };
+        let word = word.to_lowercase();
+        kind.words.retain(|w| w.word != word);
+        if weight > 0 {
+            kind.words.push(Weighted { word, weight });
+        }
+    } else {
+        return Err(invalid());
+    }
+    workspace.define_kind(space, kind)?;
+    Ok(String::new())
+}
+
 /// The actions at the bottom, each with its key and the key of its text – clickable as well.
-const ACTIONS: [(char, &str); 27] = [
+const ACTIONS: [(char, &str); 28] = [
     ('/', "tui.search"),
     ('a', "tui.add"),
     ('t', "tui.title"),
@@ -61,6 +146,7 @@ const ACTIONS: [(char, &str); 27] = [
     ('b', "tui.showBin"),
     ('s', "tui.space"),
     ('n', "tui.newSpace"),
+    ('A', "tui.kinds"),
     ('K', "tui.importKinds"),
     ('C', "tui.catalog"),
     ('W', "tui.watch"),
@@ -97,6 +183,7 @@ enum Prompt {
     DeviceName,
     ChooseKind,
     ImportKinds,
+    Kinds,
     TakeTemplate,
     Watch,
     Improve,
@@ -119,6 +206,7 @@ impl Prompt {
             Prompt::DeviceName => "settings.deviceName",
             Prompt::ChooseKind => "tui.chooseKindPrompt",
             Prompt::ImportKinds => "tui.importKindsPrompt",
+            Prompt::Kinds => "tui.kindsPrompt",
             Prompt::TakeTemplate => "tui.catalogPrompt",
             Prompt::Watch => "tui.watchPrompt",
             Prompt::Improve => "tui.improvePrompt",
@@ -484,7 +572,12 @@ impl App {
                         }
                         return Ok(texts.get("tui.watchNone"));
                     }
-                    let folder = w.add_watch(&s.id, std::path::Path::new(folder), After::Leave)?;
+                    // `…/**`: with the subfolders.
+                    let (folder, subfolders) = match folder.strip_suffix("**") {
+                        Some(folder) => (folder.trim_end_matches(['/', '\\']), true),
+                        None => (folder, false),
+                    };
+                    let folder = w.add_watch(&s.id, std::path::Path::new(folder), After::Leave, subfolders)?;
                     Ok(texts.fill("tui.watching", &[("folders", &folder.display().to_string())]))
                 });
                 if let Some(watcher) = &self.watcher {
@@ -509,6 +602,12 @@ impl App {
                     Ok(texts.fill("tui.catalogTaken", &values))
                 });
                 self.members = None;
+            }
+            Prompt::Kinds => {
+                let texts = self.texts.clone();
+                self.on_space(|w, s| edit_kinds(w, &s.id, &text, &texts));
+                self.members = Some(self.kinds_panel());
+                self.input = Some((Prompt::Kinds, String::new()));
             }
             Prompt::ImportKinds => {
                 let texts = self.texts.clone();
@@ -604,6 +703,11 @@ impl App {
             }
             KeyCode::Char('a') => prompt(self, Prompt::Add, String::new()),
             KeyCode::Char('K') => prompt(self, Prompt::ImportKinds, String::new()),
+            KeyCode::Char('A') if !self.spaces.is_empty() => {
+                self.members = Some(self.kinds_panel());
+                self.message = self.texts.get("tui.kindsHelp");
+                prompt(self, Prompt::Kinds, String::new());
+            }
             KeyCode::Char('E') => prompt(self, Prompt::Export, ".".into()),
             KeyCode::Char('W') => {
                 let space = self.spaces.get(self.space).map(|s| s.id.clone());
@@ -782,6 +886,35 @@ impl App {
         }
         if self.templates.is_empty() {
             lines.push(Line::from(texts.get("catalog.empty")));
+        }
+        lines
+    }
+
+    /// The kinds of the space, with their fields and words – beside the list while they are edited.
+    fn kinds_panel(&self) -> Vec<Line<'static>> {
+        let texts = &self.texts;
+        let bold = Style::default().add_modifier(Modifier::BOLD);
+        let mut lines = vec![Line::styled(texts.get("kinds.title"), bold)];
+        let Some(space) = self.spaces.get(self.space) else { return lines };
+        let kinds = self.lock().kinds(&space.id).unwrap_or_default();
+        if kinds.is_empty() {
+            lines.push(Line::from(texts.get("kinds.none")));
+        }
+        let language = texts.language().to_owned();
+        for kind in kinds {
+            lines.push(Line::styled(format!("{} ({})", kind.name_in(&language), kind.id), bold));
+            for field in &kind.fields {
+                lines.push(Line::from(format!(
+                    "  {} – {}, {}",
+                    field.key,
+                    field.name_in(&language),
+                    type_name(field.field_type)
+                )));
+            }
+            if !kind.words.is_empty() {
+                let words: Vec<String> = kind.words.iter().map(|w| format!("{} {}", w.word, w.weight)).collect();
+                lines.push(Line::from(format!("  ≈ {}", words.join(", "))));
+            }
         }
         lines
     }
@@ -1136,6 +1269,41 @@ mod tests {
         app.mouse(click(area.x + 1, area.y));
         assert!(app.quit);
         let _ = fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn kinds_are_edited_by_lines() {
+        let workspace = Arc::new(Mutex::new(Workspace::in_memory("laptop").unwrap()));
+        let mut app = App::new(workspace.clone(), None, None, Texts::of("en"));
+        typed(&mut app, "Home");
+        app.key(KeyCode::Char('A').into());
+        assert_eq!(app.input.as_ref().map(|(p, _)| *p), Some(Prompt::Kinds));
+        typed(&mut app, "+ Letter");
+        assert_eq!(app.message, "Kind letter added");
+        typed(&mut app, "letter = Business letter");
+        typed(&mut app, "letter + sender text Sender");
+        typed(&mut app, "letter + due day Due");
+        assert!(app.message.starts_with("+ Name adds a kind"), "an unknown type: the help, {}", app.message);
+        typed(&mut app, "letter + due date Due");
+        typed(&mut app, "letter ~ dear sir 4");
+        typed(&mut app, "letter ~ invoice");
+        typed(&mut app, "letter ~ invoice 0");
+        let space = app.spaces[0].id.clone();
+        let kind = workspace.lock().unwrap().kind(&space, "letter").unwrap().clone();
+        assert_eq!(kind.name, "Business letter");
+        assert_eq!(
+            kind.fields.iter().map(|f| (f.key.as_str(), f.field_type)).collect::<Vec<_>>(),
+            [("sender", FieldType::Text), ("due", FieldType::Date)]
+        );
+        assert_eq!(kind.words, [Weighted { word: "dear sir".into(), weight: 4 }]);
+        typed(&mut app, "letter - sender");
+        assert_eq!(workspace.lock().unwrap().kind(&space, "letter").unwrap().fields.len(), 1);
+        let panel: Vec<String> = app.members.clone().unwrap().iter().map(|l| l.to_string()).collect();
+        assert!(panel.contains(&"Business letter (letter)".to_owned()), "{panel:?}");
+        typed(&mut app, "- letter");
+        assert!(workspace.lock().unwrap().kinds(&space).unwrap().is_empty());
+        app.key(KeyCode::Esc.into());
+        assert!(app.input.is_none());
     }
 
     /// A relay on a free port of this machine, in a folder of its own; stops with the test.
