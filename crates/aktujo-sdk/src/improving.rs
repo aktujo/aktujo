@@ -12,7 +12,7 @@ use image::{DynamicImage, ImageFormat};
 
 use crate::{AppError, DocumentId, NewFile, SpaceId, Workspace};
 
-pub use aktujo_scan::{Colour, Crop, Improve, ScanError};
+pub use aktujo_scan::{Colour, Crop, Improve, Quad, ScanError};
 
 impl From<ScanError> for AppError {
     fn from(error: ScanError) -> Self {
@@ -121,6 +121,13 @@ pub fn page_png(file: &VersionFile, page: usize, width: u32) -> Result<Vec<u8>, 
     png(&page.image, width)
 }
 
+/// The corners of the sheet of paper on the page `page` (from 0) of a file – a photo, say – as shares of the page;
+/// none if the page fills the picture already or no sheet stands out.
+pub fn find_corners(file: &VersionFile, page: usize) -> Result<Option<Quad>, AppError> {
+    let page = aktujo_scan::page(&file.bytes, &file.media_type, page, DPI)?;
+    Ok(aktujo_scan::find_corners(&page.image))
+}
+
 /// The page `page` (from 0) of what `improve` would make of a file, as a PNG at most `width` pixels wide.
 pub fn preview_png(file: &VersionFile, improve: &Improve, page: usize, width: u32) -> Result<Vec<u8>, AppError> {
     let index = match &improve.pages {
@@ -128,8 +135,7 @@ pub fn preview_png(file: &VersionFile, improve: &Improve, page: usize, width: u3
         None => page,
     };
     let source = aktujo_scan::page(&file.bytes, &file.media_type, index, DPI)?;
-    let turns = improve.turns.get(index).copied().unwrap_or(0);
-    png(&aktujo_scan::improve_page(&source, turns, improve).image, width)
+    png(&aktujo_scan::improve_page(&source, index, improve).image, width)
 }
 
 /// What `improve` makes of a file: a PDF stays a PDF, one image an image.
@@ -173,6 +179,8 @@ mod tests {
 
         let file = workspace.version_file(&space, &first, None).unwrap();
         assert_eq!((file.name.as_str(), page_count(&file).unwrap()), ("page 1.png", 1));
+        assert!(find_corners(&file, 0).is_ok());
+        assert!(find_corners(&file, 1).is_err(), "an image has one page");
         let turned = Improve { turns: vec![1], colour: Colour::Grey, ..Improve::default() };
         let preview = image::load_from_memory(&preview_png(&file, &turned, 0, 40).unwrap()).unwrap();
         assert_eq!((preview.width(), preview.height()), (40, 30), "turned, then made at most 40 wide");

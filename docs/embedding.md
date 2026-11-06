@@ -12,7 +12,7 @@ depends on:
 |---|---|
 | [`aktujo-blob`](https://docs.rs/aktujo-blob) | originals by their SHA-256 hash, in memory, in a folder or in S3 (features `object`, `s3`) |
 | [`aktujo-extract`](https://docs.rs/aktujo-extract) | text with its position from PDFs and images: the text layer, OCR in Rust (`pure`) or by poppler and Tesseract (`external`) |
-| [`aktujo-scan`](https://docs.rs/aktujo-scan) | pages of a PDF or an image as pictures: turned, cropped, straightened, grey or black and white, written as an image or a PDF |
+| [`aktujo-scan`](https://docs.rs/aktujo-scan) | pages of a PDF or an image as pictures: the sheet in a photo found and its perspective corrected, turned, cropped, straightened, grey or black and white, written as an image or a PDF |
 | [`aktujo-rules`](https://docs.rs/aktujo-rules) | the kind and the fields of a document from its text, as suggestions – from kinds as data, plus your own code |
 | [`aktujo-doc`](https://docs.rs/aktujo-doc) | documents as events: versions, kinds as data, fields suggested and confirmed, labels |
 | [`aktujo-core`](https://docs.rs/aktujo-core) | the domain of the archive: its types and rules, no I/O |
@@ -136,7 +136,26 @@ person confirms it. Your program keeps the result in its own tables – or as `a
 
 aktujo does not reach into your database. A server keeps its tables (PostgreSQL with sqlx, say) and adds a column for
 the hash of each original; the event log, sync and end-to-end encryption of the core come in when your program needs
-them. OPEN: the core's store on PostgreSQL – today it is SQLite (`aktujo-store`).
+them.
+
+When they do, the core keeps what it needs – events, member records, settings – behind the trait
+`aktujo_store::Backend`: in SQLite on a device (`Store`), in PostgreSQL on a server (`PgStore`, feature `postgres`).
+In PostgreSQL its tables stand in a schema of their own (`aktujo`, or one you name), so they live in your database
+beside yours without meeting them:
+
+```rust
+use aktujo_store::{Backend, PgStore};
+use aktujo_sync::Replica;
+
+let store = PgStore::connect("postgres://music@db/music")?;          // tables in the schema `aktujo`
+let mut server = Replica::open(domain, "server".parse()?, store, blobs)?;
+server.join(&invitation, Some("Server"))?;                           // a member of the space, like a device
+server.sync(&space)?;
+```
+
+The client is synchronous: from an async handler, call it in `tokio::task::spawn_blocking`. Several servers may share
+the database – the schema is set up under a lock, and member records are appended under a lock per space. OPEN: TLS
+to the database; today the connection is without it, for a database in the same private network.
 
 ## Versions
 

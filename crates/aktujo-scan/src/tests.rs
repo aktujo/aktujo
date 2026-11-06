@@ -26,7 +26,7 @@ fn png(page: &Page) -> Vec<u8> {
 #[test]
 fn pages_turn_crop_and_change_colour() {
     let page = paper();
-    let turned = improve_page(&page, 1, &Improve::default());
+    let turned = improve_page(&page, 0, &Improve { turns: vec![1], ..Improve::default() });
     assert_eq!(turned.image.dimensions(), (400, 300));
     assert_eq!(turned.image.get_pixel(399, 0), &Rgb([200, 30, 30]), "the top left is top right after a quarter");
 
@@ -102,4 +102,33 @@ fn improving_is_data() {
     assert_eq!(improve.turns, [0, 3]);
     assert_eq!(improve.crop, Some(Crop { left: 0.05, ..Crop::default() }));
     assert_eq!(improve.colour, Colour::BlackWhite);
+}
+
+#[test]
+fn the_sheet_is_found_or_cut_out_along_the_corners_given() {
+    // The paper of 300 × 400 lies in a photo of 500 × 600, on a dark table, 100 pixels from the top left.
+    let sheet = paper();
+    let photo = RgbImage::from_fn(500, 600, |x, y| {
+        if (100..400).contains(&x) && (100..500).contains(&y) {
+            *sheet.image.get_pixel(x - 100, y - 100)
+        } else {
+            Rgb([50, 45, 40])
+        }
+    });
+    let page = Page { image: photo, dpi: 100.0 };
+    let found = improve_page(&page, 0, &Improve { find_corners: true, ..Improve::default() });
+    let (w, h) = found.image.dimensions();
+    assert!(w.abs_diff(300) <= 6 && h.abs_diff(400) <= 6, "{w} × {h}");
+    let corner = found.image.get_pixel(5, 5).0;
+    assert!(corner[0] > 150 && corner[1] < 100, "red top left");
+
+    let given = Quad { points: [[0.2, 1.0 / 6.0], [0.8, 1.0 / 6.0], [0.8, 5.0 / 6.0], [0.2, 5.0 / 6.0]] };
+    let chosen = Improve { corners: vec![Some(given)], find_corners: true, turns: vec![1], ..Improve::default() };
+    let cut = improve_page(&page, 0, &chosen);
+    assert_eq!(cut.image.dimensions(), (400, 300), "turned after cutting: the sheet's height is the width");
+
+    let crossed = Quad { points: [[0.0, 0.0], [1.0, 1.0], [1.0, 0.0], [0.0, 1.0]] };
+    let ignored = improve_page(&page, 0, &Improve { corners: vec![Some(crossed)], ..Improve::default() });
+    assert_eq!(ignored.image.dimensions(), (500, 600), "corners that are no shape are left alone");
+    assert_eq!(improve_page(&page, 0, &Improve::default()).image.dimensions(), (500, 600));
 }

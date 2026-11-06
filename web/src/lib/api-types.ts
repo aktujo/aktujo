@@ -504,6 +504,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{space}/documents/{document}/versions/{number}/pages/{page}/corners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The corners of the sheet of paper on a page of a version – a photo, say – to show and move them. */
+        get: operations["corners"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{space}/export": {
         parameters: {
             query?: never;
@@ -781,6 +798,10 @@ export interface components {
             /** @description The template's version; `null` where the template removed it. */
             theirs: Record<string, never>;
         };
+        /** @description The corners of the sheet found on a page, if one stands out. */
+        CornersView: {
+            corners?: components["schemas"]["QuadView"] | null;
+        };
         /** @description What is cut away from each side, as a share of the page (0 to 0.45 each). */
         CropView: {
             /**
@@ -914,13 +935,21 @@ export interface components {
             /** @description The kinds new or different from before. */
             changed: number;
         };
-        /** @description How pages are improved – in this order: chosen, turned, straightened, cropped, coloured. */
+        /** @description How pages are improved – in this order: chosen, the sheet cut out, turned, straightened, cropped, coloured. */
         ImproveView: {
             /** @description What becomes of the colours. */
             colour?: components["schemas"]["ColourView"];
+            /**
+             * @description The corners of the sheet on each page, by its number from 0, before turning: the sheet is cut out along them
+             *     and its perspective corrected; a page not named, or named with none, is left as it is – or its corners are
+             *     found, with `find_corners`.
+             */
+            corners?: (components["schemas"]["QuadView"] | null)[];
             crop?: components["schemas"]["CropView"] | null;
             /** @description Straighten each page by the skew of its text. */
             deskew?: boolean;
+            /** @description Find the sheet on each page that `corners` does not name, and cut it out – for photos of paper. */
+            find_corners?: boolean;
             /** @description The pages to keep, by their number from 0, in the order they are to be; none: all. */
             pages?: number[] | null;
             /** @description Quarter turns clockwise for each page, by its number from 0 (0 to 3). */
@@ -1072,6 +1101,14 @@ export interface components {
         Problem: {
             /** @description What happened, in English. */
             error: string;
+        };
+        /**
+         * @description The four corners of a sheet on a page, as shares of its width and height (0 to 1, y from the top): top left, top
+         *     right, bottom right, bottom left – each `[x, y]`.
+         */
+        QuadView: {
+            /** @description The corners. */
+            points: number[][];
         };
         /** @description A source as it was read for the catalog view. */
         ReadSource: {
@@ -2732,6 +2769,50 @@ export interface operations {
                 };
                 content: {
                     "image/png": number[];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    corners: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description the space */
+                space: string;
+                /** @description the document */
+                document: string;
+                /** @description the version, the first 1 */
+                number: number;
+                /** @description the page, the first 0 */
+                page: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CornersView"];
                 };
             };
             404: {

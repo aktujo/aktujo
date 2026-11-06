@@ -8,6 +8,7 @@
 //! or synchronisation – one document at a time, by a stamp of what was indexed; a change of [`FORMAT`] builds it
 //! anew. Nothing in it is needed to rebuild it: it is made from the events and the text kept by hash.
 
+use aktujo_store::Backend as _;
 use std::collections::BTreeMap;
 
 use aktujo_doc::{Document, Value};

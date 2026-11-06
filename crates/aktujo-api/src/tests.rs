@@ -405,6 +405,17 @@ async fn pages_are_shown_improved_and_combined() {
         StatusCode::UNPROCESSABLE_ENTITY
     );
 
+    let (status, found) = call(&router, "GET", &format!("{document}/versions/1/pages/0/corners"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(found.get("corners").is_some(), "{found}");
+    let half = json!({"corners": [{"points": [[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5]]}], "turns": [1]});
+    let preview = request("POST", &format!("{document}/improve/preview?page=0&width=800"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(half.to_string()))
+        .unwrap();
+    let shown = image::load_from_memory(&send(&router, preview).await.2).unwrap();
+    assert_eq!((shown.width(), shown.height()), (40, 30), "the top left quarter, turned");
+
     let steps = json!({"turns": [1], "colour": "grey"});
     let preview = request("POST", &format!("{document}/improve/preview?page=0&width=800"))
         .header(header::CONTENT_TYPE, "application/json")

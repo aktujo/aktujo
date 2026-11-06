@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 [package]
 name = "aktujo-store"
-description = "Local storage of the aktujo core in SQLite: events, member records, settings"
+description = "Storage of the aktujo core in SQLite or PostgreSQL: events, member records, settings"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,19 +9,22 @@ license = "MIT"
 repository.workspace = true
 homepage.workspace = true
 readme = "README.md"
-keywords = ["sqlite","event-log","local-first","storage","aktujo"]
+keywords = ["sqlite","postgresql","event-log","local-first","aktujo"]
 categories = ["database"]
 
 [dependencies]
 aktujo-base.workspace = true
 aktujo-crypt.workspace = true
 aktujo-log.workspace = true
+postgres = { workspace = true, optional = true }
 rusqlite.workspace = true
 thiserror.workspace = true
 
 [features]
 # The database encrypted as a whole: SQLCipher (BSD-3-Clause) with OpenSSL (Apache-2.0) built in, instead of SQLite.
 sqlcipher = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
+# The store in PostgreSQL for servers (`PgStore`), with the client `postgres` (MIT OR Apache-2.0).
+postgres = ["dep:postgres"]
 
 [dev-dependencies]
 serde_json.workspace = true

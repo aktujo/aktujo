@@ -24,6 +24,7 @@
   let order = $state<number[]>([]);
   let turns = $state<number[]>([]);
   let deskew = $state(false);
+  let findCorners = $state(false);
   let colour = $state<Colour>("keep");
   let crop = $state({ left: 0, top: 0, right: 0, bottom: 0 });
   let shown = $state(0);
@@ -35,6 +36,7 @@
     pages: order,
     turns,
     deskew,
+    find_corners: findCorners,
     colour,
     crop: crop.left || crop.top || crop.right || crop.bottom
       ? { left: crop.left / 100, top: crop.top / 100, right: crop.right / 100, bottom: crop.bottom / 100 }
@@ -151,6 +153,7 @@
       {/if}
 
       <h3>{t("improve.steps")}</h3>
+      <label class="check"><input type="checkbox" bind:checked={findCorners} /> {t("improve.corners")}</label>
       <label class="check"><input type="checkbox" bind:checked={deskew} /> {t("improve.deskew")}</label>
       <label>
         {t("improve.colour")}

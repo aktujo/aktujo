@@ -54,6 +54,7 @@ http-body-util = "0.1.5"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "tiff"] }
 keyring = "4.2.0"
 miniz_oxide = "0.8.9"
+postgres = "0.19.14"
 object_store = { version = "0.14.2", default-features = false }
 ratatui = "0.30.2"
 regex = "1.13.1"

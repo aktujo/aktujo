@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
-//! Local storage of the aktujo core in SQLite: the events and member records of every space a device holds, which
+//! Storage of the aktujo core, in SQLite or PostgreSQL: the events and member records of every space a device holds, which
 //! originals belong to it, its settings, and what it has sent to a relay. The bytes of originals are not here but in `aktujo-blob`.
 //!
 //! One database holds all spaces of a device, so that spaces that belong together can be written in one transaction.
 //! Every event and record is kept in its canonical encoding – the form it is hashed and passed on in. The store
-//! knows the frame of events, not their kinds; a program builds its own views on the events. OPEN: the same schema
-//! in PostgreSQL for servers.
+//! knows the frame of events, not their kinds; a program builds its own views on the events.
+//!
+//! What the core keeps is the trait [`Backend`]: [`Store`] keeps it in SQLite (a device), `PgStore` in PostgreSQL
+//! (a server; feature `postgres`), in the same schema.
 
-use std::{collections::BTreeSet, path::Path};
+use std::{collections::BTreeSet, fmt, path::Path};
 
 use aktujo_base::{Sha256Hash, SpaceId, to_root};
 use aktujo_crypt::{Domain, MemberList, MemberRecord, RecordProblem};
@@ -16,12 +18,27 @@ use aktujo_log::{EventError, Log};
 pub use rusqlite;
 use rusqlite::{Connection, OptionalExtension, params};
 
+#[cfg(feature = "postgres")]
+mod pg;
+#[cfg(feature = "postgres")]
+pub use pg::{DEFAULT_SCHEMA, PgStore};
+/// The PostgreSQL client of [`PgStore`].
+#[cfg(feature = "postgres")]
+pub use postgres;
+
 /// Why the store failed.
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
     /// The database.
     #[error("database: {0}")]
     Database(#[from] rusqlite::Error),
+    /// The database in PostgreSQL.
+    #[cfg(feature = "postgres")]
+    #[error("PostgreSQL: {0}")]
+    Postgres(#[from] postgres::Error),
+    /// A name of a schema in PostgreSQL that is not a plain one.
+    #[error("{0:?} is not a name of a schema: a–z, 0–9 and _, starting with a letter, at most 63")]
+    Schema(String),
     /// A stored event could not be read – the database was changed from outside.
     #[error("stored event of space {space}: {error}")]
     Event {
@@ -85,6 +102,55 @@ CREATE TABLE IF NOT EXISTS sent (
 ) STRICT;
 ";
 
+/// What the core keeps: the events and member records of spaces, the originals that belong to them, settings, and
+/// what was sent to a relay. [`Store`] keeps it in SQLite, `PgStore` in PostgreSQL (feature `postgres`).
+pub trait Backend: fmt::Debug + Send {
+    /// The spaces with events or member records, in order.
+    fn spaces(&self) -> Result<Vec<SpaceId>, StoreError>;
+
+    /// The log of a space: all its events.
+    fn load(&self, space: &SpaceId) -> Result<Log, StoreError>;
+
+    /// Stores the events of logs, all or none – one transaction over every space given. Events stored already are
+    /// left as they are; returns how many were new.
+    fn save(&mut self, logs: &[(&SpaceId, &Log)]) -> Result<usize, StoreError>;
+
+    /// The member records of a space, in order.
+    fn records(&self, space: &SpaceId) -> Result<Vec<MemberRecord>, StoreError>;
+
+    /// The member list of a space, every record checked again.
+    fn member_list(&self, domain: Domain, space: &SpaceId) -> Result<MemberList, StoreError> {
+        MemberList::from_records(domain, space.clone(), &self.records(space)?)
+            .map_err(|error| StoreError::Record { space: space.clone(), error: error.to_string() })
+    }
+
+    /// Applies a record to the member list of its space and stores it – only if it is the next valid one.
+    fn add_record(&mut self, domain: Domain, record: &MemberRecord) -> Result<(), StoreError>;
+
+    /// Notes that an original belongs to a space – its bytes are kept in `aktujo-blob`.
+    fn add_original(&self, space: &SpaceId, hash: &Sha256Hash) -> Result<(), StoreError>;
+
+    /// The originals that belong to a space, in order.
+    fn originals(&self, space: &SpaceId) -> Result<Vec<Sha256Hash>, StoreError>;
+
+    /// A setting of a space, or of the device when `space` is none.
+    fn setting(&self, space: Option<&SpaceId>, key: &str) -> Result<Option<String>, StoreError>;
+
+    /// Sets a setting of a space, or of the device when `space` is none.
+    fn set_setting(&self, space: Option<&SpaceId>, key: &str, value: &str) -> Result<(), StoreError>;
+
+    /// The hashes of what was sent to the relay for a space: `kind` is `event` or `original`.
+    fn sent(&self, space: &SpaceId, kind: &str) -> Result<BTreeSet<Sha256Hash>, StoreError>;
+
+    /// Notes that something was sent to the relay.
+    fn mark_sent(&self, space: &SpaceId, kind: &str, id: &Sha256Hash) -> Result<(), StoreError>;
+}
+
+/// Reads stored identities – a space's or a hash.
+fn parse<T: std::str::FromStr>(id: String) -> Result<T, StoreError> {
+    id.parse().map_err(|_| StoreError::Identity(id))
+}
+
 /// The store of a device.
 #[derive(Debug)]
 pub struct Store {
@@ -135,21 +201,17 @@ impl Store {
     pub fn connection(&self) -> &Connection {
         &self.connection
     }
+}
 
-    /// The spaces with events or member records, in order.
-    pub fn spaces(&self) -> Result<Vec<SpaceId>, StoreError> {
+impl Backend for Store {
+    fn spaces(&self) -> Result<Vec<SpaceId>, StoreError> {
         let mut statement =
             self.connection.prepare("SELECT space FROM events UNION SELECT space FROM members ORDER BY space")?;
         let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
-        rows.map(|id| {
-            let id = id?;
-            id.parse().map_err(|_| StoreError::Identity(id))
-        })
-        .collect()
+        rows.map(|id| parse(id?)).collect()
     }
 
-    /// The log of a space: all its events.
-    pub fn load(&self, space: &SpaceId) -> Result<Log, StoreError> {
+    fn load(&self, space: &SpaceId) -> Result<Log, StoreError> {
         let mut statement = self.connection.prepare("SELECT canonical FROM events WHERE space = ?1")?;
         let mut rows = statement.query(params![space.as_str()])?;
         let mut log = Log::new();
@@ -160,9 +222,7 @@ impl Store {
         Ok(log)
     }
 
-    /// Stores the events of logs, all or none – one transaction over every space given. Events stored already are
-    /// left as they are; returns how many were new.
-    pub fn save(&mut self, logs: &[(&SpaceId, &Log)]) -> Result<usize, StoreError> {
+    fn save(&mut self, logs: &[(&SpaceId, &Log)]) -> Result<usize, StoreError> {
         let transaction = self.connection.transaction()?;
         let mut new = 0;
         {
@@ -179,8 +239,7 @@ impl Store {
         Ok(new)
     }
 
-    /// The member records of a space, in order.
-    pub fn records(&self, space: &SpaceId) -> Result<Vec<MemberRecord>, StoreError> {
+    fn records(&self, space: &SpaceId) -> Result<Vec<MemberRecord>, StoreError> {
         let mut statement = self.connection.prepare("SELECT canonical FROM members WHERE space = ?1 ORDER BY seq")?;
         let rows = statement.query_map(params![space.as_str()], |row| row.get::<_, Vec<u8>>(0))?;
         rows.map(|canonical| {
@@ -190,14 +249,7 @@ impl Store {
         .collect()
     }
 
-    /// The member list of a space, every record checked again.
-    pub fn member_list(&self, domain: Domain, space: &SpaceId) -> Result<MemberList, StoreError> {
-        MemberList::from_records(domain, space.clone(), &self.records(space)?)
-            .map_err(|error| StoreError::Record { space: space.clone(), error: error.to_string() })
-    }
-
-    /// Applies a record to the member list of its space and stores it – only if it is the next valid one.
-    pub fn add_record(&mut self, domain: Domain, record: &MemberRecord) -> Result<(), StoreError> {
+    fn add_record(&mut self, domain: Domain, record: &MemberRecord) -> Result<(), StoreError> {
         let mut list = self.member_list(domain, &record.space)?;
         list.apply(record.clone())?;
         let canonical = to_root(record).expect("a record has a canonical encoding");
@@ -208,8 +260,7 @@ impl Store {
         Ok(())
     }
 
-    /// Notes that an original belongs to a space – its bytes are kept in `aktujo-blob`.
-    pub fn add_original(&self, space: &SpaceId, hash: &Sha256Hash) -> Result<(), StoreError> {
+    fn add_original(&self, space: &SpaceId, hash: &Sha256Hash) -> Result<(), StoreError> {
         self.connection.execute(
             "INSERT OR IGNORE INTO originals (space, hash) VALUES (?1, ?2)",
             params![space.as_str(), hash.to_string()],
@@ -217,19 +268,13 @@ impl Store {
         Ok(())
     }
 
-    /// The originals that belong to a space, in order.
-    pub fn originals(&self, space: &SpaceId) -> Result<Vec<Sha256Hash>, StoreError> {
+    fn originals(&self, space: &SpaceId) -> Result<Vec<Sha256Hash>, StoreError> {
         let mut statement = self.connection.prepare("SELECT hash FROM originals WHERE space = ?1 ORDER BY hash")?;
         let rows = statement.query_map(params![space.as_str()], |row| row.get::<_, String>(0))?;
-        rows.map(|id| {
-            let id = id?;
-            id.parse().map_err(|_| StoreError::Identity(id))
-        })
-        .collect()
+        rows.map(|id| parse(id?)).collect()
     }
 
-    /// A setting of a space, or of the device when `space` is none.
-    pub fn setting(&self, space: Option<&SpaceId>, key: &str) -> Result<Option<String>, StoreError> {
+    fn setting(&self, space: Option<&SpaceId>, key: &str) -> Result<Option<String>, StoreError> {
         let space = space.map_or("", SpaceId::as_str);
         let value = self
             .connection
@@ -240,8 +285,7 @@ impl Store {
         Ok(value)
     }
 
-    /// Sets a setting of a space, or of the device when `space` is none.
-    pub fn set_setting(&self, space: Option<&SpaceId>, key: &str, value: &str) -> Result<(), StoreError> {
+    fn set_setting(&self, space: Option<&SpaceId>, key: &str, value: &str) -> Result<(), StoreError> {
         let space = space.map_or("", SpaceId::as_str);
         self.connection.execute(
             "INSERT INTO settings (space, key, value) VALUES (?1, ?2, ?3)
@@ -251,19 +295,13 @@ impl Store {
         Ok(())
     }
 
-    /// The hashes of what was sent to the relay for a space: `kind` is `event` or `original`.
-    pub fn sent(&self, space: &SpaceId, kind: &str) -> Result<BTreeSet<Sha256Hash>, StoreError> {
+    fn sent(&self, space: &SpaceId, kind: &str) -> Result<BTreeSet<Sha256Hash>, StoreError> {
         let mut statement = self.connection.prepare("SELECT id FROM sent WHERE space = ?1 AND kind = ?2")?;
         let rows = statement.query_map(params![space.as_str(), kind], |row| row.get::<_, String>(0))?;
-        rows.map(|id| {
-            let id = id?;
-            id.parse().map_err(|_| StoreError::Identity(id))
-        })
-        .collect()
+        rows.map(|id| parse(id?)).collect()
     }
 
-    /// Notes that something was sent to the relay.
-    pub fn mark_sent(&self, space: &SpaceId, kind: &str, id: &Sha256Hash) -> Result<(), StoreError> {
+    fn mark_sent(&self, space: &SpaceId, kind: &str, id: &Sha256Hash) -> Result<(), StoreError> {
         self.connection.execute(
             "INSERT OR IGNORE INTO sent (space, kind, id) VALUES (?1, ?2, ?3)",
             params![space.as_str(), kind, id.to_string()],
@@ -331,7 +369,21 @@ mod tests {
 
     #[test]
     fn originals_belong_to_spaces() {
-        let store = Store::in_memory().unwrap();
+        originals(Store::in_memory().unwrap());
+    }
+
+    #[test]
+    fn member_records_are_stored_only_in_order_and_valid() {
+        members(Store::in_memory().unwrap());
+    }
+
+    #[test]
+    fn events_and_settings_are_kept_per_space() {
+        events_and_settings(Store::in_memory().unwrap());
+    }
+
+    /// Originals of a space, on any backend.
+    pub(crate) fn originals(store: impl Backend) {
         let hash = Sha256Hash::of(b"scan");
         store.add_original(&space(1), &hash).unwrap();
         store.add_original(&space(1), &hash).unwrap();
@@ -339,9 +391,8 @@ mod tests {
         assert!(store.originals(&space(2)).unwrap().is_empty());
     }
 
-    #[test]
-    fn member_records_are_stored_only_in_order_and_valid() {
-        let mut store = Store::in_memory().unwrap();
+    /// Member records of a space, on any backend.
+    pub(crate) fn members(mut store: impl Backend) {
         let domain = Domain::AKTUJO;
         let (laptop, phone) = (MemberKeys::generate(domain), MemberKeys::generate(domain));
         let device = |keys: &MemberKeys, name: &str| Member::device(keys, name.parse().unwrap(), None, Rights::Manage);
@@ -356,6 +407,33 @@ mod tests {
         assert_eq!(list.members().count(), 2);
         assert_eq!(store.spaces().unwrap(), vec![space(1)]);
         assert!(list.keys(&phone).is_ok());
+    }
+
+    /// Events, settings and what was sent, on any backend.
+    pub(crate) fn events_and_settings(mut store: impl Backend) {
+        let mut log = Log::new();
+        let mut clock = Clock::new("laptop".parse().unwrap());
+        log.append(&mut clock, 1_000, &json!({"kind": "document_added", "title": "Lease"})).unwrap();
+        log.append(&mut clock, 2_000, &json!({"kind": "label_set", "label": "home"})).unwrap();
+        let mut other = Log::new();
+        other.append(&mut clock, 3_000, &json!({"kind": "document_added", "title": "Car"})).unwrap();
+        assert_eq!(store.save(&[(&space(1), &log), (&space(2), &other)]).unwrap(), 3);
+        assert_eq!(store.save(&[(&space(1), &log)]).unwrap(), 0);
+        assert_eq!(store.spaces().unwrap(), vec![space(1), space(2)]);
+        assert_eq!(store.load(&space(1)).unwrap(), log);
+        assert_eq!(store.load(&space(2)).unwrap(), other);
+        assert!(store.load(&space(3)).unwrap().is_empty());
+        store.set_setting(Some(&space(1)), "name", "Home").unwrap();
+        store.set_setting(Some(&space(1)), "name", "Household").unwrap();
+        store.set_setting(None, "device", "laptop").unwrap();
+        assert_eq!(store.setting(Some(&space(1)), "name").unwrap().as_deref(), Some("Household"));
+        assert_eq!(store.setting(None, "name").unwrap(), None);
+        assert_eq!(store.setting(None, "device").unwrap().as_deref(), Some("laptop"));
+        let first = *log.hashes().next().unwrap();
+        store.mark_sent(&space(1), "event", &first).unwrap();
+        store.mark_sent(&space(1), "event", &first).unwrap();
+        assert_eq!(store.sent(&space(1), "event").unwrap(), BTreeSet::from([first]));
+        assert!(store.sent(&space(1), "original").unwrap().is_empty());
     }
 
     #[test]

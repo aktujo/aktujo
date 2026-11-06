@@ -88,7 +88,8 @@ Decided by the maintainer on 2026-11-05.
    written.
 5. **Improving writes a new version.** The tools for images are a crate of their own, `aktujo-scan` – MIT like the
    document crates, pure Rust, no I/O – so that apps and other programs can use them: rotate, crop, deskew, black and
-   white, greyscale. Edges and perspective come after 0.1, when the camera of the mobile app needs them.
+   white, greyscale. Edges and perspective come after 0.1, when the camera of the mobile app needs them – done
+   2026-11-06: `find_corners`, `unwarp`, `Improve::corners` and `Improve::find_corners`.
    Built so (2026-11-06): `aktujo-scan` renders a PDF's pages (hayro) or decodes an image, and per page turns by
    quarters, straightens by the skew of the text (moved here from `aktujo-extract`, which uses it for OCR), cuts a
    share of each side away and makes it grey or black and white (by the light around each pixel, so that shadows of a

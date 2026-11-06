@@ -18,7 +18,7 @@ use crate::{ApiError, DocumentView, Language, Problem, Shared, document_view, id
 
 /// The description of these routes, merged into the API's.
 #[derive(Debug, OpenApi)]
-#[openapi(paths(pages, page, preview, improve, combine))]
+#[openapi(paths(pages, page, corners, preview, improve, combine))]
 pub(crate) struct ScanDoc;
 
 /// These routes on `api`.
@@ -26,6 +26,7 @@ pub(crate) fn routes(api: Router<Shared>) -> Router<Shared> {
     let document = "/spaces/{space}/documents/{document}";
     api.route(&format!("{document}/versions/{{number}}/pages"), get(pages))
         .route(&format!("{document}/versions/{{number}}/pages/{{page}}"), get(page))
+        .route(&format!("{document}/versions/{{number}}/pages/{{page}}/corners"), get(corners))
         .route(&format!("{document}/improve/preview"), post(preview))
         .route(&format!("{document}/improve"), post(improve))
         .route("/spaces/{space}/combine", post(combine))
@@ -61,12 +62,35 @@ pub struct CropView {
     pub bottom: f32,
 }
 
-/// How pages are improved – in this order: chosen, turned, straightened, cropped, coloured.
+/// The four corners of a sheet on a page, as shares of its width and height (0 to 1, y from the top): top left, top
+/// right, bottom right, bottom left – each `[x, y]`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct QuadView {
+    /// The corners.
+    pub points: [[f32; 2]; 4],
+}
+
+/// The corners of the sheet found on a page, if one stands out.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CornersView {
+    /// The corners; none if the page fills the picture already or no sheet stands out.
+    pub corners: Option<QuadView>,
+}
+
+/// How pages are improved – in this order: chosen, the sheet cut out, turned, straightened, cropped, coloured.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ImproveView {
     /// The pages to keep, by their number from 0, in the order they are to be; none: all.
     #[serde(default)]
     pub pages: Option<Vec<usize>>,
+    /// The corners of the sheet on each page, by its number from 0, before turning: the sheet is cut out along them
+    /// and its perspective corrected; a page not named, or named with none, is left as it is – or its corners are
+    /// found, with `find_corners`.
+    #[serde(default)]
+    pub corners: Vec<Option<QuadView>>,
+    /// Find the sheet on each page that `corners` does not name, and cut it out – for photos of paper.
+    #[serde(default)]
+    pub find_corners: bool,
     /// Quarter turns clockwise for each page, by its number from 0 (0 to 3).
     #[serde(default)]
     pub turns: Vec<u8>,
@@ -172,6 +196,20 @@ async fn page(
 ) -> Result<Response, ApiError> {
     let file = file_of(&shared, &s, &d, Some(number))?;
     Ok(png(work(move || aktujo_sdk::page_png(&file, page, width.width)).await?))
+}
+
+/// The corners of the sheet of paper on a page of a version – a photo, say – to show and move them.
+#[utoipa::path(get, path = "/api/v1/spaces/{space}/documents/{document}/versions/{number}/pages/{page}/corners",
+    params(("space" = String, Path, description = "the space"), ("document" = String, Path, description = "the document"),
+        ("number" = usize, Path, description = "the version, the first 1"), ("page" = usize, Path, description = "the page, the first 0")),
+    responses((status = 200, body = CornersView), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn corners(
+    State(shared): State<Shared>,
+    Path((s, d, number, page)): Path<(String, String, usize, usize)>,
+) -> Result<Json<CornersView>, ApiError> {
+    let file = file_of(&shared, &s, &d, Some(number))?;
+    let found = work(move || aktujo_sdk::find_corners(&file, page)).await?;
+    Ok(Json(CornersView { corners: found.map(|quad| QuadView { points: quad.points }) }))
 }
 
 /// A page of what improving the newest version would make, as a PNG – nothing is written.

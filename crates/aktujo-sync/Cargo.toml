@@ -26,6 +26,8 @@ ureq.workspace = true
 
 [dev-dependencies]
 aktujo-relay.workspace = true
+# A server's replica in PostgreSQL (tests/end_to_end.rs, with AKTUJO_TEST_POSTGRES).
+aktujo-store = { workspace = true, features = ["postgres"] }
 tokio.workspace = true
 
 [lints]

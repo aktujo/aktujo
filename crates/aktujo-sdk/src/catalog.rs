@@ -6,6 +6,7 @@
 //! Fetching runs without the workspace ([`fetch_catalog`], [`fetch_template`]), so that a slow source never holds it;
 //! what was fetched is then planned and applied in the workspace ([`Workspace::plan`], [`Workspace::apply`]).
 
+use aktujo_store::Backend as _;
 use std::{collections::BTreeMap, io::Read, time::Duration};
 
 use aktujo_base::Sha256Hash;
@@ -546,7 +547,8 @@ mod tests {
         let space = workspace.found_space("Home").unwrap();
         let first = file(&[letter()]);
         assert_eq!(workspace.import_file(&space, &first).unwrap(), 1);
-        let remembered = workspace.view(&space).unwrap().kinds.template("letter").cloned().unwrap();
+        let remembered = workspace.kind_template(&space, "letter").unwrap().cloned().unwrap();
+        assert_eq!(workspace.kind_template(&space, "nothing").unwrap(), None);
         assert_eq!((remembered.source, remembered.sha256), (None, Sha256Hash::of(&first)));
 
         // A person renames the kind; the template gets a new field.

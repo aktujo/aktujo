@@ -13,6 +13,7 @@
 //! where it is (the default) or moved into the folder `added` inside the watched one, in the subfolder it was in –
 //! nothing is deleted.
 
+use aktujo_store::Backend as _;
 use std::{
     collections::BTreeMap,
     fs,

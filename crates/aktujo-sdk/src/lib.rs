@@ -12,6 +12,7 @@
 //! in the same database. Text is read in the background ([`Worker`]): with OCR and its models built
 //! in, with the feature `ocr`; without it, from text layers only (`aktujo-minimal`).
 
+use aktujo_store::Backend as _;
 use std::{
     collections::BTreeMap,
     fs, io,
@@ -23,8 +24,7 @@ use aktujo_blob::{BlobError, Blobs, MemoryBlobs};
 use aktujo_core::{DomainError, SPACE_KINDS, SpaceEvent, device_name, label, space_name, title, title_of_file};
 use aktujo_crypt::{Domain, RecoveryCode};
 use aktujo_doc::{
-    DocumentEvent, Documents, KindError, KindEvent, KindSkipped, Kinds, Origin, Original, Skipped, TemplateRef,
-    ValueError,
+    DocumentEvent, Documents, KindError, KindEvent, KindSkipped, Kinds, Origin, Original, Skipped, ValueError,
 };
 use aktujo_log::DeviceId;
 use aktujo_store::Store as EventStore;
@@ -49,7 +49,7 @@ pub use aktujo_base::{Sha256Hash, SpaceId};
 pub use aktujo_core::kind_id;
 pub use aktujo_crypt::{Member, MemberRole, Rights};
 pub use aktujo_doc::{
-    Conflict, Document, DocumentId, FieldDef, FieldType, Find, Kind, Reading, Value, Version, Weighted,
+    Conflict, Document, DocumentId, FieldDef, FieldType, Find, Kind, Reading, TemplateRef, Value, Version, Weighted,
 };
 pub use aktujo_extract::{Extraction, Line, Method, Page};
 pub use aktujo_sync::SyncReport;
@@ -61,7 +61,8 @@ pub use exporting::{Exported, Folder, Sink, Zip, export, export_name};
 pub use importing::{Files, FolderFiles, Imported, ZipFiles, import, import_error};
 #[cfg(feature = "scan")]
 pub use improving::{
-    Colour, Crop, Improve, ScanError, VersionFile, combined, improved, page_count, page_png, preview_png,
+    Colour, Crop, Improve, Quad, ScanError, VersionFile, combined, find_corners, improved, page_count, page_png,
+    preview_png,
 };
 #[cfg(feature = "system-keys")]
 pub use keys::SystemKeys;
@@ -426,6 +427,12 @@ impl Workspace {
     /// The kind `id` of a space.
     pub fn kind(&self, space: &SpaceId, id: &str) -> Result<&Kind, AppError> {
         self.view(space)?.kinds.get(id).ok_or_else(|| AppError::NotFound(format!("no kind {id:?}")))
+    }
+
+    /// The template the kind `id` of a space was taken from – its source, its ID there, the SHA-256 of its file and
+    /// the kind as the template defines it – or none for a kind defined in the space.
+    pub fn kind_template(&self, space: &SpaceId, id: &str) -> Result<Option<&TemplateRef>, AppError> {
+        Ok(self.view(space)?.kinds.template(id))
     }
 
     /// Adds a kind with a name and no fields; its identity is made from the name. Returns the identity.

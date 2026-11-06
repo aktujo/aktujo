@@ -60,6 +60,13 @@ jobs:
       - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets --all-features
+      # The store in PostgreSQL (aktujo-store, aktujo-sync): tested against the PostgreSQL the Linux runner brings.
+      - if: runner.os == 'Linux'
+        name: PostgreSQL for the tests
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres psql -c "CREATE USER aktujo PASSWORD 'aktujo'" -c "CREATE DATABASE aktujo_test OWNER aktujo"
+          echo "AKTUJO_TEST_POSTGRES=postgres://aktujo:aktujo@localhost/aktujo_test" >> "$GITHUB_ENV"
       - run: cargo test --locked --all-features
       - name: aktujo-minimal – without scanning and OCR
         run: |

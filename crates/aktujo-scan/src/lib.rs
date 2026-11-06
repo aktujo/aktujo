@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-//! Improving scanned pages and photos of paper: turning a page by quarters, cropping, straightening a page scanned at
-//! an angle (deskew), greyscale and black and white – and writing the pages again, one as an image, several as a PDF.
+//! Improving scanned pages and photos of paper: finding the sheet in a photo and correcting its perspective, turning a
+//! page by quarters, cropping, straightening a page scanned at an angle (deskew), greyscale and black and white – and writing the pages again, one as an image, several as a PDF.
 //! Pure Rust, no I/O: bytes in, bytes out, so that it runs on servers, desktops, in WebAssembly and in mobile apps
 //! (`docs/rfc/0004-archive-0.1.md`, decision 5).
 //!
@@ -11,8 +11,10 @@ use image::{DynamicImage, GrayImage, ImageFormat, Luma, RgbImage};
 use serde::{Deserialize, Serialize};
 
 mod pdf;
+mod perspective;
 mod skew;
 
+pub use perspective::{Quad, find_corners, unwarp};
 pub use skew::{rotate, skew, straighten};
 
 /// The media types of images this crate reads.
@@ -202,6 +204,15 @@ pub struct Improve {
     /// The pages to keep, by their number from 0, in the order they are to be; none: all, as they are.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<Vec<usize>>,
+    /// The corners of the sheet on each page, by its number from 0, on the page as it is (before turning): the sheet
+    /// is cut out along them and its perspective corrected. A page not named, or named with none, is left as it is
+    /// – or its corners are found, with `find_corners`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub corners: Vec<Option<Quad>>,
+    /// Find the sheet on each page that `corners` does not name, and cut it out with its perspective corrected – for
+    /// photos of paper.
+    #[serde(default)]
+    pub find_corners: bool,
     /// Quarter turns clockwise for each page, by its number from 0 (0 to 3); a page not named is not turned.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub turns: Vec<u8>,
@@ -237,9 +248,17 @@ pub fn crop(image: &RgbImage, crop: Crop) -> RgbImage {
     image::imageops::crop_imm(image, left, top, width, height).to_image()
 }
 
-/// One page improved: turned by `quarters`, straightened, cropped, its colours changed – in that order.
-pub fn improve_page(page: &Page, quarters: u8, improve: &Improve) -> Page {
-    let mut image = turn(&page.image, quarters);
+/// The page with the number `index` (from 0) improved as `improve` says: the sheet cut out with its perspective
+/// corrected, turned, straightened, cropped, its colours changed – in that order.
+pub fn improve_page(page: &Page, index: usize, improve: &Improve) -> Page {
+    let corners = match improve.corners.get(index).copied().flatten() {
+        Some(quad) => quad.is_valid().then_some(quad),
+        None if improve.find_corners => find_corners(&page.image),
+        None => None,
+    };
+    let flat = corners.map(|quad| unwarp(&page.image, &quad));
+    let quarters = improve.turns.get(index).copied().unwrap_or(0);
+    let mut image = turn(flat.as_ref().unwrap_or(&page.image), quarters);
     if improve.deskew {
         let angle = skew(&grey(&image));
         if angle.abs() >= skew::STEP {
@@ -267,7 +286,7 @@ pub fn improve(pages: &[Page], improve: &Improve) -> Result<Vec<Page>, ScanError
         .into_iter()
         .map(|i| {
             let page = pages.get(i).ok_or(ScanError::NoPage(i))?;
-            Ok(improve_page(page, improve.turns.get(i).copied().unwrap_or(0), improve))
+            Ok(improve_page(page, i, improve))
         })
         .collect()
 }

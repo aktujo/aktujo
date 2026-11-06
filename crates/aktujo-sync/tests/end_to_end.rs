@@ -34,7 +34,7 @@ fn replica(device: &str) -> Replica {
     Replica::open(D, device.parse().unwrap(), Store::in_memory().unwrap(), Arc::new(MemoryBlobs::new())).unwrap()
 }
 
-fn titles(replica: &Replica, space: &aktujo_base::SpaceId) -> Vec<String> {
+fn titles<S: aktujo_store::Backend>(replica: &Replica<S>, space: &aktujo_base::SpaceId) -> Vec<String> {
     let log = replica.log(space).unwrap();
     log.ordered().iter().filter_map(|(_, e)| e.members.get("title")?.as_str().map(str::to_owned)).collect()
 }
@@ -85,4 +85,40 @@ fn two_devices_a_relay_a_removal_and_a_recovery() {
     let mut members: Vec<_> = tablet.members(&space).unwrap().into_iter().filter_map(|m| m.name).collect();
     members.sort();
     assert_eq!(members, ["Laptop", "Recovery code", "Tablet"]);
+}
+
+/// A server's replica keeps its spaces in PostgreSQL – named by `AKTUJO_TEST_POSTGRES` (a URL); without it, this test
+/// passes without doing anything.
+#[test]
+fn a_server_in_postgresql_syncs_with_a_device() {
+    let Ok(database) = std::env::var("AKTUJO_TEST_POSTGRES") else { return };
+    let schema = format!("test_sync_{}", std::process::id());
+    let url = relay("postgres");
+    let mut laptop = replica("laptop");
+    let space = laptop.new_space();
+    laptop.write(&space, &json!({"kind": "document_added", "title": "Lease"})).unwrap();
+    laptop.start_sync(&space, &url, Some("Laptop")).unwrap();
+    let invitation = laptop.invite(&space, Rights::Manage).unwrap();
+
+    let server = |name: &str| {
+        let store = aktujo_store::PgStore::connect_in(&database, &schema).unwrap();
+        Replica::open(D, name.parse().unwrap(), store, Arc::new(MemoryBlobs::new())).unwrap()
+    };
+    let mut backend = server("backend");
+    assert_eq!(backend.join(&invitation, Some("Server")).unwrap(), space);
+    assert!(backend.sync(&space).unwrap().waiting);
+    laptop.sync(&space).unwrap();
+    backend.sync(&space).unwrap();
+    backend.write(&space, &json!({"kind": "document_added", "title": "Invoice"})).unwrap();
+    backend.sync(&space).unwrap();
+    laptop.sync(&space).unwrap();
+    assert_eq!(titles(&laptop, &space).len(), 2);
+
+    // A server started again finds everything in the database.
+    drop(backend);
+    let again = server("backend");
+    assert_eq!(again.log(&space).unwrap().state(), laptop.log(&space).unwrap().state());
+
+    let mut client = aktujo_store::postgres::Client::connect(&database, aktujo_store::postgres::NoTls).unwrap();
+    client.batch_execute(&format!("DROP SCHEMA {schema} CASCADE")).unwrap();
 }

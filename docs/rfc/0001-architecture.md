@@ -77,7 +77,8 @@ compile time (sqlx) stay possible.
   at rest is the program's choice: an envelope (`aktujo-crypt`) is stored like any original.
 - **Events and member records** are stored in SQLite, one database per device holding all its spaces, so that
   spaces that belong together can be written in one transaction.
-- OPEN: PostgreSQL for servers, with the same schema; the backend for kernoid.
+- **PostgreSQL** for servers, with the same schema in a schema of its own (`aktujo-store`, feature `postgres`,
+  `PgStore` behind the trait `Backend`; 2026-11-06). OPEN: the backend for kernoid.
 
 ## Version 0.1.0 of the core
 
@@ -89,7 +90,7 @@ commit, the documentation is built, and the crates are published.
 
 ## Open points
 
-- OPEN: the backend kernoid of `aktujo-blob`, PostgreSQL of `aktujo-store`.
+- OPEN: the backend kernoid of `aktujo-blob`; TLS from `aktujo-store` to PostgreSQL.
 - OPEN: originals larger than the relay's limit of a request (64 MiB) – sent in parts.
 - OPEN: direct sync between devices (`aktujo-p2p`), transport and reaching devices behind NAT.
 - OPEN: where a device keeps its seed – beside the data or in the key store of the operating system.

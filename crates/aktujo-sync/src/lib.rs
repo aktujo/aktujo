@@ -23,7 +23,7 @@ use aktujo_crypt::{
     MemberRecord, MemberRole, RecoveryCode, Rights, SpaceKey, request_signature,
 };
 use aktujo_log::{Clock, DeviceId, EventError, EventHash, Log};
-use aktujo_store::{Store, StoreError};
+use aktujo_store::{Backend, Store, StoreError};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
@@ -246,24 +246,25 @@ fn current_key(list: &MemberList, keys: &MemberKeys) -> Result<SpaceKey, SyncErr
     list.keys(keys)?.remove(&index).ok_or_else(|| state_error("no current key for this device"))
 }
 
-/// What one device holds: its spaces, their originals and its clock – and how it synchronises them.
-pub struct Replica {
+/// What one device holds: its spaces, their originals and its clock – and how it synchronises them. The store is
+/// SQLite ([`Store`]) on a device, or any other [`Backend`] – PostgreSQL on a server (`aktujo_store::PgStore`).
+pub struct Replica<S: Backend = Store> {
     domain: Domain,
     device: DeviceId,
-    store: Store,
+    store: S,
     blobs: Arc<dyn Blobs>,
     clock: Clock,
 }
 
-impl std::fmt::Debug for Replica {
+impl<S: Backend> std::fmt::Debug for Replica<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Replica").field("domain", &self.domain).field("device", &self.device).finish_non_exhaustive()
     }
 }
 
-impl Replica {
+impl<S: Backend> Replica<S> {
     /// The replica of the device `device` on a store and a store of originals; its clock observes every event held.
-    pub fn open(domain: Domain, device: DeviceId, store: Store, blobs: Arc<dyn Blobs>) -> Result<Self, SyncError> {
+    pub fn open(domain: Domain, device: DeviceId, store: S, blobs: Arc<dyn Blobs>) -> Result<Self, SyncError> {
         let mut clock = Clock::new(device.clone());
         for space in store.spaces()? {
             if let Some(latest) = store.load(&space)?.latest() {
@@ -279,7 +280,7 @@ impl Replica {
     }
 
     /// The store, for the program's own reads – settings and the like.
-    pub fn store(&self) -> &Store {
+    pub fn store(&self) -> &S {
         &self.store
     }
 

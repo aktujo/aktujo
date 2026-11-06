@@ -1919,6 +1919,82 @@
         }
       }
     },
+    "/api/v1/spaces/{space}/documents/{document}/versions/{number}/pages/{page}/corners": {
+      "get": {
+        "tags": [],
+        "summary": "The corners of the sheet of paper on a page of a version – a photo, say – to show and move them.",
+        "operationId": "corners",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "path",
+            "description": "the space",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "description": "the document",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "description": "the version, the first 1",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "description": "the page, the first 0",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CornersView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{space}/export": {
       "get": {
         "tags": [],
@@ -2859,6 +2935,23 @@
           }
         }
       },
+      "CornersView": {
+        "type": "object",
+        "description": "The corners of the sheet found on a page, if one stands out.",
+        "properties": {
+          "corners": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuadView",
+                "description": "The corners; none if the page fills the picture already or no sheet stands out."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "CropView": {
         "type": "object",
         "description": "What is cut away from each side, as a share of the page (0 to 0.45 each).",
@@ -3254,11 +3347,25 @@
       },
       "ImproveView": {
         "type": "object",
-        "description": "How pages are improved – in this order: chosen, turned, straightened, cropped, coloured.",
+        "description": "How pages are improved – in this order: chosen, the sheet cut out, turned, straightened, cropped, coloured.",
         "properties": {
           "colour": {
             "$ref": "#/components/schemas/ColourView",
             "description": "What becomes of the colours."
+          },
+          "corners": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/QuadView"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "The corners of the sheet on each page, by its number from 0, before turning: the sheet is cut out along them\nand its perspective corrected; a page not named, or named with none, is left as it is – or its corners are\nfound, with `find_corners`."
           },
           "crop": {
             "oneOf": [
@@ -3274,6 +3381,10 @@
           "deskew": {
             "type": "boolean",
             "description": "Straighten each page by the skew of its text."
+          },
+          "find_corners": {
+            "type": "boolean",
+            "description": "Find the sheet on each page that `corners` does not name, and cut it out – for photos of paper."
           },
           "pages": {
             "type": [
@@ -3713,6 +3824,26 @@
           "error": {
             "type": "string",
             "description": "What happened, in English."
+          }
+        }
+      },
+      "QuadView": {
+        "type": "object",
+        "description": "The four corners of a sheet on a page, as shares of its width and height (0 to 1, y from the top): top left, top\nright, bottom right, bottom left – each `[x, y]`.",
+        "required": [
+          "points"
+        ],
+        "properties": {
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "description": "The corners."
           }
         }
       },

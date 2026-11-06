@@ -807,11 +807,13 @@ impl App {
     }
 
     /// The lines that describe the sync of the chosen space and its members.
-    /// Improves the newest version of the chosen document by letters: `d` straighten, `g` grey, `s` black and
+    /// Improves the newest version of the chosen document by letters: `p` find the sheet and correct its
+    /// perspective, `d` straighten, `g` grey, `s` black and
     /// white, each `r` a quarter turn of every page clockwise.
     #[cfg(feature = "scan")]
     fn improve(&mut self, letters: &str) {
         let improve = aktujo_sdk::Improve {
+            find_corners: letters.contains('p'),
             deskew: letters.contains('d'),
             colour: if letters.contains('s') {
                 aktujo_sdk::Colour::BlackWhite
