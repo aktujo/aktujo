@@ -25,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 use utoipa::OpenApi;
 
-use aktujo_app::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Syncer, Worker, Workspace};
+use aktujo_app::{AppError, DocumentId, NewFile, ReadState, Reader, SpaceId, Syncer, Watcher, Worker, Workspace};
 
 mod views;
 
@@ -56,6 +56,10 @@ pub const UPLOAD_MAX: usize = 256 * 1024 * 1024;
         catalog,
         plan_template,
         take_template,
+        watches,
+        add_watch,
+        switch_watch,
+        remove_watch,
         search,
         add_document,
         document,
@@ -95,7 +99,9 @@ pub struct ApiError(StatusCode, String);
 impl From<AppError> for ApiError {
     fn from(error: AppError) -> Self {
         let status = match &error {
-            AppError::Invalid(_) | AppError::Value(_) | AppError::Kind(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::Invalid(_) | AppError::Value(_) | AppError::Kind(_) | AppError::Watch(_) => {
+                StatusCode::UNPROCESSABLE_ENTITY
+            }
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::NotAllowed(_) => StatusCode::FORBIDDEN,
             AppError::Sync(_) | AppError::Catalog(_) => StatusCode::BAD_GATEWAY,
@@ -127,6 +133,8 @@ pub struct Background {
     pub worker: Option<Arc<Worker>>,
     /// Synchronising, woken after every change.
     pub syncer: Option<Arc<Syncer>>,
+    /// Looking at the watched folders, woken when one is added or switched on.
+    pub watcher: Option<Arc<Watcher>>,
     /// Whether the reader uses OCR.
     pub ocr: bool,
 }
@@ -155,6 +163,13 @@ impl Shared {
     }
 
     /// Synchronises what changed.
+    /// Looks at the watched folders now.
+    fn look(&self) {
+        if let Some(watcher) = &self.background.watcher {
+            watcher.wake();
+        }
+    }
+
     fn changed(&self) {
         if let Some(syncer) = &self.background.syncer {
             syncer.wake();
@@ -511,6 +526,59 @@ async fn take_template(
     };
     shared.changed();
     Ok(Json(Imported { changed }))
+}
+
+fn watch_views(workspace: &Workspace) -> Result<Vec<WatchView>, ApiError> {
+    Ok(workspace
+        .watches()?
+        .into_iter()
+        .map(|watch| {
+            let watched = workspace.watched(&watch.space, &watch.folder).cloned();
+            WatchView::of(watch, watched)
+        })
+        .collect())
+}
+
+/// The watched folders of this device: whose new files go into which space, and how the last look went.
+#[utoipa::path(get, path = "/api/v1/watches", responses((status = 200, body = Vec<WatchView>)))]
+async fn watches(State(shared): State<Shared>) -> Answer<Vec<WatchView>> {
+    Ok(Json(watch_views(&shared.lock())?))
+}
+
+/// Watches a folder of this device for a space: its new files are taken in on their own.
+#[utoipa::path(post, path = "/api/v1/watches", request_body = NewWatch,
+    responses((status = 200, body = Vec<WatchView>), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)))]
+async fn add_watch(State(shared): State<Shared>, Json(new): Json<NewWatch>) -> Answer<Vec<WatchView>> {
+    let views = {
+        let mut workspace = shared.lock();
+        workspace.add_watch(&space(&new.space)?, std::path::Path::new(new.folder.trim()), new.after.into())?;
+        watch_views(&workspace)?
+    };
+    shared.look();
+    Ok(Json(views))
+}
+
+/// Switches a watched folder on or off, and sets what happens to a file once it was taken.
+#[utoipa::path(put, path = "/api/v1/watches", request_body = WatchSwitch,
+    responses((status = 200, body = Vec<WatchView>), (status = 404, body = Problem)))]
+async fn switch_watch(State(shared): State<Shared>, Json(switch): Json<WatchSwitch>) -> Answer<Vec<WatchView>> {
+    let views = {
+        let mut workspace = shared.lock();
+        let folder = std::path::Path::new(&switch.folder);
+        workspace.set_watch(&space(&switch.space)?, folder, switch.on, switch.after.into())?;
+        watch_views(&workspace)?
+    };
+    shared.look();
+    Ok(Json(views))
+}
+
+/// Stops watching a folder; its files and what was taken from it stay.
+#[utoipa::path(delete, path = "/api/v1/watches", params(WatchQuery),
+    responses((status = 200, body = Vec<WatchView>), (status = 404, body = Problem)))]
+async fn remove_watch(State(shared): State<Shared>, Query(query): Query<WatchQuery>) -> Answer<Vec<WatchView>> {
+    let mut workspace = shared.lock();
+    workspace.remove_watch(&space(&query.space)?, std::path::Path::new(&query.folder))?;
+    Ok(Json(watch_views(&workspace)?))
 }
 
 /// Finds documents: with words, the best hits first; without, the newest first.
@@ -980,6 +1048,7 @@ pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Route
         .route("/spaces/{space}/catalog", get(catalog))
         .route("/spaces/{space}/catalog/plan", post(plan_template))
         .route("/spaces/{space}/catalog/take", post(take_template))
+        .route("/watches", get(watches).post(add_watch).put(switch_watch).delete(remove_watch))
         .route("/spaces/{space}/kinds/{kind}", put(define_kind).delete(remove_kind))
         .route("/search", post(search))
         .route("/spaces/{space}/documents", post(add_document))

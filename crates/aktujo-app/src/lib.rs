@@ -41,6 +41,7 @@ mod reading;
 mod sealed;
 mod search;
 mod syncing;
+mod watching;
 
 pub use aktujo_base::{Sha256Hash, SpaceId};
 pub use aktujo_crypt::{Member, MemberRole, Rights};
@@ -58,6 +59,7 @@ pub use reading::{Job, ReadState, Reader, Worker, read_all};
 pub use sealed::SealedBlobs;
 pub use search::{Bin, Hit, Part, Search, date_of};
 pub use syncing::Syncer;
+pub use watching::{ADDED, After, Looks, Watch, Watched, Watcher, look, media_type_of};
 
 /// The database of a data folder.
 const DATABASE: &str = "aktujo.sqlite";
@@ -98,6 +100,9 @@ pub enum AppError {
     /// A catalog of templates: not reachable, not readable, or not what it claims.
     #[error("catalog: {0}")]
     Catalog(String),
+    /// A folder to watch that is not one of this device.
+    #[error("{0}")]
+    Watch(String),
     /// The database of the data folder.
     #[error(transparent)]
     Database(#[from] aktujo_store::StoreError),
@@ -213,6 +218,8 @@ pub struct Workspace {
     reading: Option<(SpaceId, DocumentId)>,
     /// How the last synchronisation of each space went.
     synced: BTreeMap<SpaceId, Synced>,
+    /// How the last look at each watched folder went.
+    watched: BTreeMap<(SpaceId, std::path::PathBuf), Watched>,
 }
 
 impl Default for Workspace {
@@ -281,8 +288,15 @@ impl Workspace {
     }
 
     fn on(replica: Replica) -> Result<Self, AppError> {
-        let mut workspace = Workspace { replica, views: BTreeMap::new(), reading: None, synced: BTreeMap::new() };
+        let mut workspace = Workspace {
+            replica,
+            views: BTreeMap::new(),
+            reading: None,
+            synced: BTreeMap::new(),
+            watched: BTreeMap::new(),
+        };
         search::prepare(&workspace)?;
+        watching::prepare(&workspace)?;
         for space in workspace.replica.spaces()? {
             workspace.refresh(&space)?;
         }

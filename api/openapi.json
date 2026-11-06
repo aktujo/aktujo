@@ -2081,6 +2081,169 @@
           }
         }
       }
+    },
+    "/api/v1/watches": {
+      "get": {
+        "tags": [],
+        "summary": "The watched folders of this device: whose new files go into which space, and how the last look went.",
+        "operationId": "watches",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WatchView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [],
+        "summary": "Switches a watched folder on or off, and sets what happens to a file once it was taken.",
+        "operationId": "switch_watch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchSwitch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WatchView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [],
+        "summary": "Watches a folder of this device for a space: its new files are taken in on their own.",
+        "operationId": "add_watch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewWatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WatchView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Stops watching a folder; its files and what was taken from it stay.",
+        "operationId": "remove_watch",
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "The space.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "description": "The folder, as it is listed.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WatchView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2102,6 +2265,14 @@
             "description": "Whether it is new – false if the same bytes were in the space already."
           }
         }
+      },
+      "AfterView": {
+        "type": "string",
+        "description": "What happens to a file of a watched folder once it was taken.",
+        "enum": [
+          "leave",
+          "move"
+        ]
       },
       "BinView": {
         "type": "string",
@@ -2778,6 +2949,28 @@
           "url": {
             "type": "string",
             "description": "A repository on GitHub, or any HTTPS address of a folder with a `catalog.json`."
+          }
+        }
+      },
+      "NewWatch": {
+        "type": "object",
+        "description": "A folder to watch.",
+        "required": [
+          "space",
+          "folder"
+        ],
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/AfterView",
+            "description": "What happens to a file once it was taken; by default it stays."
+          },
+          "folder": {
+            "type": "string",
+            "description": "The folder, as an absolute path on this device."
+          },
+          "space": {
+            "type": "string",
+            "description": "The space its files go to."
           }
         }
       },
@@ -3625,6 +3818,83 @@
             "type": "integer",
             "format": "int64",
             "description": "The size in bytes.",
+            "minimum": 0
+          }
+        }
+      },
+      "WatchSwitch": {
+        "type": "object",
+        "description": "A watched folder switched on or off.",
+        "required": [
+          "space",
+          "folder",
+          "on"
+        ],
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/AfterView",
+            "description": "What happens to a file once it was taken."
+          },
+          "folder": {
+            "type": "string",
+            "description": "The folder, as it is listed."
+          },
+          "on": {
+            "type": "boolean",
+            "description": "Whether it is looked at."
+          },
+          "space": {
+            "type": "string",
+            "description": "The space."
+          }
+        }
+      },
+      "WatchView": {
+        "type": "object",
+        "description": "A watched folder of this device.",
+        "required": [
+          "space",
+          "folder",
+          "after",
+          "on",
+          "taken"
+        ],
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/AfterView",
+            "description": "What happens to a file once it was taken."
+          },
+          "folder": {
+            "type": "string",
+            "description": "The folder."
+          },
+          "looked_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When it was last looked at, in milliseconds since 1970, since the program started.",
+            "minimum": 0
+          },
+          "on": {
+            "type": "boolean",
+            "description": "Whether it is looked at."
+          },
+          "problem": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last look failed, if it did."
+          },
+          "space": {
+            "type": "string",
+            "description": "The space its files go to."
+          },
+          "taken": {
+            "type": "integer",
+            "description": "How many files were taken from it since the program started.",
             "minimum": 0
           }
         }

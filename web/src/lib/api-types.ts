@@ -572,6 +572,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/watches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The watched folders of this device: whose new files go into which space, and how the last look went. */
+        get: operations["watches"];
+        /** Switches a watched folder on or off, and sets what happens to a file once it was taken. */
+        put: operations["switch_watch"];
+        /** Watches a folder of this device for a space: its new files are taken in on their own. */
+        post: operations["add_watch"];
+        /** Stops watching a folder; its files and what was taken from it stay. */
+        delete: operations["remove_watch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -583,6 +603,11 @@ export interface components {
             /** @description Whether it is new – false if the same bytes were in the space already. */
             new: boolean;
         };
+        /**
+         * @description What happens to a file of a watched folder once it was taken.
+         * @enum {string}
+         */
+        AfterView: "leave" | "move";
         /**
          * @description Where in the bin to look.
          * @enum {string}
@@ -809,6 +834,15 @@ export interface components {
         NewSource: {
             /** @description A repository on GitHub, or any HTTPS address of a folder with a `catalog.json`. */
             url: string;
+        };
+        /** @description A folder to watch. */
+        NewWatch: {
+            /** @description What happens to a file once it was taken; by default it stays. */
+            after?: components["schemas"]["AfterView"];
+            /** @description The folder, as an absolute path on this device. */
+            folder: string;
+            /** @description The space its files go to. */
+            space: string;
         };
         /** @description A page of the text that was read. */
         PageText: {
@@ -1129,6 +1163,37 @@ export interface components {
              * @description The size in bytes.
              */
             size: number;
+        };
+        /** @description A watched folder switched on or off. */
+        WatchSwitch: {
+            /** @description What happens to a file once it was taken. */
+            after?: components["schemas"]["AfterView"];
+            /** @description The folder, as it is listed. */
+            folder: string;
+            /** @description Whether it is looked at. */
+            on: boolean;
+            /** @description The space. */
+            space: string;
+        };
+        /** @description A watched folder of this device. */
+        WatchView: {
+            /** @description What happens to a file once it was taken. */
+            after: components["schemas"]["AfterView"];
+            /** @description The folder. */
+            folder: string;
+            /**
+             * Format: int64
+             * @description When it was last looked at, in milliseconds since 1970, since the program started.
+             */
+            looked_at?: number | null;
+            /** @description Whether it is looked at. */
+            on: boolean;
+            /** @description Why the last look failed, if it did. */
+            problem?: string | null;
+            /** @description The space its files go to. */
+            space: string;
+            /** @description How many files were taken from it since the program started. */
+            taken: number;
         };
         /** @description A word or phrase and how much it speaks for a kind. */
         WeightedView: {
@@ -2668,6 +2733,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusView"];
+                };
+            };
+        };
+    };
+    watches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchView"][];
+                };
+            };
+        };
+    };
+    switch_watch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchSwitch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchView"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_watch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewWatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchView"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    remove_watch: {
+        parameters: {
+            query: {
+                /** @description The space. */
+                space: string;
+                /** @description The folder, as it is listed. */
+                folder: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchView"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };

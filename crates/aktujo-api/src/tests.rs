@@ -176,6 +176,7 @@ fn the_description_names_every_route() {
         "/api/v1/spaces/{space}/members/{member}",
         "/api/v1/spaces/{space}/kinds/{kind}",
         "/api/v1/spaces/{space}/kind-import",
+        "/api/v1/watches",
         "/api/v1/spaces/{space}/documents/{document}/fields/{key}",
     ] {
         assert!(description.contains(path), "{path}");
@@ -324,3 +325,39 @@ async fn templates_from_a_catalog_are_taken_and_updated() {
 }
 
 const DEFAULT: &str = aktujo_app::DEFAULT_SOURCE;
+
+#[tokio::test]
+async fn watched_folders_through_the_api() {
+    let workspace = Arc::new(Mutex::new(Workspace::in_memory("laptop").unwrap()));
+    let router = router(workspace.clone(), Background::default());
+    let (_, space) = call(&router, "POST", "/api/v1/spaces", Some(json!({"name": "Scans"}))).await;
+    let space = space["id"].as_str().unwrap().to_owned();
+    let folder = std::env::temp_dir().join(format!("aktujo-api-watch-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    let folder = folder.canonicalize().unwrap().to_string_lossy().into_owned();
+
+    let refused = call(&router, "POST", "/api/v1/watches", Some(json!({"space": space, "folder": "scans"}))).await.0;
+    assert_eq!(refused, StatusCode::UNPROCESSABLE_ENTITY, "not an absolute path");
+    let (status, watches) =
+        call(&router, "POST", "/api/v1/watches", Some(json!({"space": space, "folder": folder}))).await;
+    assert_eq!(status, StatusCode::OK, "{watches}");
+    let expected = json!([{"space": space, "folder": folder, "after": "leave", "on": true,
+        "looked_at": null, "taken": 0, "problem": null}]);
+    assert_eq!(watches, expected);
+
+    std::fs::write(std::path::Path::new(&folder).join("letter.pdf"), b"%PDF-1.7 letter").unwrap();
+    let mut looks = aktujo_app::Looks::default();
+    aktujo_app::look(&workspace, &mut looks);
+    assert_eq!(aktujo_app::look(&workspace, &mut looks), 1);
+    let (_, watches) = call(&router, "GET", "/api/v1/watches", None).await;
+    assert_eq!(watches[0]["taken"], 1);
+    assert_eq!(call(&router, "GET", "/api/v1/spaces", None).await.1[0]["documents"], 1);
+
+    let switch = json!({"space": space, "folder": folder, "on": false, "after": "move"});
+    let (_, watches) = call(&router, "PUT", "/api/v1/watches", Some(switch)).await;
+    assert_eq!((&watches[0]["on"], &watches[0]["after"]), (&json!(false), &json!("move")));
+    let query = format!("/api/v1/watches?space={space}&folder={}", folder.replace('/', "%2F"));
+    assert_eq!(call(&router, "DELETE", &query, None).await.1, json!([]));
+    std::fs::remove_dir_all(&folder).unwrap();
+}

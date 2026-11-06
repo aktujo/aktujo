@@ -27,8 +27,8 @@ use ratatui::{
 };
 
 use aktujo_app::{
-    AppError, Bin, Document, DocumentId, Entry, Kind, NewFile, ReadState, Reader, Rights, Search, SpaceInfo, Standing,
-    Syncer, TemplateOrigin, Value, Worker, Workspace, date_of,
+    After, AppError, Bin, Document, DocumentId, Entry, Kind, NewFile, ReadState, Reader, Rights, Search, SpaceInfo,
+    Standing, Syncer, TemplateOrigin, Value, Watcher, Worker, Workspace, date_of,
 };
 
 mod texts;
@@ -47,7 +47,7 @@ pub enum TuiError {
 }
 
 /// The actions at the bottom, each with its key and the key of its text – clickable as well.
-const ACTIONS: [(char, &str); 24] = [
+const ACTIONS: [(char, &str); 25] = [
     ('/', "tui.search"),
     ('a', "tui.add"),
     ('t', "tui.title"),
@@ -63,6 +63,7 @@ const ACTIONS: [(char, &str); 24] = [
     ('n', "tui.newSpace"),
     ('K', "tui.importKinds"),
     ('C', "tui.catalog"),
+    ('W', "tui.watch"),
     ('y', "tui.sync"),
     ('S', "tui.startSync"),
     ('i', "tui.invite"),
@@ -95,6 +96,7 @@ enum Prompt {
     ChooseKind,
     ImportKinds,
     TakeTemplate,
+    Watch,
 }
 
 impl Prompt {
@@ -114,6 +116,7 @@ impl Prompt {
             Prompt::ChooseKind => "tui.chooseKindPrompt",
             Prompt::ImportKinds => "tui.importKindsPrompt",
             Prompt::TakeTemplate => "tui.catalogPrompt",
+            Prompt::Watch => "tui.watchPrompt",
         }
     }
 }
@@ -135,6 +138,7 @@ pub struct App {
     workspace: Arc<Mutex<Workspace>>,
     worker: Option<Arc<Worker>>,
     syncer: Option<Arc<Syncer>>,
+    watcher: Option<Arc<Watcher>>,
     /// What the right side shows instead of the document: the sync and the members of the space, read from its relay
     /// when asked for – not at every frame.
     members: Option<Vec<Line<'static>>>,
@@ -208,6 +212,7 @@ impl App {
             workspace,
             worker,
             syncer,
+            watcher: None,
             members: None,
             templates: Vec::new(),
             titles: Reader::text_layer(),
@@ -236,6 +241,12 @@ impl App {
 
     fn lock(&self) -> MutexGuard<'_, Workspace> {
         self.workspace.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// The interface looks at the watched folders through `watcher` as soon as one is added.
+    pub fn with_watcher(mut self, watcher: Option<Arc<Watcher>>) -> Self {
+        self.watcher = watcher;
+        self
     }
 
     /// Reads the spaces and the documents of the chosen one again, keeping the selected document.
@@ -438,6 +449,23 @@ impl App {
                     w.set_kind(&s.id, &d.id, Some(&kind.id))
                 });
             }
+            Prompt::Watch => {
+                let texts = self.texts.clone();
+                self.on_space(|w, s| {
+                    let folder = text.trim();
+                    if folder.is_empty() {
+                        for watch in w.watches()?.into_iter().filter(|watch| watch.space == s.id) {
+                            w.remove_watch(&s.id, &watch.folder)?;
+                        }
+                        return Ok(texts.get("tui.watchNone"));
+                    }
+                    let folder = w.add_watch(&s.id, std::path::Path::new(folder), After::Leave)?;
+                    Ok(texts.fill("tui.watching", &[("folders", &folder.display().to_string())]))
+                });
+                if let Some(watcher) = &self.watcher {
+                    watcher.wake();
+                }
+            }
             Prompt::TakeTemplate => {
                 let chosen = text.trim().parse::<usize>().ok().and_then(|n| self.templates.get(n.wrapping_sub(1)));
                 let Some((source, entry)) = chosen.cloned() else {
@@ -551,6 +579,21 @@ impl App {
             }
             KeyCode::Char('a') => prompt(self, Prompt::Add, String::new()),
             KeyCode::Char('K') => prompt(self, Prompt::ImportKinds, String::new()),
+            KeyCode::Char('W') => {
+                let space = self.spaces.get(self.space).map(|s| s.id.clone());
+                let watched: Vec<String> = self
+                    .lock()
+                    .watches()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|w| Some(&w.space) == space.as_ref())
+                    .map(|w| w.folder.display().to_string())
+                    .collect();
+                if !watched.is_empty() {
+                    self.message = self.texts.fill("tui.watching", &[("folders", &watched.join(", "))]);
+                }
+                prompt(self, Prompt::Watch, String::new());
+            }
             KeyCode::Char('C') => {
                 // Read now, when asked – the sources of this device that are on.
                 let lines = self.catalog();
@@ -902,8 +945,9 @@ pub fn run(
     workspace: Arc<Mutex<Workspace>>,
     worker: Option<Arc<Worker>>,
     syncer: Option<Arc<Syncer>>,
+    watcher: Option<Arc<Watcher>>,
 ) -> Result<(), TuiError> {
-    let mut app = App::new(workspace, worker, syncer, Texts::from_environment());
+    let mut app = App::new(workspace, worker, syncer, Texts::from_environment()).with_watcher(watcher);
     let mut terminal = ratatui::try_init()?;
     let mut mouse = false;
     let result = (|| -> Result<(), TuiError> {

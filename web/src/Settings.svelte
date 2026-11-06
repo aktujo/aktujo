@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
-  import { api } from "./lib/api";
+  import { api, type Schemas } from "./lib/api";
   import { choose, i18n, languages, t } from "./lib/i18n.svelte";
 
   let { onclose, onjoined }: { onclose: () => void; onjoined: (space: string) => void } = $props();
@@ -15,6 +15,49 @@
   let error = $state("");
   let busy = $state(false);
   let sources = $state<{ url: string; on: boolean; default: boolean }[]>([]);
+  let watches = $state<Schemas["WatchView"][]>([]);
+  let spaces = $state<Schemas["SpaceView"][]>([]);
+  let watchSpace = $state("");
+  let watchFolder = $state("");
+  let watchMove = $state(false);
+
+  async function loadWatches() {
+    const [w, s] = await Promise.all([api.GET("/api/v1/watches"), api.GET("/api/v1/spaces")]);
+    watches = w.data ?? [];
+    spaces = s.data ?? [];
+    if (!spaces.some((sp) => sp.id === watchSpace)) watchSpace = spaces[0]?.id ?? "";
+  }
+
+  async function addWatch(event: SubmitEvent) {
+    event.preventDefault();
+    const body = { space: watchSpace, folder: watchFolder, after: watchMove ? ("move" as const) : ("leave" as const) };
+    const { data, error: problem } = await api.POST("/api/v1/watches", { body });
+    error = problem?.error ?? "";
+    if (data) {
+      watches = data;
+      watchFolder = "";
+    }
+  }
+
+  async function switchWatch(watch: Schemas["WatchView"], on: boolean, after: Schemas["AfterView"]) {
+    const body = { space: watch.space, folder: watch.folder, on, after };
+    const { data, error: problem } = await api.PUT("/api/v1/watches", { body });
+    error = problem?.error ?? "";
+    if (data) watches = data;
+  }
+
+  async function removeWatch(watch: Schemas["WatchView"]) {
+    if (!confirm(t("watch.removeConfirm", { folder: watch.folder }))) return;
+    const { data, error: problem } = await api.DELETE("/api/v1/watches", {
+      params: { query: { space: watch.space, folder: watch.folder } },
+    });
+    error = problem?.error ?? "";
+    if (data) watches = data;
+  }
+
+  function spaceName(id: string): string {
+    return spaces.find((sp) => sp.id === id)?.name ?? "…";
+  }
   let newSource = $state("");
 
   async function loadSources() {
@@ -79,6 +122,14 @@
   $effect(() => {
     load();
     loadSources();
+    loadWatches();
+  });
+
+  // How the watched folders were looked at shows as it happens.
+  $effect(() => {
+    if (!watches.some((w) => w.on)) return;
+    const timer = setInterval(loadWatches, 5000);
+    return () => clearInterval(timer);
   });
 </script>
 
@@ -119,6 +170,44 @@
     <input bind:value={code} placeholder={t("sync.code")} aria-label={t("sync.code")} required />
     <button type="submit" disabled={busy}>{t("sync.recover")}</button>
   </form>
+
+  <h2>{t("watch.title")}</h2>
+  <p class="note">{t("watch.hint")}</p>
+  {#if watches.length}
+    <ul class="versions">
+      {#each watches as watch (`${watch.space} ${watch.folder}`)}
+        <li>
+          <span class="watch">
+            <label class="check">
+              <input type="checkbox" checked={watch.on} onchange={(e) => switchWatch(watch, e.currentTarget.checked, watch.after)} />
+              <code>{watch.folder}</code> → {spaceName(watch.space)}
+            </label>
+            <span class="note">
+              {watch.after === "move" ? t("watch.move") : t("watch.leave")}
+              {#if watch.looked_at}· {t("watch.taken", { n: watch.taken, time: new Date(watch.looked_at).toLocaleTimeString() })}{/if}
+            </span>
+            {#if watch.problem}<span class="error">{watch.problem}</span>{/if}
+          </span>
+          <span class="row">
+            <button class="small" onclick={() => switchWatch(watch, watch.on, watch.after === "move" ? "leave" : "move")}>
+              {watch.after === "move" ? t("watch.toLeave") : t("watch.toMove")}
+            </button>
+            <button class="danger small" onclick={() => removeWatch(watch)}>{t("watch.remove")}</button>
+          </span>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+  {#if spaces.length}
+    <form class="stack" onsubmit={addWatch}>
+      <input bind:value={watchFolder} placeholder={t("watch.folderPlaceholder")} aria-label={t("watch.folder")} required />
+      <select bind:value={watchSpace} aria-label={t("watch.space")}>
+        {#each spaces as sp (sp.id)}<option value={sp.id}>{sp.name ?? "…"}</option>{/each}
+      </select>
+      <label class="check"><input type="checkbox" bind:checked={watchMove} /> {t("watch.moveOption")}</label>
+      <button type="submit" disabled={!watchFolder.trim() || !watchSpace}>{t("watch.add")}</button>
+    </form>
+  {/if}
 
   <h2>{t("sources.title")}</h2>
   <p class="note">{t("sources.hint")}</p>

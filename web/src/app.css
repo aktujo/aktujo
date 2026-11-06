@@ -663,3 +663,11 @@ input.wide,
   gap: 0.3rem 1rem;
   margin-top: 0.3rem;
 }
+
+/* A watched folder: the folder, then how it goes, each on a line of its own. */
+.watch {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

@@ -129,7 +129,15 @@ Decided by the maintainer on 2026-11-05.
    `LC_ALL`, `LC_MESSAGES`, `LANG`). Names of kinds and fields are data of the kind, with names in other languages
    ([0005](0005-pure-core.md)); the title offered takes the kind's name in the interface's language.
 10. **Watched folders** are part of 0.1: a folder is given per space; new files are taken in, then left where they
-    are or moved to a folder beside it (OPEN: which is the default).
+    are or moved to a folder beside it. Built so (2026-11-06): watched folders belong to the device (a setting of the
+    workspace), any number per space; `Watcher` in `aktujo-app` looks at them every 5 s while `serve` or `tui` runs –
+    no file events of the operating system, the same everywhere and on network shares. A file is taken once it stayed
+    the same between two looks (a scanner still writing is waited for); only PDF, PNG, JPEG and TIFF at the top level,
+    hidden and unfinished files (`.part`, `.tmp`, `.crdownload`, `~$…`) left alone; what was taken is remembered by
+    name, size and time of change, so it is not read again. The default is to **leave** the file where it is
+    (nothing is deleted or moved unasked); moving puts it into `added/` inside the watched folder under a free name.
+    In the web app under *Settings*, in the terminal with `W`, in the API under `/api/v1/watches`. OPEN: folders
+    inside a watched one; looking while aktujo does not run (a service of the operating system).
 11. **Installed from binaries** attached to each GitHub release, built by CI for Linux, macOS and Windows – each
     as `aktujo` and as `aktujo-minimal` (decision 6). Other ways
     (cargo install, Nix, Homebrew) later. OPEN: signing and notarising the binaries for macOS and Windows.
@@ -183,7 +191,7 @@ Decided by the maintainer on 2026-11-05.
    showing a version's pages in the app itself (today: opened in a new tab or downloaded).
 5. Sync and sharing in every interface; `aktujo relay`.
 6. Kinds as data, catalog sources and updates of templates ([0005](0005-pure-core.md); built 2026-11-06).
-7. Watched folders.
+7. Watched folders (built 2026-11-06).
 8. Improving (`aktujo-scan`).
 9. Export.
 10. Windows in CI, binaries in the release, the release 0.1.0 of the program.

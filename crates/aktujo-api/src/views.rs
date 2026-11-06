@@ -725,6 +725,98 @@ pub struct PlanView {
     pub kinds: Vec<PlannedView>,
 }
 
+/// What happens to a file of a watched folder once it was taken.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AfterView {
+    /// It stays where it is.
+    #[default]
+    Leave,
+    /// It is moved into the folder `added` inside the watched one.
+    Move,
+}
+
+impl From<AfterView> for aktujo_app::After {
+    fn from(after: AfterView) -> Self {
+        match after {
+            AfterView::Leave => aktujo_app::After::Leave,
+            AfterView::Move => aktujo_app::After::Move,
+        }
+    }
+}
+
+/// A watched folder of this device.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WatchView {
+    /// The space its files go to.
+    pub space: String,
+    /// The folder.
+    pub folder: String,
+    /// What happens to a file once it was taken.
+    pub after: AfterView,
+    /// Whether it is looked at.
+    pub on: bool,
+    /// When it was last looked at, in milliseconds since 1970, since the program started.
+    pub looked_at: Option<u64>,
+    /// How many files were taken from it since the program started.
+    pub taken: usize,
+    /// Why the last look failed, if it did.
+    pub problem: Option<String>,
+}
+
+impl WatchView {
+    /// A watched folder and how the last look at it went.
+    pub fn of(watch: aktujo_app::Watch, watched: Option<aktujo_app::Watched>) -> Self {
+        WatchView {
+            space: watch.space.to_string(),
+            folder: watch.folder.to_string_lossy().into_owned(),
+            after: match watch.after {
+                aktujo_app::After::Leave => AfterView::Leave,
+                aktujo_app::After::Move => AfterView::Move,
+            },
+            on: watch.on,
+            looked_at: watched.as_ref().map(|w| w.at),
+            taken: watched.as_ref().map_or(0, |w| w.taken),
+            problem: watched.and_then(|w| w.problem),
+        }
+    }
+}
+
+/// A folder to watch.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct NewWatch {
+    /// The space its files go to.
+    pub space: String,
+    /// The folder, as an absolute path on this device.
+    pub folder: String,
+    /// What happens to a file once it was taken; by default it stays.
+    #[serde(default)]
+    pub after: AfterView,
+}
+
+/// A watched folder switched on or off.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WatchSwitch {
+    /// The space.
+    pub space: String,
+    /// The folder, as it is listed.
+    pub folder: String,
+    /// Whether it is looked at.
+    pub on: bool,
+    /// What happens to a file once it was taken.
+    #[serde(default)]
+    pub after: AfterView,
+}
+
+/// The watched folder to stop watching.
+#[derive(Debug, Clone, Deserialize, utoipa::IntoParams)]
+pub struct WatchQuery {
+    /// The space.
+    pub space: String,
+    /// The folder, as it is listed.
+    pub folder: String,
+}
+
 /// Where in the bin to look.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]

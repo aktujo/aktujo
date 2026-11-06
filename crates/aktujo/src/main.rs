@@ -11,10 +11,12 @@ use std::{
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 
-use aktujo_app::{Reader, Syncer, SystemKeys, Worker, Workspace, default_folder};
+use aktujo_app::{Reader, Syncer, SystemKeys, Watcher, Worker, Workspace, default_folder};
 
 /// How often synchronised spaces are synchronised, besides after every change.
 const SYNC_EVERY: Duration = Duration::from_secs(60);
+/// How often the watched folders are looked at; a file is taken at the second look that finds it unchanged.
+const LOOK_EVERY: Duration = Duration::from_secs(5);
 
 /// Your documents, kept safe – end to end.
 #[derive(Debug, Parser)]
@@ -44,7 +46,10 @@ impl Data {
         let ocr = reader.ocr();
         let worker = Arc::new(Worker::start(workspace.clone(), reader));
         let syncer = Arc::new(Syncer::start(workspace.clone(), Some(worker.clone()), SYNC_EVERY));
-        Ok((workspace, aktujo_api::Background { worker: Some(worker), syncer: Some(syncer), ocr }))
+        let watcher = Arc::new(Watcher::start(workspace.clone(), Some(worker.clone()), LOOK_EVERY));
+        let background =
+            aktujo_api::Background { worker: Some(worker), syncer: Some(syncer), watcher: Some(watcher), ocr };
+        Ok((workspace, background))
     }
 
     /// The workspace alone.
@@ -161,7 +166,7 @@ fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::Tui { data } => {
             let (workspace, background) = data.open()?;
-            aktujo_tui::run(workspace, background.worker, background.syncer)?;
+            aktujo_tui::run(workspace, background.worker, background.syncer, background.watcher)?;
         }
         Command::Serve { port, data } => {
             let (workspace, background) = data.open()?;

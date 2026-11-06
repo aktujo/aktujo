@@ -32,6 +32,7 @@ Paths below are under `/api/v1`; `{space}` and `{document}` are identities, `D` 
 | GET | `/spaces/{space}/catalog` | the templates of the sources that are on, read now, each `new`, `taken` or with an `update` |
 | POST | `/spaces/{space}/catalog/plan` | what taking a template over would do: `{"source", "template"}` → each kind `new`, `same`, `replace`, `merge` (with conflicts) or `gone` |
 | POST | `/spaces/{space}/catalog/take` | takes it over: `{"source", "template", "choices": {"<kind>": "take" \| "theirs" \| "keep" \| "remove"}}` |
+| GET, POST, PUT, DELETE | `/watches` | the watched folders of this device: `{"space", "folder", "after": "leave" \| "move"}` to add, with `"on"` to switch, `?space=…&folder=…` to stop; each with how the last look went |
 | POST | `/search` | finds documents: `{"words", "spaces", "kind", "labels", "from", "to", "bin", "limit"}`, every part optional |
 | POST | `/spaces/{space}/documents?name=…` | adds a file – its bytes as the body, its media type as `Content-Type` |
 | GET | `D` | a document with its fields, versions and suggestions |
