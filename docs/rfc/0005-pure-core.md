@@ -72,6 +72,43 @@ before, in six languages), **`aktujo/library`** (book) and **`aktujo/research`**
 depth and sheet music are not general cases; they come with the programs of those trades. OPEN: browsing a catalog
 from within aktujo; today a template is imported as a file.
 
+## Catalog sources (planned)
+
+State: proposal (maintainer, 2026-11-06: aktujo shall take templates from catalogs itself and know other sources).
+When: OPEN – after Archive 0.1 unless it is taken into it.
+
+- **A source** is a place where a `catalog.json` lives, with the templates next to it at the paths it names – a
+  repository on GitHub (`https://github.com/<owner>/<repository>`, optionally `…/tree/<branch>`; read from its raw
+  files) or any HTTPS address of a folder. `aktujo/catalog` is the default source; others are added by address and
+  each is switched on or off. Sources belong to the **device** (a setting of the workspace), not to a space: which
+  catalogs a person trusts is theirs, the kinds they take over go into the space and sync as always.
+- **Only when asked.** aktujo reads a source when a person opens the catalog view or asks for it on the command line
+  – never at start, never in the background, no counting of downloads. What it read is kept for that view only.
+- **The program reads, not the browser.** `aktujo-app` fetches over HTTPS (the HTTP client the sync already uses);
+  the API and the terminal show what it found. So the web app keeps talking to its own server only, and the terminal
+  can do the same.
+- **Checked before it is shown.** `catalog.json` must have a `format` aktujo knows (a newer one: the source is shown
+  as needing a newer aktujo); a `template.json` must have the SHA-256 that `catalog.json` names for it, else it is
+  refused; then its kinds are checked like any kind (`Kind::check`).
+- **Official** is a template only when its author is `aktujo` *and* it comes from the default source – an author name
+  alone is not enough. Templates of other sources are marked as not reviewed by the aktujo team.
+- **Seen before it is taken.** Taking a template over first shows what it would do in this space: which kinds are new,
+  which would replace a kind of the same identity (with what differs), which are already the same. Only then are the
+  kinds defined (`import_kinds`, as today).
+- **Where a kind came from:** OPEN – a kind may carry its template (source, ID, SHA-256) in `kind_defined`, so that an
+  interface can offer a newer version of the template later and show what a person changed; until that is decided,
+  nothing is recorded.
+
+Interfaces, as proposed:
+
+| Where | What |
+|---|---|
+| `aktujo-app` | `sources()`, `add_source(url)`, `set_source(url, on)`, `remove_source(url)`; `catalog(url) -> Catalog`; `template(url, id) -> Template` (checked); `preview_kinds(space, kinds)` |
+| API | `GET/POST /api/v1/sources`, `PUT/DELETE /api/v1/sources/{source}`, `GET /api/v1/sources/{source}/catalog`, `GET /api/v1/sources/{source}/templates/{template}`, `POST /api/v1/spaces/{space}/kind-import/preview` |
+| Web app | *Settings → Sources*; *Kinds → From a catalog …*: the templates of all sources that are on, by tag and language, with their kinds; the preview, then *Take over* |
+| Terminal | a list of the templates of the sources that are on; Enter shows the preview, a second Enter takes over |
+| Command line | `aktujo templates [--source <url>]`, `aktujo templates take <id> --space <space>` |
+
 ## Interfaces
 
 - **API:** `GET/POST /api/v1/spaces/{space}/kinds`, `PUT/DELETE /api/v1/spaces/{space}/kinds/{kind}`,
@@ -85,7 +122,8 @@ from within aktujo; today a template is imported as a file.
 ## Open points
 
 - OPEN: updating a template already taken over – today a second import replaces kinds of the same identity, also
-  the changes a person made to them.
+  the changes a person made to them (see *Where a kind came from* above).
+- OPEN: catalog sources – when, and whether the default source can be switched off for good (above).
 - OPEN: plugins – code behind `Recogniser` added to an installed aktujo (WebAssembly?), and the rules of app stores
   for it ([0003](0003-recognition.md)).
 - OPEN: the date order (`day_first`, `month_first`) per space; today the program reads slashed dates only where they
