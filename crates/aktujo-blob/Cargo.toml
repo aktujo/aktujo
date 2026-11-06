@@ -12,6 +12,10 @@ readme = "README.md"
 keywords = ["content-addressed","storage","s3","sha256","aktujo"]
 categories = ["filesystem","database"]
 
+# docs.rs shows every backend.
+[package.metadata.docs.rs]
+all-features = true
+
 [dependencies]
 aktujo-base.workspace = true
 futures-util = { workspace = true, optional = true }

@@ -217,11 +217,12 @@ Decided by the maintainer on 2026-11-05.
 7. Watched folders (built 2026-11-06).
 8. Improving (`aktujo-scan`; built 2026-11-06).
 9. Export (built 2026-11-06).
-10. Windows in CI, binaries in the release (built 2026-11-06), the release 0.1.0 of the program.
+10. Windows in CI, binaries in the release (built 2026-11-06), the first release of the program: 0.2.0.
 
 ## Open points
 
 - OPEN: every point marked OPEN above.
-- OPEN: the version of the program – it shares the workspace version 0.1.0 with the crates today; whether the
-  program and the crates get versions of their own.
+- The version (maintainer, 2026-11-06): one for the program and the crates, as the workspace has it. The first
+  release of the program is **0.2.0** – the core crates were 0.1.0 on crates.io already, and 0.2.0 breaks one of them
+  (`aktujo-crypt` lost a domain); "Archive 0.1" stays the name of this plan.
 - OPEN: real samples from the maintainer (also open in 0002 and 0003) – needed for "done when".
