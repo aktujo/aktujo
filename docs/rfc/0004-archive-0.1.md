@@ -120,7 +120,10 @@ Decided by the maintainer on 2026-11-05.
      `aktujo-extract`). Built so (2026-11-05): the feature `ocr` of `aktujo` and `aktujo-sdk` (on by default) builds
      them in; `build.rs` takes them from `AKTUJO_OCR_MODELS` or `target/ocr-models`, where
      `scripts/get-ocr-models.sh` puts them, checks their hashes and stops if they are missing – the build itself
-     makes no connection. Without `ocr`, `aktujo-extract` is built with the feature `layer`: text layers only,
+     makes no connection. Changed (maintainer, 2026-11-06): the models are crates of their own in `aktujo/models`
+     (`aktujo-extract-det`, `aktujo-extract-latin`, Apache-2.0, each with its source and hashes), which the feature
+     `ocr` of `aktujo-sdk` depends on – cargo fetches them like any dependency; `build.rs` and the download script
+     are gone. Without `ocr`, `aktujo-extract` is built with the feature `layer`: text layers only,
      without tract. OPEN: hayro's rendering is still in `aktujo-minimal` (the text layer comes through the same
      crate); naming the models' licence and origin in the program; the sizes of both builds (to be measured).
 7. **Encrypted at rest.** The database is encrypted as a whole with **SQLCipher** (maintainer, 2026-11-05) – events,
@@ -169,7 +172,9 @@ Decided by the maintainer on 2026-11-05.
     run (a service of the operating system).
 11. **Installed from binaries** attached to each GitHub release, built by CI for Linux, macOS and Windows – each
     as `aktujo` and as `aktujo-minimal` (decision 6). Other ways
-    (cargo install, Nix, Homebrew) later. OPEN: signing and notarising the binaries for macOS and Windows.
+    (cargo install, Nix, Homebrew) later. Changed (maintainer, 2026-11-06): from 0.3.1, every crate is on crates.io,
+    the program too – `cargo install aktujo` builds the full program with the web app (`aktujo-web` carries its
+    build) and the models (`aktujo/models`), `--no-default-features` the minimal one; Nix and Homebrew later. OPEN: signing and notarising the binaries for macOS and Windows.
     Built so (2026-11-06): CI checks Linux, macOS and Windows; a version tag builds `aktujo` and `aktujo-minimal` for
     Linux (x86-64, ARM64), macOS (ARM64) and Windows (x86-64), each packed with the licence and README, and puts
     them with their SHA-256 sums into a **draft** release that the maintainer publishes. These are falkOSS's platforms

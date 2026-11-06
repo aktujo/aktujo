@@ -7,7 +7,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-publish.workspace = true
+homepage.workspace = true
+keywords = ["aktujo", "documents", "archive", "ocr", "end-to-end"]
+categories = ["command-line-utilities"]
+readme = "../../README.md"
 
 [dependencies]
 anyhow.workspace = true
@@ -17,6 +20,7 @@ aktujo-sdk.workspace = true
 aktujo-crypt.workspace = true
 aktujo-relay.workspace = true
 aktujo-tui.workspace = true
+aktujo-web.workspace = true
 tokio.workspace = true
 
 [features]

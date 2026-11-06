@@ -52,13 +52,14 @@ dependencies = [
 
 [[package]]
 name = "aktujo"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-api",
  "aktujo-crypt",
  "aktujo-relay",
  "aktujo-sdk",
  "aktujo-tui",
+ "aktujo-web",
  "anyhow",
  "clap",
  "tokio",
@@ -66,7 +67,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-api"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "aktujo-core",
@@ -77,7 +78,6 @@ dependencies = [
  "futures-util",
  "http-body-util",
  "image",
- "rust-embed",
  "serde",
  "serde_json",
  "tokio",
@@ -87,7 +87,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-base"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.23.1",
  "getrandom 0.4.3",
@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-blob"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "futures-util",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -120,7 +120,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-crypt"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "aktujo-log",
@@ -138,7 +138,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-doc"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "aktujo-log",
@@ -149,9 +149,11 @@ dependencies = [
 
 [[package]]
 name = "aktujo-extract"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
+ "aktujo-extract-det",
+ "aktujo-extract-latin",
  "aktujo-scan",
  "hayro",
  "image",
@@ -162,8 +164,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "aktujo-extract-det"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c81f50b6d782314d46affb2948bde41729399108180e47458319f3ef7509eeb"
+
+[[package]]
+name = "aktujo-extract-latin"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2365996ebe6b8d57ab8b988b1bc26bebf0c67c53cd3e12628e302a39f0459b0e"
+
+[[package]]
+name = "aktujo-locales"
+version = "0.3.1"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "aktujo-log"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "serde",
@@ -173,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-relay"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "aktujo-crypt",
@@ -189,7 +210,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-rules"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "aktujo-doc",
@@ -202,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-scan"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "hayro",
  "image",
@@ -214,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-sdk"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "aktujo-blob",
@@ -222,6 +243,8 @@ dependencies = [
  "aktujo-crypt",
  "aktujo-doc",
  "aktujo-extract",
+ "aktujo-extract-det",
+ "aktujo-extract-latin",
  "aktujo-log",
  "aktujo-relay",
  "aktujo-rules",
@@ -245,7 +268,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-store"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "aktujo-crypt",
@@ -257,7 +280,7 @@ dependencies = [
 
 [[package]]
 name = "aktujo-sync"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-base",
  "aktujo-blob",
@@ -275,9 +298,10 @@ dependencies = [
 
 [[package]]
 name = "aktujo-tui"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aktujo-crypt",
+ "aktujo-locales",
  "aktujo-relay",
  "aktujo-sdk",
  "ratatui",
@@ -285,6 +309,17 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "aktujo-web"
+version = "0.3.1"
+dependencies = [
+ "axum",
+ "http-body-util",
+ "rust-embed",
+ "tokio",
+ "tower",
 ]
 
 [[package]]

@@ -2,7 +2,7 @@
 //! The terminal interface of aktujo: the archive with the keyboard, and with the mouse – a click does what the key or
 //! the row under it does, the wheel moves like the arrow keys; `m` hands the mouse back to the terminal (to select
 //! text). It works through the workspace of `aktujo-sdk` only, like every other interface, and speaks the language
-//! of the environment where it has its texts (`locales/`), English otherwise.
+//! of the environment where it has its texts (`aktujo-locales`), English otherwise.
 
 use std::{
     fs,

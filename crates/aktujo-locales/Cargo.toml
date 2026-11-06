@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "aktujo-locales"
+description = "The texts of aktujo's web app and terminal interface, one JSON file per language"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["aktujo", "i18n", "localization", "translations"]
+categories = ["localization"]
+include = ["src/**/*.rs", "locales/*.json", "README.md"]
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //! Reads a PDF or an image with the backend `pure` and prints its lines with their method and boxes.
-//!   cargo run --release --example read -- <file> [<folder with det.onnx, rec.onnx, dict.txt>]
+//!   cargo run --release --example read -- <file> [<folder with other det.onnx, rec.onnx, dict.txt>]
 
 use aktujo_extract::{Extractor, Models, Options, Pure};
 
@@ -14,7 +14,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let dictionary = std::fs::read_to_string(dir.join("dict.txt"))?;
             Pure::with_models(Models { detection: &detection, recognition: &recognition, dictionary: &dictionary })?
         }
-        None => Pure::new(),
+        // The models of aktujo-extract-det and aktujo-extract-latin; a folder tries others.
+        None => Pure::with_models(Models {
+            detection: aktujo_extract_det::MODEL,
+            recognition: aktujo_extract_latin::MODEL,
+            dictionary: aktujo_extract_latin::DICT,
+        })?,
     };
     let media_type = match file.rsplit('.').next().map(str::to_lowercase).as_deref() {
         Some("pdf") => "application/pdf",

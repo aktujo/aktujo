@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Lists the crates in Cargo.lock published less than two weeks ago (but for SECURITY_FIXES), from crates.io's API –
+# Lists the crates in Cargo.lock published less than two weeks ago (but for SECURITY_FIXES and aktujo's own), from crates.io's API –
 # once a second, as its crawler policy asks. Exit status 1 if there is one. With --fix, each is set back to its newest
 # version old enough (`cargo update -p <crate>@<version> --precise <older>`), and the lock file is checked again. Run
 # it after changing Cargo.lock; CI does not (it needs the network and minutes). pnpm checks
@@ -44,7 +44,8 @@ def young(limit):
         if not package.get("source", "").startswith("registry+"):
             continue
         name, version = package["name"], package["version"]
-        if (name, version) in SECURITY_FIXES:
+        # aktujo's own crates (aktujo/models) are released by aktujo: the waiting time guards against others'.
+        if (name, version) in SECURITY_FIXES or name.startswith("aktujo-"):
             continue
         published = date(get(f"https://crates.io/api/v1/crates/{name}/{version}")["version"]["created_at"])
         if published > limit:

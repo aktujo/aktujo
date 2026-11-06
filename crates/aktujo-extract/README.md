@@ -11,15 +11,17 @@ came from – the PDF's own text layer or OCR – behind the trait `Extractor`.
 | `external` | `External`: pdftotext and pdftoppm (poppler-utils) and Tesseract, found at run time |
 
 The OCR models are data the program hands over (`Models`), never part of this crate; tested with PP-OCRv3 detection
-and PP-OCRv5 Latin recognition (Apache-2.0). Without them `Pure` reads text layers only. The parsers of the external
+and PP-OCRv5 Latin recognition (Apache-2.0), which come as the crates
+[`aktujo-extract-det`](https://crates.io/crates/aktujo-extract-det) and
+[`aktujo-extract-latin`](https://crates.io/crates/aktujo-extract-latin). Without them `Pure` reads text layers only. The parsers of the external
 programs' output (`parse`) are there without either feature.
 
-In the repository, `scripts/get-ocr-models.sh` downloads these models (checked by their hashes) into
-`target/ocr-models`, and `scripts/make-ocr-samples.sh` builds test PDFs with their texts into `target/ocr-samples`:
+In the repository, the examples take these models (a folder with other `det.onnx`, `rec.onnx` and `dict.txt` tries
+those), and `scripts/make-ocr-samples.sh` builds test PDFs with their texts into `target/ocr-samples`:
 
 ```sh
-cargo run --release --example read -- letter.pdf [<folder with det.onnx, rec.onnx, dict.txt>]
-cargo run --release --example measure -- target/ocr-samples [target/ocr-models]
+cargo run --release --example read -- letter.pdf [<folder with other models>]
+cargo run --release --example measure -- target/ocr-samples [<folder with other models>]
 ```
 
 `measure` prints the character error rate and word recall of every PDF or image that has a `.txt` of its text

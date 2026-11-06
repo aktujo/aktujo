@@ -10,7 +10,6 @@ Rust from `rust-toolchain.toml`, Node 26 and pnpm (the version in `web/package.j
 
 ```sh
 (cd web && pnpm install && pnpm build)
-scripts/get-ocr-models.sh                                             # the OCR models, into target/ocr-models
 cargo fmt --check && cargo clippy --all-targets --all-features && cargo test --all-features
 cargo run -q -- openapi > api/openapi.json && (cd web && pnpm api)   # after changing the API
 (cd web && pnpm check)
@@ -19,11 +18,12 @@ scripts/check-age.py                                                  # after ch
 cargo test -p aktujo-sdk && cargo build -p aktujo --no-default-features   # aktujo-minimal, without OCR
 ```
 
-The feature `ocr` of `aktujo-sdk` (on by default in `aktujo`) builds the OCR models into the program; `build.rs` takes
-them from `AKTUJO_OCR_MODELS` or `target/ocr-models` and stops if they are missing or not the expected ones.
+The feature `ocr` of `aktujo-sdk` (on by default in `aktujo`) builds the OCR models into the program: the crates
+`aktujo-extract-det` and `aktujo-extract-latin` of [aktujo/models](https://github.com/aktujo/models), fetched by cargo
+like any dependency. `pnpm build` puts the web app into `crates/aktujo-web/web`, which `aktujo-web` embeds.
 
-The texts of the web app and the terminal interface are in `locales/`, one JSON file per language; a new text gets a
-key in every file (a test of `aktujo-tui` checks it). Colours, fonts and the logo come from `aktujo/brand` only –
+The texts of the web app and the terminal interface are in `crates/aktujo-locales/locales/`, one JSON file per
+language; a new text gets a key in every file (tests of `aktujo-locales` and `aktujo-tui` check it). Colours, fonts and the logo come from `aktujo/brand` only –
 copied, never drawn or edited here. To try the program without touching the key store: `cargo run -- serve --memory`.
 
 ## Rules

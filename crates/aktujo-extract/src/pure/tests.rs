@@ -2,16 +2,14 @@
 use super::*;
 use crate::testing::{blank_pdf, pdf};
 
-/// The models from the folder in `AKTUJO_OCR_MODELS` (`det.onnx`, `rec.onnx`, `dict.txt`), if it is set.
-fn with_models() -> Option<Pure> {
-    let dir = std::path::PathBuf::from(std::env::var_os("AKTUJO_OCR_MODELS")?);
-    let read = |name: &str| std::fs::read(dir.join(name)).unwrap();
-    let (detection, recognition) = (read("det.onnx"), read("rec.onnx"));
-    let dictionary = String::from_utf8(read("dict.txt")).unwrap();
-    Some(
-        Pure::with_models(Models { detection: &detection, recognition: &recognition, dictionary: &dictionary })
-            .unwrap(),
-    )
+/// The models of `aktujo-extract-det` and `aktujo-extract-latin`.
+fn with_models() -> Pure {
+    Pure::with_models(Models {
+        detection: aktujo_extract_det::MODEL,
+        recognition: aktujo_extract_latin::MODEL,
+        dictionary: aktujo_extract_latin::DICT,
+    })
+    .unwrap()
 }
 
 #[test]
@@ -39,10 +37,7 @@ fn without_models_there_is_no_ocr() {
 
 #[test]
 fn reads_a_rendered_and_a_skewed_page_by_ocr() {
-    let Some(pure) = with_models() else {
-        eprintln!("AKTUJO_OCR_MODELS is not set: skipped");
-        return;
-    };
+    let pure = with_models();
     let pdf = Pdf::new(pdf()).unwrap();
     let rendered = picture::render(&pdf.pages()[0], 300);
     for (name, image) in [("straight", rendered.clone()), ("skewed", picture::rotate(&rendered, 4f32.to_radians()))] {

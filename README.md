@@ -29,6 +29,13 @@ aktujo serve        # the archive in the browser, on http://127.0.0.1:8071
 aktujo tui          # the same archive in the terminal
 ```
 
+With Rust (1.99 or newer) it also comes from crates.io – the web app and the OCR models included:
+
+```sh
+cargo install aktujo                          # everything
+cargo install aktujo --no-default-features    # like aktujo-minimal (the program is still called aktujo)
+```
+
 The binaries are not signed yet (OPEN): macOS and Windows ask before they run one from the internet. More – export
 and import, a key file for servers – on [aktujo.dev](https://aktujo.dev/install.html); to build the libraries into
 a program of your own, see [Build it in](https://aktujo.dev/embedding.html).
@@ -37,8 +44,7 @@ a program of your own, see [Build it in](https://aktujo.dev/embedding.html).
 
 
 ```sh
-(cd web && pnpm install && pnpm build)   # the web app the binary embeds
-scripts/get-ocr-models.sh                # the OCR models the binary embeds (checked by their hashes)
+(cd web && pnpm install && pnpm build)   # the web app the binary embeds (into crates/aktujo-web/web)
 cargo run -- serve                       # the archive in the browser, on http://127.0.0.1:8071
 cargo run -- tui                         # the same archive in the terminal
 cargo run -- serve --memory              # to try it out: nothing is kept, no key is stored
@@ -53,9 +59,10 @@ in the settings.
 The documents live in a data folder – `aktujo` in the folder for application data of the user (on macOS
 `~/Library/Application Support/aktujo`, on Linux `~/.local/share/aktujo`, on Windows `%APPDATA%\aktujo`), or the one
 given with `--data`. It is encrypted; its key is kept in the key store of the operating system. The interfaces speak
-English and German – their texts are data in `locales/`.
+English and German – their texts are data in `crates/aktujo-locales/locales/`.
 
-`cargo run --no-default-features -- …` builds `aktujo-minimal`: without scanning and OCR, so without the models.
+`cargo run --no-default-features -- …` builds `aktujo-minimal`: without scanning and OCR, so without the models. The
+models come as crates from [aktujo/models](https://github.com/aktujo/models).
 
 ## The name
 

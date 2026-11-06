@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name = "aktujo-web"
+description = "The web app of aktujo, built in: served around the API with a policy that loads nothing from elsewhere"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["aktujo", "web-app", "documents", "archive"]
+categories = ["web-programming::http-server"]
+# The web app, built by `pnpm build` in web/ of the repository into web/ here (ignored by git), is part of the crate.
+include = ["src/**/*.rs", "web/**/*", "README.md"]
+
+[dependencies]
+axum.workspace = true
+rust-embed.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+tokio.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true

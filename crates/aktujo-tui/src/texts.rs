@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The texts of the interface, as data: `locales/*.json` in the repository, shared with the web app. A text missing
-//! in a language is taken from English, a key missing there shows as itself.
+//! The texts of the interface, as data: `aktujo-locales`, shared with the web app. A text missing in a language is
+//! taken from English, a key missing there shows as itself.
 
 use std::collections::HashMap;
 
-/// The languages built in: their code and their texts.
-const LANGUAGES: [(&str, &str); 2] =
-    [("en", include_str!("../../../locales/en.json")), ("de", include_str!("../../../locales/de.json"))];
+/// The languages built in: their code and their texts, English first.
+const LANGUAGES: [(&str, &str); 2] = aktujo_locales::LANGUAGES;
 
 /// The texts of one language.
 #[derive(Debug, Clone)]

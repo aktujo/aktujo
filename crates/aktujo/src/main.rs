@@ -289,7 +289,8 @@ fn main() -> anyhow::Result<()> {
         Command::Serve { port, data } => {
             let (workspace, background) = data.open()?;
             let ready = |address: std::net::SocketAddr| println!("aktujo at http://{address} – Ctrl-C ends");
-            tokio::runtime::Runtime::new()?.block_on(aktujo_api::serve(workspace, background, port, ready))?;
+            let app = aktujo_web::around(aktujo_api::routes(workspace, background));
+            tokio::runtime::Runtime::new()?.block_on(aktujo_api::serve(app, port, ready))?;
         }
         Command::Relay { data, listen } => {
             let relay = aktujo_relay::Relay::open(aktujo_crypt::Domain::AKTUJO, &data)?;

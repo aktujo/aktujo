@@ -13,7 +13,8 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 - **Licences:** the core (`aktujo-base`, `-blob`, `-log`, `-crypt`, `-store`, `-relay`, `-sync`) and the document crates
   (`aktujo-doc`, `-extract`, `-rules`, `-scan`) MIT, and so are the domain (`aktujo-core`) and the workspace
   (`aktujo-sdk`), which the apps in `aktujo/apps` build on (`docs/rfc/0006-apps-and-sdk.md`); the program (API, TUI,
-  command line, web) AGPL-3.0-or-later.
+  command line, web) AGPL-3.0-or-later, the texts (`aktujo-locales`) MIT. **Every crate is on crates.io**, the program
+  too (job `crates`); the OCR models are crates of `aktujo/models` (Apache-2.0).
 - **Pure:** aktujo refers to no other program or protocol and has nothing built in for one trade – no kinds of
   document, no rules, no fields of their own. Kinds and rules are data of a space (`docs/rfc/0005-pure-core.md`);
   templates live in the repository `aktujo/catalog`, specialisations in the programs that build aktujo in.
@@ -35,15 +36,16 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 | `crates/aktujo-rules` | documents, MIT: the kind and the fields from the text, as suggestions – the mechanism only: words, labels and ways come from the kinds; programs add code behind `Recogniser`; no I/O |
 | `crates/aktujo-scan` | documents, MIT: improving scans and photos – pages of a PDF or an image, turned, cropped, straightened, grey or black and white, written as an image or a PDF (written by hand, no PDF crate); no I/O; `aktujo-extract`'s `pure` straightens with it |
 | `crates/aktujo-core` | MIT: the domain – types and rules, no I/O |
-| `crates/aktujo-sdk` | MIT (was `aktujo-app`): the workspace – every command and query; the **only** layer the interfaces and the apps use, permissive all the way down (CI checks it) – a data folder (SQLCipher database, originals sealed with XChaCha20-Poly1305, the key in the operating system's key store), spaces, documents, sync and sharing, reading and synchronising in the background (`Worker`, `Syncer`; event `document_read`), search (FTS5 beside the core's tables, filters); feature `ocr` builds the OCR models in (`build.rs`, from `target/ocr-models`) and turns on `scan` (improving, `improving.rs`); catalogs of templates (`catalog.rs`: sources, fetching, plan and apply with a three-way merge); watched folders (`Watcher`, `watching.rs`, subfolders if asked); export of a space to a folder or a ZIP, ZIP64 beyond 4 GiB (`exporting.rs`), read back in as a new space (`importing.rs`); the key in a file where there is no key store (`FileKeys`) |
-| `crates/aktujo-api` | HTTP/JSON with axum, described in OpenAPI by utoipa; serves the embedded web app; answers only `localhost` and changes only for its own pages |
+| `crates/aktujo-sdk` | MIT (was `aktujo-app`): the workspace – every command and query; the **only** layer the interfaces and the apps use, permissive all the way down (CI checks it) – a data folder (SQLCipher database, originals sealed with XChaCha20-Poly1305, the key in the operating system's key store), spaces, documents, sync and sharing, reading and synchronising in the background (`Worker`, `Syncer`; event `document_read`), search (FTS5 beside the core's tables, filters); feature `ocr` builds the OCR models in (the crates `aktujo-extract-det` and `-latin` of `aktujo/models`, Apache-2.0) and turns on `scan` (improving, `improving.rs`); catalogs of templates (`catalog.rs`: sources, fetching, plan and apply with a three-way merge); watched folders (`Watcher`, `watching.rs`, subfolders if asked); export of a space to a folder or a ZIP, ZIP64 beyond 4 GiB (`exporting.rs`), read back in as a new space (`importing.rs`); the key in a file where there is no key store (`FileKeys`) |
+| `crates/aktujo-api` | HTTP/JSON with axum, described in OpenAPI by utoipa (`routes`; `serve` takes the app with the web app around it); answers only `localhost` and changes only for its own pages |
+| `crates/aktujo-web` | the web app built in (`around(router)`): `pnpm build` puts it into `crates/aktujo-web/web` (ignored by git, published with the crate); a policy that loads nothing from elsewhere |
 | `crates/aktujo-tui` | the terminal interface (ratatui) – keyboard and mouse; language from the environment |
+| `crates/aktujo-locales` | MIT: the texts of the web app and the terminal interface, `locales/<language>.json` (English, German); a new key goes into every file; the apps keep their own |
 | `crates/aktujo` | the command line: `serve`, `tui` (both `--data`, `--memory`, `--key-file`), `relay`, `openapi`, `spaces`, `templates`, `export`, `import`; feature `ocr` on by default – without it, `aktujo-minimal` |
 | `web/` | the web app: Vite, Svelte 5, TypeScript; types from `api/openapi.json` (openapi-typescript, openapi-fetch) |
-| `locales/` | the texts of the web app and the terminal interface, one JSON file per language (English, German); a new key goes into every file |
 | `api/openapi.json` | generated by `aktujo openapi`; CI checks it matches the code |
 | `docs/` | aktujo.dev – Jekyll, Just the Docs, published by GitHub Actions: install, building it in (`embedding.md`), the API, RFCs |
-| `scripts/` | `get-ocr-models.sh`, `make-ocr-samples.sh`, `check-age.py`, `check-editions.sh` (CI: both builds share a data folder) |
+| `scripts/` | `make-ocr-samples.sh`, `check-age.py`, `check-editions.sh` (CI: both builds share a data folder) |
 
 ## Principles
 
@@ -56,7 +58,7 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 
 ## Licences
 
-- The core, the document crates, `aktujo-core` and `aktujo-sdk` MIT, everything else **AGPL-3.0-or-later** – an SPDX header in every own source file and `Cargo.toml`;
+- The core, the document crates, `aktujo-core`, `aktujo-sdk` and `aktujo-locales` MIT, everything else **AGPL-3.0-or-later** – an SPDX header in every own source file and `Cargo.toml`;
   REUSE checked in CI.
 - `docs/assets/` and `web/public/favicon.svg` are copies from `aktujo/brand` under CC BY-ND 4.0 – update them by copying, never edit them here.
 - Code taken over from elsewhere keeps its licence and names its origin.
@@ -67,14 +69,13 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
 - No personal data in tracked files (names, paths like `/Users/…`, hostnames, keys).
 - Claims need a source; unverified statements are marked **OPEN**.
 - No externally loaded fonts or scripts in anything web-based.
-- Dependencies exact in the lock files, as ranges in `Cargo.toml`, at least 14 days old (CONTRIBUTING.md); Rust
+- Dependencies exact in the lock files, as ranges in `Cargo.toml`, at least 14 days old (CONTRIBUTING.md; aktujo's own crates of `aktujo/models` excepted); Rust
   edition 2024, the toolchain in `rust-toolchain.toml`; TypeScript 6 until Svelte supports 7, Node 26, pnpm.
 - After changing the API: `cargo run -q -- openapi > api/openapi.json` and `pnpm --dir web api`.
 
 ## Checks
 
 ```sh
-scripts/get-ocr-models.sh   # once: the OCR models the full build embeds
 cargo fmt --check && cargo clippy --all-targets --all-features && cargo test --all-features && cargo deny check
 (cd web && pnpm check && pnpm build)
 ```

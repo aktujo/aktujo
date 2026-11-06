@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 //! Measures the backend `pure` on documents with a reference text: every PDF or image in a folder that has a `.txt`
 //! of the same name beside it. Prints the character error rate (CER) and the share of the reference's words found
-//! (word recall), for the text layer and – with models – for OCR of the same pages. The method is the one of the OCR
+//! (word recall), for the text layer and for OCR of the same pages (the models of aktujo-extract-det and -latin, or others from a folder). The method is the one of the OCR
 //! spike (docs/spikes/ocr.md); the synthetic samples come from `scripts/make-ocr-samples.sh`, real ones go in the
 //! same way.
-//!   cargo run --release --example measure -- <folder> [<folder with det.onnx, rec.onnx, dict.txt>]
+//!   cargo run --release --example measure -- <folder> [<folder with other det.onnx, rec.onnx, dict.txt>]
 
 use std::path::Path;
 use std::time::Instant;
@@ -73,7 +73,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let dictionary = std::fs::read_to_string(dir.join("dict.txt"))?;
             Pure::with_models(Models { detection: &detection, recognition: &recognition, dictionary: &dictionary })?
         }
-        None => Pure::new(),
+        // The models of aktujo-extract-det and aktujo-extract-latin; a folder tries others.
+        None => Pure::with_models(Models {
+            detection: aktujo_extract_det::MODEL,
+            recognition: aktujo_extract_latin::MODEL,
+            dictionary: aktujo_extract_latin::DICT,
+        })?,
     };
     let mut files: Vec<_> = std::fs::read_dir(&folder)?
         .filter_map(|e| e.ok().map(|e| e.path()))

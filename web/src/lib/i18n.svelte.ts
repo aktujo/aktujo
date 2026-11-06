@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The texts of the web app, as data: locales/*.json in the repository, shared with the terminal interface. A text
+// The texts of the web app, as data: crates/aktujo-locales/locales/*.json, shared with the terminal interface. A text
 // missing in a language is taken from English; a key missing there shows as itself.
-import en from "../../../locales/en.json";
-import de from "../../../locales/de.json";
+import en from "../../../crates/aktujo-locales/locales/en.json";
+import de from "../../../crates/aktujo-locales/locales/de.json";
 
 type Texts = Record<string, string>;
 

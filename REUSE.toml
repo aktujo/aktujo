@@ -11,7 +11,14 @@ SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haft
 [[annotations]]
 # Generated or JSON files of the Rust core and web app, if there are any (bin/new-project --rust-app).
 path = ["**/*.md", "**/.gitignore", "Cargo.lock", "api/openapi.json", "web/package.json", "web/pnpm-lock.yaml",
-  "web/tsconfig.json", "web/src/lib/api-types.ts", "locales/*.json"]
+  "web/tsconfig.json", "web/src/lib/api-types.ts"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the aktujo contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# The web app's build in aktujo-web (not tracked, published with the crate): the app under the program's licence.
+[[annotations]]
+path = "crates/aktujo-web/web/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the aktujo contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
@@ -19,25 +26,27 @@ SPDX-License-Identifier = "AGPL-3.0-or-later"
 # Copies of the artwork from aktujo/brand – kept as they are, under its licence.
 [[annotations]]
 path = ["docs/assets/**", "web/public/favicon.svg", "web/public/aktujo-lockup-on-dark.svg",
-  "web/public/aktujo-lockup-on-light.svg"]
+  "web/public/aktujo-lockup-on-light.svg", "crates/aktujo-web/web/favicon.svg",
+  "crates/aktujo-web/web/aktujo-lockup-on-dark.svg", "crates/aktujo-web/web/aktujo-lockup-on-light.svg"]
 precedence = "override"
 SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G."
 SPDX-License-Identifier = "CC-BY-ND-4.0"
 
 # Space Mono from aktujo/brand, served with the web app for its headings – nothing is loaded from other servers.
 [[annotations]]
-path = "web/public/fonts/**"
+path = ["web/public/fonts/**", "crates/aktujo-web/web/fonts/**"]
 precedence = "override"
 SPDX-FileCopyrightText = "2016 The Space Mono Project Authors (https://github.com/googlefonts/spacemono)"
 SPDX-License-Identifier = "OFL-1.1"
 
-# The READMEs of the crates under MIT (the core, the document crates, aktujo-core and the SDK), published with them, and their test data.
+# The READMEs of the crates under MIT (the core, the document crates, aktujo-core, the SDK and the texts), published with
+# them, their test data and the texts.
 [[annotations]]
 path = ["crates/aktujo-rules/testdata/kinds.json", "crates/aktujo-base/README.md", "crates/aktujo-blob/README.md", "crates/aktujo-log/README.md",
   "crates/aktujo-crypt/README.md", "crates/aktujo-store/README.md", "crates/aktujo-relay/README.md",
   "crates/aktujo-sync/README.md", "crates/aktujo-doc/README.md", "crates/aktujo-extract/README.md",
   "crates/aktujo-rules/README.md", "crates/aktujo-scan/README.md", "crates/aktujo-core/README.md",
-  "crates/aktujo-sdk/README.md"]
+  "crates/aktujo-sdk/README.md", "crates/aktujo-locales/README.md", "crates/aktujo-locales/locales/*.json"]
 precedence = "override"
 SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the aktujo contributors"
 SPDX-License-Identifier = "MIT"

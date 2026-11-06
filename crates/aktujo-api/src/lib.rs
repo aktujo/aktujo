@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The open API of aktujo: HTTP and JSON under `/api/v1`, described in OpenAPI (`api/openapi.json`), and the web
-//! app around it, embedded into the binary. Like every interface, it works through the workspace of `aktujo-sdk`
+//! The open API of aktujo: HTTP and JSON under `/api/v1`, described in OpenAPI (`api/openapi.json`); the program
+//! serves the web app (`aktujo-web`) around it. Like every interface, it works through the workspace of `aktujo-sdk`
 //! only.
 //!
 //! It listens on the device itself and answers only requests addressed to it there: the `Host` must be `localhost`,
@@ -19,7 +19,7 @@ use axum::{
     extract::{DefaultBodyLimit, Path, Query, Request, State},
     http::{HeaderMap, Method, StatusCode, header},
     middleware::{self, Next},
-    response::{Html, IntoResponse, Response},
+    response::{IntoResponse, Response},
     routing::{get, post, put},
 };
 use serde::Deserialize;
@@ -1140,49 +1140,10 @@ async fn guard(request: Request, next: Next) -> Response {
     next.run(request).await
 }
 
-/// The web app, built by `pnpm build` in `web/` and embedded into the binary; a build without it serves the API alone.
-#[derive(rust_embed::Embed)]
-#[folder = "../../web/dist"]
-#[allow_missing = true]
-struct WebApp;
-
-/// What the web app may load: itself only – no script, style, font or connection elsewhere, no frames.
-const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; \
-font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
-
-/// The page shown where the web app is not built into the binary.
-const NO_WEB_APP: &str = "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>aktujo</title>\
-<body style=\"font-family:system-ui;max-width:40rem;margin:4rem auto;padding:0 1rem\"><h1>aktujo</h1>\
-<p>The API runs at <code>/api/v1</code>, described at <code>/api/v1/openapi.json</code>. This build has no web app \
-– run <code>pnpm build</code> in <code>web/</code> and build again.</p>";
-
-/// A file of the web app; any other path is the app itself, which routes by the address.
-async fn web_app(uri: axum::http::Uri) -> Response {
-    let path = uri.path().trim_start_matches('/');
-    let (file, path) = match WebApp::get(path) {
-        Some(file) if !path.is_empty() => (file, path),
-        _ => match WebApp::get("index.html") {
-            Some(file) => (file, "index.html"),
-            None => return Html(NO_WEB_APP).into_response(),
-        },
-    };
-    // Built files carry their hash in their name and never change; the page itself is asked for every time.
-    let cache = if path.starts_with("assets/") { "public, max-age=31536000, immutable" } else { "no-cache" };
-    (
-        [
-            (header::CONTENT_TYPE, file.metadata.mimetype().to_owned()),
-            (header::CACHE_CONTROL, cache.to_owned()),
-            (header::CONTENT_SECURITY_POLICY, POLICY.to_owned()),
-            (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_owned()),
-            (header::REFERRER_POLICY, "no-referrer".to_owned()),
-        ],
-        file.data,
-    )
-        .into_response()
-}
-
-/// The router: the API under `/api/v1`, and the web app around it, with what runs in the background.
-pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Router {
+/// The routes of the API under `/api/v1`, with what runs in the background – without the guard, which [`serve`]
+/// puts around everything it serves (and [`router`] around the API alone). The program puts the web app around them
+/// (`aktujo-web`).
+pub fn routes(workspace: Arc<Mutex<Workspace>>, background: Background) -> Router {
     let shared = Shared { workspace, background, titles: Arc::new(Reader::text_layer()) };
     let document = "/spaces/{space}/documents/{document}";
     let api = Router::new()
@@ -1227,19 +1188,25 @@ pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Route
     let api = api
         .fallback(|| async { ApiError(StatusCode::NOT_FOUND, "no such route of the API".into()) })
         .layer(DefaultBodyLimit::max(UPLOAD_MAX));
-    Router::new().nest("/api/v1", api).fallback(web_app).layer(middleware::from_fn(guard)).with_state(shared)
+    Router::new().nest("/api/v1", api).with_state(shared)
 }
 
-/// Serves a workspace on the device itself, at `port`, until interrupted; `ready` is told the address.
-pub async fn serve(
-    workspace: Arc<Mutex<Workspace>>,
-    background: Background,
-    port: u16,
-    ready: impl FnOnce(SocketAddr),
-) -> std::io::Result<()> {
+/// The API alone, guarded: it answers only requests addressed to this device, and changes only for its own pages.
+pub fn router(workspace: Arc<Mutex<Workspace>>, background: Background) -> Router {
+    guarded(routes(workspace, background))
+}
+
+/// `app` behind the guard: requests addressed to this device only, changes from its own pages only.
+pub fn guarded(app: Router) -> Router {
+    app.layer(middleware::from_fn(guard))
+}
+
+/// Serves `app` – the [`routes`] of a workspace, with the web app around them – on the device itself, at `port`, behind
+/// the guard, until interrupted; `ready` is told the address.
+pub async fn serve(app: Router, port: u16, ready: impl FnOnce(SocketAddr)) -> std::io::Result<()> {
     let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).await?;
     ready(listener.local_addr()?);
-    axum::serve(listener, router(workspace, background))
+    axum::serve(listener, guarded(app))
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
         })

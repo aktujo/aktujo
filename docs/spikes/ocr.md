@@ -12,8 +12,8 @@ today) stay the default, or does a pure-Rust path take over? Measured on 2026-11
 **Decided (maintainer, 2026-11-05): pure Rust everywhere, servers included.** `aktujo-extract`'s backend `pure` is
 the default: hayro for the text layer and rendering, our own PP-OCR pipeline on tract with deskewing
 ([0002](../rfc/0002-documents.md)). The spike compared engines with code of its own; that code is not kept – what
-lasts is this report, the samples in `testdata/ocr/`, `scripts/make-ocr-samples.sh`, `scripts/get-ocr-models.sh` and
-the measurement of aktujo's own pipeline (below).
+lasts is this report, the samples in `testdata/ocr/`, `scripts/make-ocr-samples.sh` and the measurement of aktujo's
+own pipeline (below). The models are now the crates of `aktujo/models` (2026-11-06; before, a download script).
 
 ## Answer
 
@@ -100,8 +100,8 @@ handwriting. Synthetic photos flatter every engine; real ones will be worse.
 The engine comparison is not kept. aktujo's own pipeline is measured again with:
 
 ```sh
-scripts/make-ocr-samples.sh && scripts/get-ocr-models.sh
-cargo run --release -p aktujo-extract --example measure -- target/ocr-samples target/ocr-models
+scripts/make-ocr-samples.sh
+cargo run --release -p aktujo-extract --example measure -- target/ocr-samples
 ```
 
 Real samples go in the same way: a PDF or an image with a `.txt` of its text beside it.

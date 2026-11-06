@@ -43,8 +43,8 @@ scans; without them it reads text layers only.
 - **The interfaces use the SDK only**, as before; the API stays the boundary for clients that are not built on it
   (the web app).
 - **On crates.io** with the other library crates, in the program's version. The OCR models are not in the crate: a
-  build with the feature `ocr` takes them from the folder in `AKTUJO_OCR_MODELS` (the apps fetch them with
-  `scripts/get-ocr-models.sh` of this repository), checked by their hashes. Until the SDK is on crates.io, the apps
+  build with the feature `ocr` takes them from the crates `aktujo-extract-det` and `aktujo-extract-latin` of
+  `aktujo/models` (Apache-2.0; changed 2026-11-06 – before, from a folder in `AKTUJO_OCR_MODELS`). Until the SDK is on crates.io, the apps
   take it from the repository at a commit.
 
 ## The apps

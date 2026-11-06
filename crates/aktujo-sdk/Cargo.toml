@@ -19,6 +19,8 @@ aktujo-core.workspace = true
 aktujo-crypt.workspace = true
 aktujo-doc.workspace = true
 aktujo-extract = { workspace = true, features = ["layer", "serde"] }
+aktujo-extract-det = { workspace = true, optional = true }
+aktujo-extract-latin = { workspace = true, optional = true }
 aktujo-log.workspace = true
 aktujo-rules.workspace = true
 aktujo-scan = { workspace = true, optional = true }
@@ -37,16 +39,13 @@ sha2.workspace = true
 thiserror.workspace = true
 ureq.workspace = true
 
-[build-dependencies]
-sha2.workspace = true
-
 [features]
 default = ["system-keys"]
 # SystemKeys: the key in the key store of the operating system (Keychain, Credential Manager, Secret Service). Apps
 # that keep the key themselves – on iOS and Android, through Flutter – leave it out.
 system-keys = ["dep:keyring"]
 # OCR with the models built in, and improving scans; without it, text layers only (aktujo-minimal).
-ocr = ["aktujo-extract/pure", "scan"]
+ocr = ["aktujo-extract/pure", "scan", "dep:aktujo-extract-det", "dep:aktujo-extract-latin"]
 # Improving scans and photos (aktujo-scan).
 scan = ["dep:aktujo-scan", "dep:image"]
 

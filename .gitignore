@@ -1,6 +1,9 @@
 .DS_Store
 /target
 
-# The web app: its packages and its build, which the binary embeds and CI builds.
+# The web app: its packages and its build, which aktujo-web embeds and CI builds.
 /web/node_modules
-/web/dist
+/crates/aktujo-web/web
+
+# Files set aside instead of deleted.
+/_to_delete

@@ -70,9 +70,18 @@ You need Rust (the version in `rust-toolchain.toml` is installed by `rustup` by 
 
 ```sh
 git clone https://github.com/aktujo/aktujo && cd aktujo
-scripts/get-ocr-models.sh            # the OCR models the full build embeds
 (cd web && pnpm install && pnpm build)
 cargo run --release -- serve
 ```
 
-`cargo run --release --no-default-features -- serve` builds `aktujo-minimal` – without the OCR models.
+`cargo run --release --no-default-features -- serve` builds `aktujo-minimal` – without the OCR models. The models
+come as crates from [aktujo/models](https://github.com/aktujo/models), which cargo fetches by itself.
+
+## From crates.io
+
+With Rust 1.99 or newer, the program comes from crates.io as well – with the web app and the OCR models:
+
+```sh
+cargo install aktujo                          # everything
+cargo install aktujo --no-default-features    # without scanning, OCR and object stores, like aktujo-minimal
+```

@@ -18,7 +18,7 @@ workspace.add_label(&space, &added.document, "Flat")?;
 |---|---|
 | `system-keys` (default) | `SystemKeys`: the key in the key store of the operating system; leave it out where the program keeps the key itself (the apps on iOS and Android) |
 | `scan` | improving scans and photos (`aktujo-scan`): turned, cropped, straightened, grey, black and white |
-| `ocr` | OCR in Rust, the models built in: from the folder in `AKTUJO_OCR_MODELS`, or `target/ocr-models` of the workspace (`scripts/get-ocr-models.sh`), checked by their hashes; implies `scan` |
+| `ocr` | OCR in Rust, the models built in: the crates `aktujo-extract-det` and `aktujo-extract-latin` (Apache-2.0, from aktujo/models); implies `scan` |
 
 Without features it reads the text layer of PDFs. Every crate it depends on is under a permissive licence.
 

@@ -5,8 +5,8 @@ nav_order: 3
 
 # Build aktujo into your program
 
-The libraries of aktujo are MIT and on [crates.io](https://crates.io/search?q=aktujo). Take what you need – each crate
-stands on its own above the ones it depends on:
+The libraries of aktujo are MIT and on crates.io. Take what you need – each crate stands on its own above the ones it
+depends on:
 
 | Crate | For |
 |---|---|
@@ -15,11 +15,20 @@ stands on its own above the ones it depends on:
 | [`aktujo-scan`](https://docs.rs/aktujo-scan) | pages of a PDF or an image as pictures: turned, cropped, straightened, grey or black and white, written as an image or a PDF |
 | [`aktujo-rules`](https://docs.rs/aktujo-rules) | the kind and the fields of a document from its text, as suggestions – from kinds as data, plus your own code |
 | [`aktujo-doc`](https://docs.rs/aktujo-doc) | documents as events: versions, kinds as data, fields suggested and confirmed, labels |
+| [`aktujo-core`](https://docs.rs/aktujo-core) | the domain of the archive: its types and rules, no I/O |
 | [`aktujo-sdk`](https://docs.rs/aktujo-sdk) | a whole archive on a device – what the program and the apps use: an encrypted data folder, spaces, documents, reading, search, sync, export ([RFC 0006](rfc/0006-apps-and-sdk.md)) |
 | [`aktujo-base`](https://docs.rs/aktujo-base), [`-log`](https://docs.rs/aktujo-log), [`-crypt`](https://docs.rs/aktujo-crypt), [`-store`](https://docs.rs/aktujo-store), [`-sync`](https://docs.rs/aktujo-sync), [`-relay`](https://docs.rs/aktujo-relay) | the core: an event log with hybrid logical clocks, members and keys, end-to-end encryption, SQLite, sync through a relay |
 
-The program aktujo – its API, web app, terminal interface and command line (AGPL) – is built on the same crates;
-nothing of it is needed to use them. aktujo has no kinds of
+The OCR models are crates of [aktujo/models](https://github.com/aktujo/models) (Apache-2.0):
+[`aktujo-extract-det`](https://docs.rs/aktujo-extract-det) finds where text stands,
+[`aktujo-extract-latin`](https://docs.rs/aktujo-extract-latin) reads Latin script.
+
+The program aktujo – [`aktujo`](https://docs.rs/aktujo), [`aktujo-api`](https://docs.rs/aktujo-api),
+[`aktujo-web`](https://docs.rs/aktujo-web), [`aktujo-tui`](https://docs.rs/aktujo-tui) (AGPL) and the texts of its
+interfaces, [`aktujo-locales`](https://docs.rs/aktujo-locales) (MIT) – is built on the same crates; nothing of it is
+needed to use them.
+
+These are all of aktujo's crates. A crate named `aktujo-…` on crates.io that is not listed here is not aktujo's. aktujo has no kinds of
 documents of its own – your program brings its kinds, as data or as code.
 
 ## Originals by their hash
@@ -68,8 +77,9 @@ for line in &extraction.pages[0].lines {
 ```
 
 - **OCR in Rust:** `Pure::with_models(Models { detection, recognition, dictionary })` with PaddleOCR's PP-OCR models
-  as ONNX (Apache-2.0). The models are data your program brings; `scripts/get-ocr-models.sh` in the repository
-  fetches the ones aktujo is tested with.
+  as ONNX (Apache-2.0). The models are data your program brings; the ones aktujo is tested with are the crates
+  `aktujo-extract-det` and `aktujo-extract-latin`: `Models { detection: aktujo_extract_det::MODEL, recognition:
+  aktujo_extract_latin::MODEL, dictionary: aktujo_extract_latin::DICT }`.
 - **OCR by external programs:** `External::detect()` (feature `external`) uses `pdftotext`, `pdftoppm` and
   Tesseract where they are installed; `Options::languages` and `Options::layout` (Tesseract's page segmentation: `11`
   for sparse text such as the headers of sheet music) apply to it.
