@@ -738,7 +738,7 @@ fn kind_name(kinds: &[Kind], id: &str, language: &str) -> String {
     kinds.iter().find(|k| k.id == id).map_or(id, |k| k.name_in(language)).to_owned()
 }
 
-/// The kinds in a file: a template (`{"kinds": […]}`, as in `aktujo/packs`) or a list of kinds.
+/// The kinds in a file: a template (`{"kinds": […]}`, as in `aktujo/catalog`) or a list of kinds.
 fn kinds_of_file(bytes: &[u8]) -> Result<Vec<Kind>, serde_json::Error> {
     #[derive(serde::Deserialize)]
     #[serde(untagged)]

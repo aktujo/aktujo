@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //! Reads a PDF or an image with `aktujo-extract`'s backend `pure` and prints the kind and the fields the rules of
-//! the kinds in a JSON file suggest – a template of `aktujo/packs` (`{"kinds": […]}`) or a list of kinds.
+//! the kinds in a JSON file suggest – a template of `aktujo/catalog` (`{"kinds": […]}`) or a list of kinds.
 //!   cargo run --release --example recognise -- <kinds.json> <file> [<folder with det.onnx, rec.onnx, dict.txt>]
 
 use aktujo_extract::{Extractor, Models, Options, Pure};

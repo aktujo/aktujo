@@ -14,7 +14,7 @@ any storage, an event log with sync, end-to-end encryption, relay). It runs from
   (`aktujo-doc`, `-extract`, `-rules`) MIT; the program (domain, app, API, TUI, command line, web) AGPL-3.0-or-later.
 - **Pure:** aktujo refers to no other program or protocol and has nothing built in for one trade – no kinds of
   document, no rules, no fields of their own. Kinds and rules are data of a space (`docs/rfc/0005-pure-core.md`);
-  templates live in the repository `aktujo/packs`, specialisations in the programs that build aktujo in.
+  templates live in the repository `aktujo/catalog`, specialisations in the programs that build aktujo in.
 - The architecture is `docs/rfc/0001-architecture.md`; a decision that changes it gets a new document in `docs/rfc/`.
 
 ## Layout

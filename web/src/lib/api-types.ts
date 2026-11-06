@@ -629,7 +629,7 @@ export interface components {
             kind?: string | null;
         };
         /**
-         * @description Kinds to take over – a template, or the kinds of another space. A template file of `aktujo/packs` has the same
+         * @description Kinds to take over – a template, or the kinds of another space. A template file of `aktujo/catalog` has the same
          *     shape; other members of it are left alone.
          */
         KindImport: {

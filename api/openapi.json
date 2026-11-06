@@ -2205,7 +2205,7 @@
       },
       "KindImport": {
         "type": "object",
-        "description": "Kinds to take over – a template, or the kinds of another space. A template file of `aktujo/packs` has the same\nshape; other members of it are left alone.",
+        "description": "Kinds to take over – a template, or the kinds of another space. A template file of `aktujo/catalog` has the same\nshape; other members of it are left alone.",
         "required": [
           "kinds"
         ],

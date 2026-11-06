@@ -146,7 +146,7 @@
   "kinds.add": "Add kind",
   "kinds.import": "Import template …",
   "kinds.export": "Export kinds",
-  "kinds.importHint": "A template is a JSON file of kinds, e.g. from github.com/aktujo/packs or exported from another space. Kinds with the same identity are replaced.",
+  "kinds.importHint": "A template is a JSON file of kinds, e.g. from github.com/aktujo/catalog or exported from another space. Kinds with the same identity are replaced.",
   "kinds.imported": "{n} kinds taken over",
   "kinds.notTemplate": "not a template of kinds",
   "kinds.saved": "Saved",

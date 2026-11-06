@@ -146,7 +146,7 @@
   "kinds.add": "Art anlegen",
   "kinds.import": "Vorlage importieren …",
   "kinds.export": "Arten exportieren",
-  "kinds.importHint": "Eine Vorlage ist eine JSON-Datei mit Arten, z. B. von github.com/aktujo/packs oder aus einem anderen Space exportiert. Arten mit gleicher Kennung werden ersetzt.",
+  "kinds.importHint": "Eine Vorlage ist eine JSON-Datei mit Arten, z. B. von github.com/aktujo/catalog oder aus einem anderen Space exportiert. Arten mit gleicher Kennung werden ersetzt.",
   "kinds.imported": "{n} Arten übernommen",
   "kinds.notTemplate": "keine Vorlage mit Arten",
   "kinds.saved": "Gespeichert",

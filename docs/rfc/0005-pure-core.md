@@ -18,7 +18,7 @@ belongs to one trade, and nothing in it exists for another program or protocol:
   its fields – is **data of a space**, written as events like everything else. A new space has none.
 - **No rules are built in.** `aktujo-rules` is the mechanism only: it reads what the kinds of a space say. The words,
   labels, legal forms and authorities that came with the library before are a template now.
-- **Templates live apart**, in the repository `aktujo/packs`: general cases – the paperwork of a household, a
+- **Templates live apart**, in the repository `aktujo/catalog`: general cases – the paperwork of a household, a
   library, research. Taking one over is one step; it is optional.
 - **A trade's kinds come with its programs**, which build aktujo in and bring their kinds, and code where data is not
   enough (`Recogniser`).
@@ -62,10 +62,15 @@ one over (`Workspace::import_kinds`, the API's `kind-import`, *Import template* 
 checks every kind first and then defines each that is new or different; a kind with the same identity is replaced.
 *Export kinds* writes a space's kinds in the same form.
 
-`aktujo/packs` starts with three general templates – **paperwork** (letter, contract, official notice, invoice,
-receipt, insurance policy, payslip; the rules that came with the library before, in six languages), **library**
-(book) and **research** (research paper). Accounting in depth and sheet music are not general cases; they come with
-the programs of those trades.
+`aktujo/catalog` is the official catalog of templates, built like the catalogs of other falkOSS programs: one folder
+per template, `templates/<author>/<name>/template.json`, a `source.toml`, and a generated `catalog.json` that a
+program reads to browse it; anyone proposes a template by pull request, the aktujo team reviews it, and anyone can run
+a catalog of their own. An identity of a kind is in one template of a catalog only, so that taking over two templates
+never replaces a kind of the one with the other's. It starts with three general templates – **`aktujo/paperwork`**
+(letter, contract, official notice, invoice, receipt, insurance policy, payslip; the rules that came with the library
+before, in six languages), **`aktujo/library`** (book) and **`aktujo/research`** (research paper). Accounting in
+depth and sheet music are not general cases; they come with the programs of those trades. OPEN: browsing a catalog
+from within aktujo; today a template is imported as a file.
 
 ## Interfaces
 

@@ -17,7 +17,7 @@ without I/O; it depends on `aktujo-doc` and `aktujo-extract` (without their back
 ## The mechanism, not the content
 
 aktujo is for any documents, so `aktujo-rules` knows no kinds, words or labels. What speaks for a kind and where its
-fields are is **data of the kind** – defined by the people of a space, taken over from a template of `aktujo/packs`,
+fields are is **data of the kind** – defined by the people of a space, taken over from a template of `aktujo/catalog`,
 or brought by a program that builds aktujo in ([0005](0005-pure-core.md)). Where data is not enough, a program brings
 code:
 
