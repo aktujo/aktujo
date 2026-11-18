@@ -247,4 +247,7 @@ Decided by the maintainer on 2026-11-05.
   trait `Blobs` of `aktujo-blob` gained `remove`, `size` and `get_range`, and `aktujo-sdk` needs them.
   **0.4.0** follows (2026-11-06): the trait `Backend` of `aktujo-store` (PostgreSQL), `Blobs` streamed, the corners of
   a sheet in `Improve` of `aktujo-scan`, the ways `tallest` and `within` in `aktujo-doc` – each breaks a crate.
+  **0.4.1** follows (maintainer, 2026-11-18): SQLite 3.54.1, also in SQLCipher, for RUSTSEC-2026-0459 (`rusqlite`
+  0.42); `aktujo-store` passes `rusqlite` on and `aktujo-relay` its error, so a program with its own `rusqlite` has to
+  take the same version.
 - OPEN: real samples from the maintainer (also open in 0002 and 0003) – needed for "done when".

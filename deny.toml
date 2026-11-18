@@ -34,6 +34,9 @@ allow = [
   "Unlicense",
   "Zlib",
 ]
+# SQLCipher as its own crate since libsqlite3-sys 0.40 (before, it was bundled there under MIT): SQLite's blessing (public
+# domain) and libtomcrypt's WTFPL, both permissive – for this crate only.
+exceptions = [{ crate = "sqlcipher-src", allow = ["blessing", "WTFPL"] }]
 
 [bans]
 multiple-versions = "allow"
