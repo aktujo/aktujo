@@ -17,3 +17,7 @@ accepted when the code follows it. Later decisions may replace earlier ones; not
 | [0004](0004-archive-0.1.md) | Archive 0.1: a person's archive, on their devices | draft |
 | [0005](0005-pure-core.md) | A pure core: kinds and rules as data of a space | draft |
 | [0006](0006-apps-and-sdk.md) | Apps and the SDK: one workspace under MIT, the apps in Flutter | draft |
+| [0007](0007-erasure-and-locks.md) | Erasure and locks: deleting for good, revisions that hold, people who leave | draft |
+| [0008](0008-visibility.md) | Visibility: who sees which document | draft |
+| [0009](0009-streams.md) | Streams: a log per thing, a tree of keys, a server as one more node | draft |
+| [0010](0010-signatures.md) | Signatures: checking, signing, and qualified signatures through those allowed to issue them | draft |
