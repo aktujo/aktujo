@@ -21,3 +21,5 @@ accepted when the code follows it. Later decisions may replace earlier ones; not
 | [0008](0008-visibility.md) | Visibility: who sees which document | draft |
 | [0009](0009-streams.md) | Streams: a log per thing, a tree of keys, a server as one more node | draft |
 | [0010](0010-signatures.md) | Signatures: checking, signing, and qualified signatures through those allowed to issue them | draft |
+| [0011](0011-servers-and-accounts.md) | Servers and accounts: organisations, sign-in, and a server that acts for people | draft |
+| [0012](0012-on-kernoid.md) | On kernoid: the core becomes kernoid's foundation, aktujo keeps the documents | draft |
